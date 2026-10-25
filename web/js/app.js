@@ -156,8 +156,12 @@
     el.aiDraftModal = document.getElementById('aiDraftModal');
     el.aiDraftForm = document.getElementById('aiDraftForm');
     el.draftRepo = document.getElementById('draftRepo');
-    el.draftFileName = document.getElementById('draftFileName');
     el.draftPrompt = document.getElementById('draftPrompt');
+    el.draftTargetFile = document.getElementById('draftTargetFile');
+    el.draftTaskType = document.getElementById('draftTaskType');
+    el.draftDocContextGroup = document.getElementById('draftDocContextGroup');
+    el.draftDocContextPath = document.getElementById('draftDocContextPath');
+    el.clearDraftContextBtn = document.getElementById('clearDraftContextBtn');
 
     // 事件绑定
     el.themeBtn.addEventListener('click', toggleTheme);
@@ -268,9 +272,30 @@
     }
 
     el.aiTaskBtn.addEventListener('click', openTaskCenter);
-    el.aiDraftBtn.addEventListener('click', () => openDraftModal());
+    el.aiDraftBtn.addEventListener('click', () => {
+      openAiTaskModal({ doc: state.currentDoc, defaultAction: 'new' });
+    });
     el.aiDraftForm.addEventListener('submit', handleDraftSubmit);
     el.refreshTasksBtn.addEventListener('click', loadTasks);
+
+    // AI 任务操作类型切换
+    document.querySelectorAll('.task-action-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        setTaskActionType(tab.getAttribute('data-action'));
+      });
+    });
+
+    if (el.clearDraftContextBtn) {
+      el.clearDraftContextBtn.addEventListener('click', clearContextDoc);
+    }
+
+    if (el.draftRepo) {
+      el.draftRepo.addEventListener('change', () => {
+        if (state.draftContextDoc && state.draftContextDoc.repo_id !== el.draftRepo.value) {
+          clearContextDoc();
+        }
+      });
+    }
 
     // 手机端任务终端 Tab 切换
     document.querySelectorAll('.terminal-tab').forEach(tab => {

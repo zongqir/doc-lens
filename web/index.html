@@ -372,7 +372,7 @@
     </div>
   </div>
 
-  <!-- AI 创作任务模态框 -->
+  <!-- AI 知识库任务派发模态框 -->
   <div class="modal-overlay" id="aiDraftModal">
     <div class="modal-card modal-draft-card">
       <div class="modal-header">
@@ -380,15 +380,17 @@
           <div class="sparkle-icon-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           </div>
-          <span id="draftModalTitle">派发 AI 创作 / 研报</span>
+          <span id="draftModalTitle">AI 任务派发</span>
         </span>
         <button class="btn btn-icon-only close-modal-btn">✕</button>
       </div>
       <form id="aiDraftForm">
-        <input type="hidden" id="draftTaskType" value="draft">
+        <input type="hidden" id="draftTargetFile" value="">
+        <input type="hidden" id="draftTaskType" value="new">
         <div class="modal-body draft-form-body">
+          <!-- 第一步：目标领域 / 知识库 (自动定位工作目录) -->
           <div class="form-group">
-            <label class="form-label">写入目标知识库</label>
+            <label class="form-label">目标领域 / 知识库</label>
             <div class="repo-selector-wrapper">
               <select class="custom-select" id="draftRepo"></select>
               <div class="select-chevron">
@@ -396,24 +398,46 @@
               </div>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">目标存储相对路径与文件名</label>
-            <input type="text" class="text-input" id="draftFileName" placeholder="例如：2026-10-25-架构演进.md (留空自主命名)">
+
+          <!-- 第三步：当前关联参考文章（如果在读某篇文章） -->
+          <div class="form-group" id="draftDocContextGroup" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <label class="form-label" style="margin-bottom:0;">关联当前文档</label>
+              <button type="button" class="btn-clear-context" id="clearDraftContextBtn" title="解除关联，作为全局任务">✕ 解除关联</button>
+            </div>
+            <div class="draft-doc-context-pill">
+              <span class="draft-doc-icon">📄</span>
+              <span class="draft-doc-path" id="draftDocContextPath"></span>
+            </div>
           </div>
+
+          <!-- 第四步：操作类型 (新建 / 补充 / 修改 / 解剖) -->
           <div class="form-group">
-            <label class="form-label">研究指令 / 课题约束</label>
-            <textarea class="text-input textarea-input" id="draftPrompt" rows="5" placeholder="请详述研报核心命题、论证边界、技术/商业框架或约束规则..." required></textarea>
+            <label class="form-label">操作类型</label>
+            <div class="task-action-tabs" id="taskActionTabs">
+              <button type="button" class="task-action-tab active" data-action="new">📄 新增文档</button>
+              <button type="button" class="task-action-tab" data-action="append">📝 补充完善</button>
+              <button type="button" class="task-action-tab" data-action="modify">✏️ 修改重构</button>
+              <button type="button" class="task-action-tab" data-action="explain">🔍 深度解剖</button>
+            </div>
           </div>
+
+          <!-- 第五步：具体要求与补充说明 -->
+          <div class="form-group">
+            <label class="form-label" id="draftPromptLabel">需求与具体要求</label>
+            <textarea class="text-input textarea-input" id="draftPrompt" rows="5" placeholder="请输入具体要求或问题（例如：结合朝韩历史与粮食账本，深入剖析平壤政权韧性的核心支柱与生存实相...）" required></textarea>
+          </div>
+
           <div class="callout-tip">
             <div class="callout-icon">💡</div>
             <div class="callout-text">
-              提交后由后台独立派生执行，手机关闭网页后后台持续完成并落盘。
+              自动在所选领域根目录下执行，并严格遵循本仓库 <code>AGENTS.md</code> 规范。任务完成后可直接点击跳转阅读。
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn close-modal-btn">取消</button>
-          <button type="submit" class="btn btn-primary" id="submitDraftBtn">提交后台运行</button>
+          <button type="submit" class="btn btn-primary" id="submitDraftBtn">🚀 提交后台运行</button>
         </div>
       </form>
     </div>

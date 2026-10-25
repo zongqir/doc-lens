@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -16,12 +17,13 @@ import (
 
 type Task struct {
 	ID         string    `json:"id"`
-	Type       string    `json:"type"`       // "draft" (生成新文章) | "explain" (解释文章)
+	Type       string    `json:"type"`       // "new" | "draft" | "append" | "modify" | "explain"
 	Status     string    `json:"status"`     // "queued" | "running" | "completed" | "failed"
 	Prompt     string    `json:"prompt"`     // 持久化存储的前 500 字符摘要
 	RepoID     string    `json:"repo_id"`
 	RepoName   string    `json:"repo_name"`
-	TargetFile string    `json:"target_file"` // 生成的新文件路径或正在解释的目标路径
+	TargetFile string    `json:"target_file"` // 关联的参考/修改文档路径（相对路径）
+	OutputFile string    `json:"output_file"` // 最终生成或修改后的前端直达路由
 	CreatedAt  time.Time `json:"created_at"`
 	StartedAt  time.Time `json:"started_at,omitempty"`
 	EndedAt    time.Time `json:"ended_at,omitempty"`
@@ -80,6 +82,19 @@ func (tm *TaskManager) loadTasks() {
 			if rPrompt := []rune(t.Prompt); len(rPrompt) > 500 {
 				t.Prompt = string(rPrompt[:500]) + "..."
 			}
+			// 自动回填已完成任务的 OutputFile，保障历史任务即刻可跳转
+			if t.Status == "completed" && t.OutputFile == "" && tm.rm != nil && t.RepoID != "" {
+				if repo, err := tm.rm.GetRepoByID(t.RepoID); err == nil {
+					out := tm.detectOutputFile(repo, t, t.StartedAt)
+					if out != "" {
+						cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
+						t.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(out, "/")
+						if t.TargetFile == "" {
+							t.TargetFile = out
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -110,19 +125,23 @@ func (tm *TaskManager) SubmitTask(taskType, repoID, targetFile, prompt string) (
 	}
 
 	// 安全校验：校验 TargetFile 防止路径穿越与非法探测
-	if strings.TrimSpace(targetFile) != "" {
-		cleanTarget, err := tm.rm.SafeResolve(repo, targetFile)
+	cleanTarget := strings.TrimSpace(targetFile)
+	if cleanTarget != "" {
+		resolvedTarget, err := tm.rm.SafeResolve(repo, cleanTarget)
 		if err != nil {
 			return nil, fmt.Errorf("invalid target file path: %w", err)
 		}
-		if taskType == "explain" {
-			fInfo, err := os.Stat(cleanTarget)
+		if taskType == "explain" || taskType == "append" || taskType == "modify" {
+			fInfo, err := os.Stat(resolvedTarget)
 			if err != nil {
 				return nil, fmt.Errorf("target file does not exist: %w", err)
 			}
 			if fInfo.IsDir() {
 				return nil, errors.New("target file cannot be a directory")
 			}
+		}
+		if rel, err := filepath.Rel(repo.Path, resolvedTarget); err == nil {
+			cleanTarget = filepath.ToSlash(rel)
 		}
 	}
 
@@ -143,7 +162,7 @@ func (tm *TaskManager) SubmitTask(taskType, repoID, targetFile, prompt string) (
 		Prompt:     promptSummary,
 		RepoID:     repoID,
 		RepoName:   repo.Name,
-		TargetFile: targetFile,
+		TargetFile: cleanTarget,
 		CreatedAt:  time.Now(),
 		LogFile:    logFile,
 		rawPrompt:  prompt,
@@ -231,16 +250,27 @@ func (tm *TaskManager) executeTask(task *Task) {
 	var execArgs []string
 	var fullPrompt string
 
-	if task.Type == "draft" {
-		targetFileHint := "遵循命名规范 YYYY-MM-DD-主题.md（纯中文与连字符命名），并存入合适的子目录（如专题/）。"
-		if strings.TrimSpace(task.TargetFile) != "" {
-			targetFileHint = fmt.Sprintf("建议存入文件路径：%s。", strings.TrimSpace(task.TargetFile))
+	cleanTarget := strings.TrimSpace(task.TargetFile)
+	cleanTarget = strings.TrimPrefix(cleanTarget, "/")
+
+	switch task.Type {
+	case "append":
+		fullPrompt = fmt.Sprintf("任务：针对当前正在阅读的文档 '%s' 进行补充与深化。用户具体要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范（包含文风去AI化、利益账本与结构规范等），将补充内容自然融合或追加到该文档中。完成后在控制台输出更新后的文件绝对路径（格式：file://%s/%s）。",
+			cleanTarget, execPrompt, repo.Path, cleanTarget)
+	case "modify":
+		fullPrompt = fmt.Sprintf("任务：针对当前正在阅读的文档 '%s' 进行修改与重构。用户具体要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范，对该文档对应内容进行精准修改。完成后在控制台输出修改后的文件绝对路径（格式：file://%s/%s）。",
+			cleanTarget, execPrompt, repo.Path, cleanTarget)
+	case "explain":
+		fullPrompt = fmt.Sprintf("任务：请对文档 '%s' 进行深度逻辑解剖与透视分析。针对用户关注的问题：%s。要求：严格遵循本仓库 AGENTS.md 规范，指出核心矛盾、客观利益账本、潜在盲点与要点总结，使用结构化 Markdown 呈现并归档到合适位置。",
+			cleanTarget, execPrompt)
+	default: // "new" 或 "draft"
+		if cleanTarget != "" {
+			fullPrompt = fmt.Sprintf("任务：基于参考文档 '%s' 及用户要求，在目录 %s 下撰写并归档一篇 Markdown 文档。用户具体要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范，由你根据本领域知识矩阵与分类规范，自行决策存入最合适的子目录并确定文件名与结构。完成后在控制台输出生成的文件绝对路径（格式：file://...）。",
+				cleanTarget, repo.Path, execPrompt)
+		} else {
+			fullPrompt = fmt.Sprintf("任务：根据用户要求在目录 %s 下研究并输出整理为 Markdown 文档。用户具体要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范，由你根据本领域知识矩阵与分类规范，自行决策存入最合适的子目录并确定文件名与结构。完成后在控制台输出生成的文件绝对路径（格式：file://...）。",
+				repo.Path, execPrompt)
 		}
-		fullPrompt = fmt.Sprintf("任务：根据用户要求在目录 %s 下生成一篇深度、专业、格式严密的 Markdown 文档。文件名要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范，采取唯物现实主义与去道德化客观视角，包含多级标题目录结构、必要时使用 Mermaid 图表展示架构与流程、严禁敷衍。用户需求：%s",
-			repo.Path, targetFileHint, execPrompt)
-	} else {
-		fullPrompt = fmt.Sprintf("任务：请对文件 %s 进行深度逻辑解剖与透视分析。针对用户关注的问题：%s。要求：指出核心矛盾、客观利益账本、潜在盲点与要点总结，使用结构化 Markdown 呈现。",
-			task.TargetFile, execPrompt)
 	}
 
 	execArgs = []string{"-p", fullPrompt}
@@ -286,9 +316,93 @@ func (tm *TaskManager) executeTask(task *Task) {
 		if tm.rm != nil && task.RepoID != "" {
 			tm.rm.InvalidateCache(task.RepoID)
 		}
+
+		// 解析与探测生成或修改的文件路径，赋予 task.OutputFile
+		outputRelPath := tm.detectOutputFile(repo, task, task.StartedAt)
+		if outputRelPath != "" {
+			cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
+			task.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(outputRelPath, "/")
+			if task.TargetFile == "" {
+				task.TargetFile = outputRelPath
+			}
+			_, _ = logF.WriteString(fmt.Sprintf("[doc-lens] Target document detected: %s (Route: %s)\n", outputRelPath, task.OutputFile))
+		}
 	}
 
 	tm.saveTasks()
+}
+
+// detectOutputFile 自动探测任务生成或修改的 Markdown 文档相对路径
+func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime time.Time) string {
+	// 1. 如果是追加/修改模式且指定了存在的 TargetFile，直接使用 TargetFile
+	if (task.Type == "append" || task.Type == "modify") && strings.TrimSpace(task.TargetFile) != "" {
+		clean := strings.Trim(task.TargetFile, "/")
+		full := filepath.Join(repo.Path, clean)
+		if fInfo, err := os.Stat(full); err == nil && !fInfo.IsDir() {
+			return filepath.ToSlash(clean)
+		}
+	}
+
+	// 2. 遍历仓库根目录，寻找在任务开始后（留出 10 秒缓冲）被新创建或修改的 markdown 文件
+	var newestFile string
+	var newestMod time.Time
+	searchThreshold := startTime.Add(-10 * time.Second)
+
+	_ = filepath.WalkDir(repo.Path, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "logs" || name == "bin" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(name))
+		if ext == ".md" || ext == ".markdown" || ext == ".html" {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
+			mod := info.ModTime()
+			if mod.After(searchThreshold) {
+				if newestFile == "" || mod.After(newestMod) {
+					newestFile = path
+					newestMod = mod
+				}
+			}
+		}
+		return nil
+	})
+
+	if newestFile != "" {
+		if rel, err := filepath.Rel(repo.Path, newestFile); err == nil {
+			return filepath.ToSlash(rel)
+		}
+	}
+
+	// 3. 从任务日志中匹配文件绝对路径或相对路径
+	if task.LogFile != "" {
+		if data, err := os.ReadFile(task.LogFile); err == nil {
+			content := string(data)
+			re := regexp.MustCompile(`(?:file://)?` + regexp.QuoteMeta(repo.Path) + `/([^\s\)\"\'>]+?\.(?:md|markdown|html))`)
+			matches := re.FindAllStringSubmatch(content, -1)
+			for i := len(matches) - 1; i >= 0; i-- {
+				candidate := filepath.Join(repo.Path, matches[i][1])
+				if fInfo, err := os.Stat(candidate); err == nil && !fInfo.IsDir() {
+					return filepath.ToSlash(matches[i][1])
+				}
+			}
+		}
+	}
+
+	// 4. Fallback: 如果 task.TargetFile 不为空，尝试使用它
+	if strings.TrimSpace(task.TargetFile) != "" {
+		return strings.Trim(task.TargetFile, "/")
+	}
+
+	return ""
 }
 
 func (tm *TaskManager) ListTasks(limit int) []*Task {
