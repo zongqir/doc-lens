@@ -5482,11 +5482,56 @@
 
   // ==========================================================================
   // Mermaid 宽容渲染与语法自愈器 (Fault-Tolerant & Self-Healing Pipeline)
-  // 解决 LLM 或手写图表中节点未加引号包含括号/特殊字符导致语法崩溃等常见痛点
+  // 解决 LLM 或手写图表中节点/subgraph 未加引号包含冒号/括号/特殊字符导致语法崩溃等常见痛点
   // ==========================================================================
+  function healSubgraphLine(line) {
+    const match = line.match(/^(\s*subgraph)([\s:].*)$/i);
+    if (!match) return line;
+
+    const indent = line.match(/^\s*/)[0];
+    let rest = match[2];
+
+    // 清除 subgraph 后面误写的半角/全角冒号与前导空格，如 "subgraph: 架构" -> " 架构"
+    rest = rest.replace(/^[\s:：]+/, ' ').trim();
+    if (!rest) return line;
+
+    // 1. 如果已经用双引号或单引号完整包裹，如 subgraph "..."
+    if ((rest.startsWith('"') && rest.endsWith('"')) || (rest.startsWith("'") && rest.endsWith("'"))) {
+      return `${indent}subgraph ${rest}`;
+    }
+
+    // 2. 检查是否为带 ID 和方括号的形式: subgraph id [title] 或 subgraph id[title]
+    const idBracketMatch = rest.match(/^([a-zA-Z0-9_-]+)\s*\[([\s\S]*)\]$/);
+    if (idBracketMatch) {
+      const id = idBracketMatch[1];
+      let title = idBracketMatch[2].trim();
+      if ((title.startsWith('"') && title.endsWith('"')) || (title.startsWith("'") && title.endsWith("'"))) {
+        return `${indent}subgraph ${id} [${title}]`;
+      }
+      const safeTitle = title.replace(/"/g, '#quot;');
+      return `${indent}subgraph ${id} ["${safeTitle}"]`;
+    }
+
+    // 3. 检查是否为单一纯英文数字下划线 ID，如 subgraph cluster1
+    if (/^[a-zA-Z0-9_-]+$/.test(rest)) {
+      return `${indent}subgraph ${rest}`;
+    }
+
+    // 4. 其他情况（包括直接写中文标题、含冒号、空格、括号、特殊字符等）：
+    // 清除末尾冗余的冒号
+    rest = rest.replace(/[:：\s]+$/, '');
+    const safeTitle = rest.replace(/"/g, '#quot;');
+    return `${indent}subgraph "${safeTitle}"`;
+  }
+
   function healMermaidLineOnePass(line) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('%%')) return line;
+
+    // 0. subgraph 语句特殊容错治理（避免包含冒号、括号、特殊字符时导致 Jison 词法报错）
+    if (/^\s*subgraph\b/i.test(line)) {
+      return healSubgraphLine(line);
+    }
 
     // 复合与单括号形状定义（按开启符长度降序，先匹配复合再匹配单字符）
     const shapes = [
@@ -5646,6 +5691,14 @@
           healed = 'flowchart TD\n' + healed;
         }
       }
+    }
+
+    // 4. 补全缺失的 subgraph 闭合关键字 end
+    const subgraphCount = (healed.match(/^\s*subgraph\b/gmi) || []).length;
+    const endCount = (healed.match(/^\s*end\b/gmi) || []).length;
+    if (subgraphCount > endCount) {
+      const diff = subgraphCount - endCount;
+      healed = healed + '\n' + Array(diff).fill('end').join('\n');
     }
 
     return healed;
