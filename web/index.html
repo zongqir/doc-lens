@@ -626,6 +626,51 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=20261025_2017"></script>
+  <!-- 章节与大结构增量透视模态框 (纯机械确定性算法，无AI噪音) -->
+  <div class="modal-overlay" id="incrementalDiffModal">
+    <div class="modal-card modal-diff-card">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 14 14"></polyline>
+          </svg>
+          <span>章节与结构增量透视</span>
+          <span class="diff-header-badge">纯机械比对 · 0 噪音</span>
+        </div>
+        <button type="button" class="btn btn-icon-only close-modal-btn" aria-label="关闭增量透视">✕</button>
+      </div>
+
+      <!-- 版本选择与对比切换栏 -->
+      <div class="diff-modal-toolbar">
+        <div class="diff-version-select-wrap">
+          <span class="diff-toolbar-label">对比版本:</span>
+          <select id="diffCommitSelect" class="diff-commit-select" title="选择要比对的历史提交版本">
+            <!-- 动态填充 commits -->
+          </select>
+        </div>
+        <div class="diff-toolbar-meta" id="diffCommitMeta">
+          <!-- 动态显示提交时间、提交说明与作者 -->
+        </div>
+      </div>
+
+      <!-- 宏观增量摘要与定性看板 (无套话，纯数据) -->
+      <div class="diff-summary-banner" id="diffSummaryBanner">
+        <div class="diff-summary-loading">正在提取结构性大块增量...</div>
+      </div>
+
+      <!-- 结构性大块变动清单 (卡片式) -->
+      <div class="diff-modal-body" id="diffSectionsList">
+        <!-- 动态渲染新增章节、新增流程图、新增对比表等 -->
+      </div>
+
+      <div class="diff-modal-footer">
+        <div class="diff-footer-tip">💡 提示：点击任意增量卡片即可秒级关闭弹窗并平滑定位至正文该章节</div>
+        <button type="button" class="btn btn-sm close-modal-btn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=20261025_2022"></script>
 </body>
 </html>

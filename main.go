@@ -86,6 +86,8 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/recent", a.requireAuth(a.handleRecent))
 	mux.HandleFunc("/api/content", a.requireAuth(a.handleContent))
 	mux.HandleFunc("/api/search", a.requireAuth(a.handleSearch))
+	mux.HandleFunc("/api/doc/history", a.requireAuth(a.handleDocHistory))
+	mux.HandleFunc("/api/doc/diff", a.requireAuth(a.handleDocIncrementalDiff))
 
 	// 3. AI 异步任务 API (需要认证)
 	mux.HandleFunc("/api/tasks", a.requireAuth(a.handleTasks))

@@ -2518,6 +2518,14 @@
         </svg>
         <span class="btn-text-full">思维导图</span>
         <span class="btn-text-short">导图</span>
+      </button>
+      <button class="btn btn-history-diff" id="docHistoryDiffBtn" title="查看章节与大结构增量 (纯机械比对，无AI噪音)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 14 14"></polyline>
+        </svg>
+        <span class="btn-text-full">章节增量</span>
+        <span class="btn-text-short">增量</span>
       </button>` : ''}
       <button class="btn ${fav ? 'btn-favorite-active' : ''}" id="favoriteBtn" title="${fav ? '取消收藏' : '收藏此文档'}">
         ${fav ? SVG_ICONS.starFilled : SVG_ICONS.star}
@@ -2541,6 +2549,12 @@
       if (mindmapBtn) {
         mindmapBtn.addEventListener('click', () => {
           openDocMindmap(doc);
+        });
+      }
+      const diffBtn = document.getElementById('docHistoryDiffBtn');
+      if (diffBtn) {
+        diffBtn.addEventListener('click', () => {
+          openIncrementalDiffModal(doc);
         });
       }
     }
@@ -3890,6 +3904,204 @@
         color: (node) => colors[(node.state?.depth || 0) % colors.length]
       });
       currentMarkmapInstance.renderData();
+    }
+  }
+
+  // =========================================================================
+  // 章节与大结构增量透视模块 (纯机械规则比对，无AI噪音)
+  // =========================================================================
+  async function openIncrementalDiffModal(doc) {
+    if (!doc) return;
+    const modal = document.getElementById('incrementalDiffModal');
+    if (!modal) return;
+
+    const commitSelect = document.getElementById('diffCommitSelect');
+    const commitMeta = document.getElementById('diffCommitMeta');
+    const summaryBanner = document.getElementById('diffSummaryBanner');
+    const sectionsList = document.getElementById('diffSectionsList');
+
+    openModal(modal);
+
+    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在读取 Git 版本时间线与增量结构...</div>';
+    sectionsList.innerHTML = '<div class="diff-empty-state">正在通过纯机械算法比对大块增量...</div>';
+    commitSelect.innerHTML = '<option value="">正在读取提交历史...</option>';
+    if (commitMeta) commitMeta.textContent = '';
+
+    const repoID = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+
+    try {
+      const res = await fetch(`/api/doc/history?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(doc.path)}`);
+      if (!res.ok) throw new Error('读取版本记录失败');
+      const commits = await res.json();
+
+      if (!commits || commits.length === 0) {
+        summaryBanner.innerHTML = '<div>该文档暂无 Git 提交历史记录（可能是新建未纳入版本控制的文件）</div>';
+        sectionsList.innerHTML = '<div class="diff-empty-state">暂无可比对的历史 Commit</div>';
+        commitSelect.innerHTML = '<option value="">暂无历史版本</option>';
+        return;
+      }
+
+      commitSelect.innerHTML = '';
+      commits.forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c.hash;
+        const tag = c.hash === 'WORKING_TREE' ? '⚡ ' : '';
+        opt.textContent = `${tag}${c.short_hash} - ${c.message} (${c.date})`;
+        commitSelect.appendChild(opt);
+      });
+
+      // 绑定版本切换事件
+      commitSelect.onchange = () => {
+        const selectedHash = commitSelect.value;
+        const selectedCommit = commits.find(c => c.hash === selectedHash);
+        if (selectedCommit && commitMeta) {
+          commitMeta.textContent = `作者: ${selectedCommit.author} · ${selectedCommit.date}`;
+        }
+        loadIncrementalDiff(doc, repoID, selectedHash);
+      };
+
+      if (commitMeta && commits[0]) {
+        commitMeta.textContent = `作者: ${commits[0].author} · ${commits[0].date}`;
+      }
+
+      // 默认加载最新版本的增量
+      loadIncrementalDiff(doc, repoID, commits[0].hash);
+    } catch (e) {
+      summaryBanner.innerHTML = `<div style="color:#ef4444;">获取版本信息失败: ${escapeHtml(e.message)}</div>`;
+      sectionsList.innerHTML = '';
+    }
+  }
+
+  async function loadIncrementalDiff(doc, repoID, commitHash) {
+    const summaryBanner = document.getElementById('diffSummaryBanner');
+    const sectionsList = document.getElementById('diffSectionsList');
+    if (!summaryBanner || !sectionsList) return;
+
+    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在纯算法提取增量结构...</div>';
+    sectionsList.innerHTML = '<div class="diff-empty-state">正在提取章节、流程图与数据表格...</div>';
+
+    try {
+      const res = await fetch(`/api/doc/diff?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(doc.path)}&commit=${encodeURIComponent(commitHash)}`);
+      if (!res.ok) throw new Error('提取增量失败');
+      const data = await res.json();
+
+      // 1. 渲染总结 Banner (客观事实与数据，无AI套话)
+      summaryBanner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span>📊</span>
+          <span>${escapeHtml(data.summary || '比对完成')}</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);white-space:nowrap;">
+          <span style="color:#10b981;font-weight:600;">+${data.stats ? data.stats.added_lines : 0}</span> / 
+          <span style="color:#ef4444;font-weight:600;">-${data.stats ? data.stats.removed_lines : 0}</span> 行
+        </div>
+      `;
+
+      // 2. 渲染增量大块列表
+      if (!data.sections || data.sections.length === 0) {
+        sectionsList.innerHTML = `
+          <div class="diff-empty-state">
+            <div style="font-size:16px;margin-bottom:6px;">👌 未检测到大章节或结构新增</div>
+            <div style="color:var(--text-muted);font-size:12.5px;">本次变更未新增核心标题（#、##）、Mermaid流程图或表格；可能仅包含微观语句润色或标点微调，已自动过滤降噪。</div>
+          </div>
+        `;
+        return;
+      }
+
+      sectionsList.innerHTML = '';
+      data.sections.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'diff-section-card';
+
+        let badgeHtml = '';
+        switch (s.type) {
+          case 'add_heading':
+            badgeHtml = `<span class="diff-type-badge badge-add-heading">📌 新增章节 (H${s.level || 2})</span>`;
+            break;
+          case 'del_heading':
+            badgeHtml = `<span class="diff-type-badge badge-del-heading">🗑️ 移除章节 (H${s.level || 2})</span>`;
+            break;
+          case 'add_diagram':
+            badgeHtml = `<span class="diff-type-badge badge-add-diagram">📊 新增推演流程图</span>`;
+            break;
+          case 'add_table':
+            badgeHtml = `<span class="diff-type-badge badge-add-table">📋 新增客观账本对比表</span>`;
+            break;
+          case 'add_block':
+            badgeHtml = `<span class="diff-type-badge badge-add-block">📝 新增分析推演大段</span>`;
+            break;
+          default:
+            badgeHtml = `<span class="diff-type-badge badge-add-block">结构增量</span>`;
+        }
+
+        const canJump = s.type === 'add_heading' || s.type === 'add_diagram' || s.type === 'add_table';
+
+        card.innerHTML = `
+          <div class="diff-section-header">
+            ${badgeHtml}
+            ${canJump ? `<button type="button" class="diff-jump-btn">定位正文 ➔</button>` : ''}
+          </div>
+          <div class="diff-section-title">${escapeHtml(s.title)}</div>
+          ${s.snippet ? `<div class="diff-section-snippet">${escapeHtml(s.snippet)}</div>` : ''}
+        `;
+
+        if (canJump) {
+          card.addEventListener('click', () => {
+            closeModal(document.getElementById('incrementalDiffModal'));
+            scrollToSectionInDoc(s);
+          });
+        }
+
+        sectionsList.appendChild(card);
+      });
+    } catch (e) {
+      summaryBanner.innerHTML = `<div style="color:#ef4444;">计算增量失败: ${escapeHtml(e.message)}</div>`;
+      sectionsList.innerHTML = '';
+    }
+  }
+
+  function scrollToSectionInDoc(section) {
+    if (!el.articleBody) return;
+
+    if (section.type === 'add_heading') {
+      const headings = el.articleBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      const targetText = (section.title || '').trim().toLowerCase();
+      let matched = null;
+
+      for (const h of headings) {
+        const text = h.textContent.trim().toLowerCase();
+        if (text === targetText || text.includes(targetText) || targetText.includes(text)) {
+          matched = h;
+          break;
+        }
+      }
+
+      if (matched) {
+        matched.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        matched.classList.add('diff-target-highlight');
+        setTimeout(() => matched.classList.remove('diff-target-highlight'), 2500);
+        return;
+      }
+    }
+
+    if (section.type === 'add_diagram') {
+      const diagrams = el.articleBody.querySelectorAll('.mermaid, .mermaid-wrapper');
+      if (diagrams.length > 0) {
+        diagrams[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        diagrams[0].classList.add('diff-target-highlight');
+        setTimeout(() => diagrams[0].classList.remove('diff-target-highlight'), 2500);
+        return;
+      }
+    }
+
+    if (section.type === 'add_table') {
+      const tables = el.articleBody.querySelectorAll('table');
+      if (tables.length > 0) {
+        tables[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        tables[0].classList.add('diff-target-highlight');
+        setTimeout(() => tables[0].classList.remove('diff-target-highlight'), 2500);
+        return;
+      }
     }
   }
 
