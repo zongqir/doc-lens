@@ -165,15 +165,15 @@
 
     // 事件绑定
     if (el.themeBtn) el.themeBtn.addEventListener('click', toggleTheme);
-    el.menuBtn.addEventListener('click', toggleMobileSidebar);
-    el.sidebarOverlay.addEventListener('click', closeMobileSidebar);
+    if (el.menuBtn) el.menuBtn.addEventListener('click', toggleMobileSidebar);
+    if (el.sidebarOverlay) el.sidebarOverlay.addEventListener('click', closeMobileSidebar);
     if (el.closeSidebarBtn) el.closeSidebarBtn.addEventListener('click', closeMobileSidebar);
 
-    el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
-    el.loginForm.addEventListener('submit', handleLoginSubmit);
-    el.repoSelect.addEventListener('change', (e) => selectRepo(e.target.value));
-    el.searchInput.addEventListener('input', onSearchInput);
-    el.clearSearchBtn.addEventListener('click', clearSearch);
+    if (el.fabTocBtn) el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
+    if (el.loginForm) el.loginForm.addEventListener('submit', handleLoginSubmit);
+    if (el.repoSelect) el.repoSelect.addEventListener('change', (e) => selectRepo(e.target.value));
+    if (el.searchInput) el.searchInput.addEventListener('input', onSearchInput);
+    if (el.clearSearchBtn) el.clearSearchBtn.addEventListener('click', clearSearch);
     if (el.quickSearchBtn) {
       el.quickSearchBtn.addEventListener('click', () => {
         el.searchInput.focus();
@@ -271,12 +271,14 @@
       }, { passive: true });
     }
 
-    el.aiTaskBtn.addEventListener('click', openTaskCenter);
-    el.aiDraftBtn.addEventListener('click', () => {
-      openAiTaskModal({ doc: state.currentDoc, defaultAction: 'new' });
-    });
-    el.aiDraftForm.addEventListener('submit', handleDraftSubmit);
-    el.refreshTasksBtn.addEventListener('click', loadTasks);
+    if (el.aiTaskBtn) el.aiTaskBtn.addEventListener('click', openTaskCenter);
+    if (el.aiDraftBtn) {
+      el.aiDraftBtn.addEventListener('click', () => {
+        openAiTaskModal({ doc: state.currentDoc, defaultAction: 'new' });
+      });
+    }
+    if (el.aiDraftForm) el.aiDraftForm.addEventListener('submit', handleDraftSubmit);
+    if (el.refreshTasksBtn) el.refreshTasksBtn.addEventListener('click', loadTasks);
 
     // AI 任务操作类型切换
     document.querySelectorAll('.task-action-tab').forEach(tab => {

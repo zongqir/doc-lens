@@ -104,6 +104,8 @@ func (a *App) routes() http.Handler {
 		if strings.HasPrefix(path, "/js/") || strings.HasPrefix(path, "/css/") || strings.HasPrefix(path, "/fonts/") || strings.HasPrefix(path, "/assets/") || strings.HasSuffix(path, ".ico") || strings.HasSuffix(path, ".svg") || strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".woff2") || strings.HasSuffix(path, ".woff") {
 			if strings.HasSuffix(path, ".woff2") || strings.HasSuffix(path, ".woff") || strings.Contains(path, "mermaid.min.js") || strings.Contains(path, "markdown-it.min.js") || strings.Contains(path, "prism.min.") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else if strings.HasSuffix(path, "/app.js") || strings.HasSuffix(path, "/style.css") {
+				w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 			} else if r.URL.RawQuery != "" {
 				w.Header().Set("Cache-Control", "public, max-age=604800")
 			} else {
@@ -119,6 +121,8 @@ func (a *App) routes() http.Handler {
 			f.Close()
 			if strings.Contains(path, "mermaid.min.js") || strings.Contains(path, "markdown-it.min.js") || strings.Contains(path, "prism.min.") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else if strings.HasSuffix(path, "/app.js") || strings.HasSuffix(path, "/style.css") {
+				w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 			} else if r.URL.RawQuery != "" {
 				w.Header().Set("Cache-Control", "public, max-age=604800")
 			} else {

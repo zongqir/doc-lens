@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2.4.3">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=2.4.3">
   <link rel="apple-touch-icon" href="/favicon.svg?v=2.4.3">
-  <link rel="stylesheet" href="/css/style.css?v=2.6.6">
+  <link rel="stylesheet" href="/css/style.css?v=2.7.0">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js"></script>
@@ -45,9 +45,14 @@
       </div>
 
       <!-- 统一外观偏好 (主题 + 字体 + 字号) -->
+      <!-- 兼容旧脚本的隐形 dummy 按钮，防止旧版缓存脚本抛出 TypeError -->
+      <button id="themeBtn" style="display:none;" aria-hidden="true" tabindex="-1"></button>
+
       <div class="font-dropdown-container">
-        <button class="btn btn-icon-only font-toggle-btn" id="fontSettingBtn" aria-label="主题与阅读排版" title="主题与排版设置">
-          <span id="themeIcon" style="display:inline-flex;align-items:center;justify-content:center;"></span>
+        <button class="btn btn-icon-only font-toggle-btn" id="fontSettingBtn" aria-label="主题与阅读排版" title="外观与排版设置">
+          <span id="themeIcon" style="display:inline-flex;align-items:center;justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </span>
         </button>
         <div class="font-settings-popover" id="fontPopover" style="display:none;">
           <div class="popover-header">
@@ -463,6 +468,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=2.6.6"></script>
+  <script src="/js/app.js?v=2.7.0"></script>
 </body>
 </html>
