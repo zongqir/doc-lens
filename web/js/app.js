@@ -2729,6 +2729,7 @@
 
     el.articleBody.innerHTML = `<div class="markdown-body">${html}</div>`;
 
+    resolveMarkdownImages();
     interceptMarkdownLinks();
     enhanceCodeBlocksAsync();
     setupLazyMermaidObserver();
@@ -2738,25 +2739,207 @@
     });
   }
 
+  // 路径规范化函数：解析 . 与 ..，消除双斜杠，返回标准绝对路径
+  function normalizePath(pathStr) {
+    if (!pathStr) return '/';
+    const isAbs = pathStr.startsWith('/');
+    const parts = pathStr.split('/');
+    const stack = [];
+    for (const p of parts) {
+      if (!p || p === '.') continue;
+      if (p === '..') {
+        if (stack.length > 0) stack.pop();
+      } else {
+        stack.push(p);
+      }
+    }
+    const res = stack.join('/');
+    return isAbs ? '/' + res : (res || '.');
+  }
+
+  // 资源与图片 URL 智能解析器：相对当前文档目录 -> /raw 静态服务地址
+  function resolveAssetUrl(url) {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/raw/')) {
+      return trimmed;
+    }
+
+    const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
+    let fullRoute;
+
+    if (trimmed.startsWith('/')) {
+      // 绝对路径：如果已经带了当前仓库前缀，则直接保留；否则拼接当前仓库前缀
+      if (repoPrefix && (trimmed === repoPrefix || trimmed.startsWith(repoPrefix + '/'))) {
+        fullRoute = normalizePath(trimmed);
+      } else {
+        fullRoute = normalizePath(`${repoPrefix}/${trimmed.replace(/^\/+/, '')}`);
+      }
+    } else {
+      // 相对路径：基于当前文档所在目录进行相对计算
+      const currentDir = state.currentPath.substring(0, state.currentPath.lastIndexOf('/')) || repoPrefix || '';
+      fullRoute = normalizePath(`${currentDir}/${trimmed}`);
+    }
+
+    return '/raw' + fullRoute;
+  }
+
+  // 智能图片链接处理：自动将相对图片路径改写为 /raw 地址，支持懒加载与点击放大
+  function resolveMarkdownImages() {
+    el.articleBody.querySelectorAll('.markdown-body img').forEach(img => {
+      const src = img.getAttribute('src');
+      if (!src) return;
+      const resolved = resolveAssetUrl(src);
+      if (resolved && resolved !== src) {
+        img.setAttribute('src', resolved);
+      }
+      img.setAttribute('loading', 'lazy');
+      const alt = img.getAttribute('alt');
+      img.setAttribute('title', alt ? `${alt} (点击在新标签页查看原始大图)` : '点击在新标签页查看原始大图');
+
+      img.addEventListener('click', () => {
+        window.open(img.src, '_blank');
+      });
+
+      img.addEventListener('error', () => {
+        img.style.display = 'none';
+        const hint = document.createElement('div');
+        hint.className = 'img-broken-hint';
+        hint.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>图片未找到: ${escapeHtml(src)}</span>`;
+        if (img.parentNode) {
+          img.parentNode.insertBefore(hint, img);
+        }
+      }, { once: true });
+    });
+  }
+
+  // 智能文档路径与扩展名补齐（支持省略 .md，或者直接链接目录名跳至其 README/index）
+  function resolveDocExtension(targetRoute) {
+    if (!targetRoute) return targetRoute;
+    let tree = state.treeData;
+    if (!tree && state.currentRepo && state.repoTreeCache) {
+      tree = state.repoTreeCache.get(state.currentRepo.ID);
+    }
+    const docs = getFlattenedDocList(tree, state.currentRepo?.RoutePrefix);
+
+    // 1. 如果已完全匹配树中某篇文档，直接返回
+    if (docs.some(d => d.fullRoute === targetRoute)) {
+      return targetRoute;
+    }
+
+    // 2. 尝试添加 .md 后缀匹配
+    if (docs.some(d => d.fullRoute === targetRoute + '.md')) {
+      return targetRoute + '.md';
+    }
+
+    // 3. 尝试作为目录查找其下的 README.md 或 index.md
+    if (docs.some(d => d.fullRoute === targetRoute + '/README.md')) {
+      return targetRoute + '/README.md';
+    }
+    if (docs.some(d => d.fullRoute === targetRoute + '/index.md')) {
+      return targetRoute + '/index.md';
+    }
+
+    // 4. 若无后缀且尚未匹配，默认补齐 .md
+    if (!/\.[a-zA-Z0-9]+$/.test(targetRoute)) {
+      return targetRoute + '.md';
+    }
+
+    return targetRoute;
+  }
+
+  // 平滑滚动至页面标题锚点
+  function scrollToAnchor(hash) {
+    if (!hash) return;
+    const cleanHash = decodeURIComponent(hash.replace(/^#/, ''));
+    if (!cleanHash) return;
+
+    let target = document.getElementById(cleanHash);
+    if (!target && el.articleBody) {
+      const headings = Array.from(el.articleBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+      target = headings.find(h => {
+        const text = h.textContent.trim().toLowerCase();
+        const targetClean = cleanHash.toLowerCase();
+        return text === targetClean || h.id.toLowerCase() === targetClean || text.replace(/^[0-9一二三四五六七八九十\.\s、]+/, '').trim() === targetClean;
+      });
+    }
+
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  // Markdown 文档内链全量智能拦截器：处理绝对/相对路径、上级 ../ 跳转、文档缺省扩展名与纯锚点
   function interceptMarkdownLinks() {
     el.articleBody.querySelectorAll('.markdown-body a').forEach(a => {
       const href = a.getAttribute('href');
       if (!href) return;
-      if (href.startsWith('http://') || href.startsWith('https://')) {
+
+      // 1. 外部协议直接新标签页打开
+      if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
         a.setAttribute('target', '_blank');
         a.setAttribute('rel', 'noopener noreferrer');
         return;
       }
-      if (href.startsWith('#')) return;
+
+      // 2. 本文内部纯锚点跳转
+      if (href.startsWith('#')) {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          scrollToAnchor(href);
+        });
+        return;
+      }
 
       a.addEventListener('click', (e) => {
         e.preventDefault();
-        let targetRoute = href;
-        if (!targetRoute.startsWith('/')) {
-          const currentDir = state.currentPath.substring(0, state.currentPath.lastIndexOf('/'));
-          targetRoute = `${currentDir}/${href}`;
+
+        // 拆分 path 与 hash 锚点
+        const [rawPath, hashPart] = href.split('#');
+
+        if (!rawPath && hashPart) {
+          scrollToAnchor('#' + hashPart);
+          return;
         }
+
+        const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
+        let targetRoute;
+
+        if (rawPath.startsWith('/')) {
+          // 绝对路径：若已带当前仓库前缀则直接规范化；否则补齐当前知识库前缀
+          if (repoPrefix && (rawPath === repoPrefix || rawPath.startsWith(repoPrefix + '/'))) {
+            targetRoute = normalizePath(rawPath);
+          } else {
+            targetRoute = normalizePath(`${repoPrefix}/${rawPath.replace(/^\/+/, '')}`);
+          }
+        } else {
+          // 相对路径：基于当前文档所在目录进行相对计算并规范化（自动消除 ./ 与 ../）
+          const currentDir = state.currentPath.substring(0, state.currentPath.lastIndexOf('/')) || repoPrefix || '';
+          targetRoute = normalizePath(`${currentDir}/${rawPath}`);
+        }
+
+        // 3. 检查是否为非文档类静态资源（如图片、压缩包、PDF等），若为静态资源则通过 /raw 服务打开
+        const ext = targetRoute.substring(targetRoute.lastIndexOf('.')).toLowerCase();
+        const assetExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z', '.mp4', '.mp3'];
+        if (assetExts.includes(ext)) {
+          window.open('/raw' + targetRoute, '_blank');
+          return;
+        }
+
+        // 4. 智能文档扩展名补齐
+        targetRoute = resolveDocExtension(targetRoute);
+
         routeTo(targetRoute, true);
+
+        // 5. 若带有跨文档锚点，在文章加载后自动平滑滚动
+        if (hashPart) {
+          setTimeout(() => {
+            scrollToAnchor('#' + hashPart);
+          }, 250);
+        }
       });
     });
   }

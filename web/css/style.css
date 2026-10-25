@@ -1970,23 +1970,32 @@ body.modal-open {
 }
 
 .markdown-body blockquote:not(.markdown-alert) {
-  margin: 20px 0;
-  padding: 14px 20px;
+  margin: 22px 0;
+  padding: 12px 20px;
   color: var(--text-secondary);
   font-style: normal;
-  background: var(--bg-surface-hover);
-  border: 1px solid var(--border-default);
-  border-left: 4px solid var(--accent-color);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  box-shadow: var(--shadow-xs);
-  line-height: 1.75;
+  background: rgba(148, 163, 184, 0.06);
+  border: none;
+  border-left: 3.5px solid var(--border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  line-height: 1.8;
   position: relative;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.markdown-body blockquote:not(.markdown-alert):hover {
+  border-left-color: var(--accent-color);
+  background: rgba(37, 99, 235, 0.035);
 }
 
 [data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) {
   background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.07);
+  border-left-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert):hover {
   border-left-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 .markdown-body blockquote:not(.markdown-alert) p {
@@ -2004,7 +2013,7 @@ body.modal-open {
 .markdown-body blockquote:not(.markdown-alert) blockquote {
   margin: 10px 0 0 0;
   background: var(--bg-surface);
-  border-left-color: var(--border-strong);
+  border-left-color: var(--border-default);
 }
 
 .markdown-body hr {
@@ -2014,16 +2023,16 @@ body.modal-open {
   margin: 30px 0;
 }
 
-/* GitHub Alerts 矢量卡片 */
+/* GitHub Alerts 现代圆角卡片 */
 .markdown-alert {
-  padding: 14px 20px;
+  padding: 14px 18px;
   margin: 22px 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-default);
-  border-left-width: 4px;
   font-size: 14px;
   box-shadow: var(--shadow-xs);
   line-height: 1.7;
+  overflow: hidden;
 }
 
 .markdown-alert > :first-child {
@@ -2055,69 +2064,102 @@ body.modal-open {
 }
 
 .markdown-alert-note {
-  border-color: rgba(59, 130, 246, 0.22);
-  border-left-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.25);
+  border-left: 4px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.04);
 }
 .markdown-alert-note .markdown-alert-title { color: #2563eb; }
 
 .markdown-alert-tip {
-  border-color: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.25);
   border-left-color: #10b981;
-  background: rgba(16, 185, 129, 0.05);
+  background: rgba(16, 185, 129, 0.04);
 }
 .markdown-alert-tip .markdown-alert-title { color: #059669; }
 
 .markdown-alert-important {
-  border-color: rgba(139, 92, 246, 0.22);
+  border-color: rgba(139, 92, 246, 0.25);
   border-left-color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.05);
+  background: rgba(139, 92, 246, 0.04);
 }
 .markdown-alert-important .markdown-alert-title { color: #7c3aed; }
 
 .markdown-alert-warning {
-  border-color: rgba(245, 158, 11, 0.22);
+  border-color: rgba(245, 158, 11, 0.25);
   border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(245, 158, 11, 0.04);
 }
 .markdown-alert-warning .markdown-alert-title { color: #d97706; }
 
 .markdown-alert-caution {
-  border-color: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.25);
   border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.05);
+  background: rgba(239, 68, 68, 0.04);
 }
 .markdown-alert-caution .markdown-alert-title { color: #dc2626; }
 
 [data-theme="dark"] .markdown-alert-note {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(59, 130, 246, 0.08);
   border-color: rgba(59, 130, 246, 0.28);
 }
 [data-theme="dark"] .markdown-alert-note .markdown-alert-title { color: #60a5fa; }
 
 [data-theme="dark"] .markdown-alert-tip {
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(16, 185, 129, 0.08);
   border-color: rgba(16, 185, 129, 0.28);
 }
 [data-theme="dark"] .markdown-alert-tip .markdown-alert-title { color: #34d399; }
 
 [data-theme="dark"] .markdown-alert-important {
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(139, 92, 246, 0.08);
   border-color: rgba(139, 92, 246, 0.28);
 }
 [data-theme="dark"] .markdown-alert-important .markdown-alert-title { color: #a78bfa; }
 
 [data-theme="dark"] .markdown-alert-warning {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(245, 158, 11, 0.08);
   border-color: rgba(245, 158, 11, 0.28);
 }
 [data-theme="dark"] .markdown-alert-warning .markdown-alert-title { color: #fbbf24; }
 
 [data-theme="dark"] .markdown-alert-caution {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.28);
 }
 [data-theme="dark"] .markdown-alert-caution .markdown-alert-title { color: #f87171; }
+
+/* Markdown 嵌入图片高质感渲染与点击查看 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-default);
+  margin: 18px 0;
+  display: block;
+  cursor: zoom-in;
+  background-color: var(--bg-surface);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.markdown-body img:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.img-broken-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  margin: 12px 0;
+}
 
 /* 终端风格代码块与折叠展开交互 */
 .code-block-wrapper {
