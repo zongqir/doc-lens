@@ -4416,6 +4416,94 @@
     });
   }
 
+  function getLanguageInfo(filePath) {
+    if (!filePath) return { lang: 'none', display: 'CODE' };
+    const cleanPath = filePath.split('?')[0].split('#')[0];
+    const filename = cleanPath.substring(cleanPath.lastIndexOf('/') + 1).toLowerCase();
+
+    if (filename === 'dockerfile' || filename.startsWith('dockerfile.')) {
+      return { lang: 'dockerfile', display: 'DOCKER' };
+    }
+    if (filename === 'makefile' || filename === 'gnumakefile') {
+      return { lang: 'makefile', display: 'MAKE' };
+    }
+    if (filename === 'jenkinsfile') {
+      return { lang: 'groovy', display: 'GROOVY' };
+    }
+
+    const dotIndex = filename.lastIndexOf('.');
+    const ext = dotIndex !== -1 ? filename.substring(dotIndex + 1) : filename;
+
+    const extMap = {
+      // 常用标记与配置
+      yml: { lang: 'yaml', display: 'YAML' },
+      yaml: { lang: 'yaml', display: 'YAML' },
+      json: { lang: 'json', display: 'JSON' },
+      toml: { lang: 'toml', display: 'TOML' },
+      xml: { lang: 'xml', display: 'XML' },
+      svg: { lang: 'svg', display: 'SVG' },
+      html: { lang: 'html', display: 'HTML' },
+      htm: { lang: 'html', display: 'HTML' },
+      ini: { lang: 'ini', display: 'INI' },
+      conf: { lang: 'ini', display: 'CONF' },
+      properties: { lang: 'properties', display: 'PROPERTIES' },
+
+      // 常见后端与系统语言
+      java: { lang: 'java', display: 'JAVA' },
+      py: { lang: 'python', display: 'PYTHON' },
+      go: { lang: 'go', display: 'GO' },
+      rs: { lang: 'rust', display: 'RUST' },
+      rust: { lang: 'rust', display: 'RUST' },
+      c: { lang: 'c', display: 'C' },
+      h: { lang: 'c', display: 'C' },
+      cpp: { lang: 'cpp', display: 'C++' },
+      hpp: { lang: 'cpp', display: 'C++' },
+      cc: { lang: 'cpp', display: 'C++' },
+      cs: { lang: 'csharp', display: 'C#' },
+      csharp: { lang: 'csharp', display: 'C#' },
+      kt: { lang: 'kotlin', display: 'KOTLIN' },
+      kts: { lang: 'kotlin', display: 'KOTLIN' },
+      scala: { lang: 'scala', display: 'SCALA' },
+      proto: { lang: 'protobuf', display: 'PROTOBUF' },
+      protobuf: { lang: 'protobuf', display: 'PROTOBUF' },
+      gradle: { lang: 'groovy', display: 'GRADLE' },
+
+      // 运维、脚本与数据库
+      sh: { lang: 'bash', display: 'SHELL' },
+      bash: { lang: 'bash', display: 'BASH' },
+      zsh: { lang: 'bash', display: 'ZSH' },
+      shell: { lang: 'bash', display: 'SHELL' },
+      sql: { lang: 'sql', display: 'SQL' },
+      docker: { lang: 'dockerfile', display: 'DOCKER' },
+      dockerfile: { lang: 'dockerfile', display: 'DOCKER' },
+
+      // 前端语言
+      js: { lang: 'javascript', display: 'JAVASCRIPT' },
+      javascript: { lang: 'javascript', display: 'JAVASCRIPT' },
+      jsx: { lang: 'javascript', display: 'JSX' },
+      mjs: { lang: 'javascript', display: 'JAVASCRIPT' },
+      cjs: { lang: 'javascript', display: 'JAVASCRIPT' },
+      ts: { lang: 'typescript', display: 'TYPESCRIPT' },
+      typescript: { lang: 'typescript', display: 'TYPESCRIPT' },
+      tsx: { lang: 'typescript', display: 'TSX' },
+      css: { lang: 'css', display: 'CSS' },
+      scss: { lang: 'css', display: 'SCSS' },
+      less: { lang: 'css', display: 'LESS' },
+
+      // 文档与纯文本
+      md: { lang: 'markdown', display: 'MARKDOWN' },
+      markdown: { lang: 'markdown', display: 'MARKDOWN' },
+      txt: { lang: 'none', display: 'TEXT' },
+      csv: { lang: 'none', display: 'CSV' },
+      log: { lang: 'none', display: 'LOG' }
+    };
+
+    if (ext && extMap[ext]) {
+      return extMap[ext];
+    }
+    return { lang: ext || 'none', display: (ext || 'CODE').toUpperCase() };
+  }
+
   function enhanceCodeBlocksAsync(defaultCollapsed = true) {
     const pres = Array.from(el.articleBody.querySelectorAll('pre:not([data-enhanced="true"])'));
     if (pres.length === 0) return;
@@ -4426,8 +4514,12 @@
       let lang = 'CODE';
       if (code) {
         const cls = code.className || '';
-        const match = cls.match(/language-(\w+)/);
-        if (match) lang = match[1].toUpperCase();
+        const match = cls.match(/language-([\w-]+)/);
+        if (match) {
+          const l = match[1].toLowerCase();
+          const info = getLanguageInfo('.' + l);
+          lang = info.display || l.toUpperCase();
+        }
       }
 
       const rawText = (code || pre).textContent || '';
@@ -5289,9 +5381,9 @@
     el.mobileTocList.innerHTML = '';
     if (el.tocLevelCtrl) el.tocLevelCtrl.style.display = 'none';
     if (el.mobileTocLevelCtrl) el.mobileTocLevelCtrl.style.display = 'none';
-    const ext = path.substring(path.lastIndexOf('.')).replace('.', '');
+    const info = getLanguageInfo(path);
     el.articleBody.innerHTML = `
-      <pre style="max-height:80vh;"><code class="language-${ext}">${escapeHtml(content)}</code></pre>
+      <pre style="max-height:80vh;"><code class="language-${info.lang}">${escapeHtml(content)}</code></pre>
     `;
     enhanceCodeBlocksAsync(false);
   }
