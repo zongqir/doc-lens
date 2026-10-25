@@ -358,23 +358,25 @@ body.modal-open {
   flex-shrink: 0;
 }
 
-.task-pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background-color: #10b981;
-  display: inline-block;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+.btn-task-center {
+  position: relative;
+  transition: all var(--transition-fast);
 }
 
-.task-pulse-dot.running {
-  animation: pulse-green 1.5s infinite;
+.btn-task-center.running {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4), 0 0 10px rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
 }
 
-@keyframes pulse-green {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+.btn-task-center.running svg {
+  animation: task-icon-pulse 1.3s infinite ease-in-out;
+  color: #10b981;
+}
+
+@keyframes task-icon-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
 }
 
 /* ==========================================================================
@@ -2474,15 +2476,18 @@ body.modal-open {
 .terminal-layout-body {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 .terminal-sidebar {
-  width: 270px;
+  width: 280px;
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   background-color: var(--bg-subtle);
+  min-height: 0;
+  min-width: 0;
 }
 
 .terminal-list-header {
@@ -2495,6 +2500,7 @@ body.modal-open {
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .btn-refresh-task {
@@ -2506,8 +2512,27 @@ body.modal-open {
 
 .terminal-task-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.terminal-task-list::-webkit-scrollbar {
+  width: 6px;
+}
+.terminal-task-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-task-list::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+.terminal-task-list::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 .terminal-task-item {
@@ -3223,11 +3248,14 @@ body.modal-open {
 
   .terminal-layout-body {
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
 
   .terminal-sidebar {
     width: 100%;
     flex: 1;
+    min-height: 0;
     border-right: none;
     border-bottom: 1px solid var(--border-default);
   }
@@ -3235,6 +3263,7 @@ body.modal-open {
   .terminal-main-view {
     width: 100%;
     flex: 1;
+    min-height: 0;
     display: none; /* 默认显示列表，点击或切换 tab 时显示日志 */
   }
 

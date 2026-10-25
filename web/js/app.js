@@ -2657,14 +2657,14 @@
 
   async function loadTasks() {
     try {
-      const res = await fetch('/api/tasks?limit=25');
+      const res = await fetch('/api/tasks?limit=100');
       if (!res.ok) return;
       state.tasks = await res.json();
       renderTaskList();
 
       const hasRunning = state.tasks.some(t => t.status === 'running' || t.status === 'queued');
-      if (el.taskRunningDot) {
-        el.taskRunningDot.classList.toggle('running', hasRunning);
+      if (el.aiTaskBtn) {
+        el.aiTaskBtn.classList.toggle('running', hasRunning);
       }
     } catch (e) {}
   }
