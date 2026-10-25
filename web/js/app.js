@@ -1493,6 +1493,42 @@
     }
   }
 
+  // 提取当前知识库中按修改/生成时间倒序排列的最新文档
+  function extractRecentDocsFromTree(treeData, cleanPrefix, limit = 8) {
+    if (!treeData) return [];
+    const allDocs = [];
+
+    function walk(node) {
+      if (!node) return;
+      if (!node.is_dir) {
+        const ext = (node.name.split('.').pop() || '').toLowerCase();
+        if (['md', 'markdown', 'mdown'].includes(ext)) {
+          const rawName = node.name;
+          const cleanName = rawName.replace(/\.(md|markdown|mdown)$/i, '');
+          const dirPath = node.path ? node.path.split('/').slice(0, -1).join('/') || '/' : '/';
+          allDocs.push({
+            name: cleanName,
+            rawName: rawName,
+            path: node.path,
+            fullRoute: cleanPrefix + '/' + node.path.replace(/^\/+/, ''),
+            modTime: node.mod_time || 0,
+            dirPath: dirPath
+          });
+        }
+        return;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          walk(child);
+        }
+      }
+    }
+
+    walk(treeData);
+    allDocs.sort((a, b) => (b.modTime || 0) - (a.modTime || 0));
+    return allDocs.slice(0, limit);
+  }
+
   // =========================================================================
   // 全局极速搜索模块 (Command Palette & Full-Text Search)
   // =========================================================================
@@ -1614,6 +1650,62 @@
   function renderSearchEmptyState() {
     if (!el.modalSearchResults) return;
     if (el.modalSearchCount) el.modalSearchCount.style.display = 'none';
+
+    const cleanPrefix = '/' + (state.currentRepo ? state.currentRepo.RoutePrefix || '' : '').replace(/^\/+|\/+$/g, '');
+    const recentDocs = extractRecentDocsFromTree(state.treeData, cleanPrefix, 7);
+
+    if (recentDocs.length > 0) {
+      const recentItems = recentDocs.map(d => ({
+        repo_id: state.currentRepo?.ID || '',
+        repo_name: state.currentRepo?.Name || '',
+        path: d.path,
+        full_route: d.fullRoute,
+        title: d.name,
+        ext: '.md',
+        mod_time: d.modTime,
+        snippet: `⏱️ ${formatTimeAgo(d.modTime * 1000)}`
+      }));
+
+      state.searchModalResults = recentItems;
+      state.searchModalSelectedIndex = 0;
+
+      const html = recentItems.map((item, idx) => {
+        const isSelected = idx === 0;
+        return `
+          <div class="search-result-item ${isSelected ? 'selected' : ''}" data-index="${idx}">
+            <div class="search-item-header">
+              <div class="search-item-title-wrap">
+                <span class="search-item-icon">${SVG_ICONS.markdown}</span>
+                <span>${escapeHtml(item.title)}</span>
+              </div>
+              <span class="search-item-repo-badge">${escapeHtml(item.snippet)}</span>
+            </div>
+            <div class="search-item-path">${escapeHtml(item.path)}</div>
+          </div>
+        `;
+      }).join('');
+
+      el.modalSearchResults.innerHTML = `
+        <div class="search-modal-recent-header">
+          <span>⏱️ 最近生成与更新的文档</span>
+          <span class="search-modal-recent-hint">支持 ↑ ↓ 选择，Enter 直接打开</span>
+        </div>
+        ${html}
+      `;
+
+      el.modalSearchResults.querySelectorAll('.search-result-item').forEach(itemEl => {
+        const idx = parseInt(itemEl.dataset.index, 10);
+        itemEl.addEventListener('click', () => {
+          selectSearchResult(state.searchModalResults[idx]);
+        });
+        itemEl.addEventListener('mouseenter', () => {
+          state.searchModalSelectedIndex = idx;
+          updateSearchItemSelection();
+        });
+      });
+      return;
+    }
+
     el.modalSearchResults.innerHTML = `
       <div class="search-empty-state">
         <div class="search-empty-icon">
@@ -2872,42 +2964,6 @@
     return chapters;
   }
 
-  // 提取当前知识库中按修改/生成时间倒序排列的最新文档
-  function extractRecentDocsFromTree(treeData, cleanPrefix, limit = 8) {
-    if (!treeData) return [];
-    const allDocs = [];
-
-    function walk(node) {
-      if (!node) return;
-      if (!node.is_dir) {
-        const ext = (node.name.split('.').pop() || '').toLowerCase();
-        if (['md', 'markdown', 'mdown'].includes(ext)) {
-          const rawName = node.name;
-          const cleanName = rawName.replace(/\.(md|markdown|mdown)$/i, '');
-          const dirPath = node.path ? node.path.split('/').slice(0, -1).join('/') || '/' : '/';
-          allDocs.push({
-            name: cleanName,
-            rawName: rawName,
-            path: node.path,
-            fullRoute: cleanPrefix + '/' + node.path.replace(/^\/+/, ''),
-            modTime: node.mod_time || 0,
-            dirPath: dirPath
-          });
-        }
-        return;
-      }
-      if (node.children) {
-        for (const child of node.children) {
-          walk(child);
-        }
-      }
-    }
-
-    walk(treeData);
-    allDocs.sort((a, b) => (b.modTime || 0) - (a.modTime || 0));
-    return allDocs.slice(0, limit);
-  }
-
   function renderWelcomeDashboard() {
     if (el.articleHeader) el.articleHeader.style.display = 'none';
     if (el.docPagination) el.docPagination.style.display = 'none';
@@ -2961,7 +3017,7 @@
     }
 
     // 2. 提取当前知识库的最近生成/更新文档
-    const recentDocs = extractRecentDocsFromTree(state.treeData, cleanPrefix, 8);
+    const recentDocs = extractRecentDocsFromTree(state.treeData, cleanPrefix, 12);
     let recentDocsHtml = '';
     if (recentDocs.length > 0) {
       const nowSec = Math.floor(Date.now() / 1000);
@@ -2969,7 +3025,7 @@
         const timeAgo = formatTimeAgo(d.modTime * 1000);
         const isVeryRecent = (nowSec - d.modTime) < 86400 * 2; // 48小时内更新标记
         recentDocsHtml += `
-          <a href="${escapeHtml(d.fullRoute)}" class="welcome-recent-card" data-path="${escapeHtml(d.fullRoute)}">
+          <a href="${escapeHtml(d.fullRoute)}" class="welcome-recent-card" data-name="${escapeHtml(d.name.toLowerCase())}" data-path="${escapeHtml(d.fullRoute)}">
             <div class="recent-card-top">
               <span class="recent-card-icon">${SVG_ICONS.markdown}</span>
               <span class="recent-card-time ${isVeryRecent ? 'is-new' : ''}">
@@ -3122,6 +3178,11 @@
               <span class="welcome-section-subtitle">最新技术研报与文章动态 · 保持前沿敏锐度</span>
             </div>
             <div class="welcome-section-actions">
+              <div class="recent-search-wrap">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" class="recent-filter-input" id="recentFilterInput" placeholder="过滤最近文章..." autocomplete="off">
+                <button type="button" class="recent-clear-filter-btn" id="recentClearFilterBtn" style="display:none;" title="清空">✕</button>
+              </div>
               <span class="recent-live-badge"><span class="live-dot"></span>实时同步</span>
             </div>
           </div>
@@ -3199,6 +3260,56 @@
         if (p) routeTo(p);
       });
     });
+
+    // 绑定事件：即时过滤最近生成与更新文章
+    const recentFilterInput = document.getElementById('recentFilterInput');
+    const recentClearFilterBtn = document.getElementById('recentClearFilterBtn');
+    const recentGrid = document.getElementById('welcomeRecentGrid');
+
+    if (recentFilterInput && recentGrid) {
+      recentFilterInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        if (recentClearFilterBtn) recentClearFilterBtn.style.display = q ? 'flex' : 'none';
+
+        const cards = recentGrid.querySelectorAll('.welcome-recent-card');
+        let matchedCount = 0;
+        cards.forEach(card => {
+          const name = card.getAttribute('data-name') || '';
+          const path = (card.getAttribute('data-path') || '').toLowerCase();
+          const isMatch = !q || name.includes(q) || path.includes(q);
+          card.style.display = isMatch ? 'flex' : 'none';
+          if (isMatch) matchedCount++;
+        });
+
+        let noMatchEl = document.getElementById('recentNoMatchHint');
+        if (matchedCount === 0 && q) {
+          if (!noMatchEl) {
+            noMatchEl = document.createElement('div');
+            noMatchEl.id = 'recentNoMatchHint';
+            noMatchEl.style.cssText = 'grid-column:1/-1;padding:26px 16px;text-align:center;font-size:13px;color:var(--text-muted);background:var(--bg-subtle);border-radius:var(--radius-md);border:1px dashed var(--border-default);';
+            recentGrid.appendChild(noMatchEl);
+          }
+          noMatchEl.innerHTML = `
+            未在近期文章中找到 "${escapeHtml(q)}"
+            <button type="button" class="btn btn-sm btn-primary" id="openGlobalSearchWithQuery" style="margin-left:10px;padding:4px 10px;font-size:12px;">在全库中深入检索 (⌘K)</button>
+          `;
+          const openBtn = document.getElementById('openGlobalSearchWithQuery');
+          if (openBtn) {
+            openBtn.addEventListener('click', () => openQuickSearchModal(q));
+          }
+        } else if (noMatchEl) {
+          noMatchEl.remove();
+        }
+      });
+
+      if (recentClearFilterBtn) {
+        recentClearFilterBtn.addEventListener('click', () => {
+          recentFilterInput.value = '';
+          recentFilterInput.dispatchEvent(new Event('input'));
+          recentFilterInput.focus();
+        });
+      }
+    }
 
     // 绑定事件：收起与展开章节分布
     const toggleChaptersBtn = document.getElementById('toggleChaptersBtn');

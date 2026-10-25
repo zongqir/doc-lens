@@ -1867,6 +1867,75 @@ body.modal-open {
   box-shadow: 0 0 6px #10b981;
 }
 
+/* 主页最近生成与更新模块专属即时过滤搜索框 */
+.recent-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.recent-search-wrap svg {
+  position: absolute;
+  left: 9px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.recent-filter-input {
+  width: 150px;
+  height: 28px;
+  padding: 0 24px 0 26px;
+  font-size: 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.recent-filter-input:focus {
+  width: 200px;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.recent-clear-filter-btn {
+  position: absolute;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: var(--border-default);
+  color: var(--text-secondary);
+  font-size: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* 搜索弹窗内未输入关键字时的“最近生成与更新”提示区 */
+.search-modal-recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--border-default);
+  margin-bottom: 8px;
+}
+
+.search-modal-recent-hint {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
 .welcome-chapters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
