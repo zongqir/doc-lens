@@ -1562,11 +1562,11 @@
     if (fav) {
       btn.className = 'btn btn-favorite-active';
       btn.title = '取消收藏';
-      btn.innerHTML = `${SVG_ICONS.starFilled} <span>已收藏</span>`;
+      btn.innerHTML = `${SVG_ICONS.starFilled} <span class="btn-text-full">已收藏</span><span class="btn-text-short">已收藏</span>`;
     } else {
       btn.className = 'btn';
       btn.title = '收藏此文档';
-      btn.innerHTML = `${SVG_ICONS.star} <span>收藏</span>`;
+      btn.innerHTML = `${SVG_ICONS.star} <span class="btn-text-full">收藏</span><span class="btn-text-short">收藏</span>`;
     }
   }
 
@@ -2071,7 +2071,8 @@
       </button>` : ''}
       <button class="btn ${fav ? 'btn-favorite-active' : ''}" id="favoriteBtn" title="${fav ? '取消收藏' : '收藏此文档'}">
         ${fav ? SVG_ICONS.starFilled : SVG_ICONS.star}
-        <span>${fav ? '已收藏' : '收藏'}</span>
+        <span class="btn-text-full">${fav ? '已收藏' : '收藏'}</span>
+        <span class="btn-text-short">${fav ? '已收藏' : '收藏'}</span>
       </button>
       <button class="btn" id="copyLinkBtn" title="复制直达链接">
         ${SVG_ICONS.link}
@@ -2080,7 +2081,8 @@
       </button>
       <button class="btn btn-primary" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
-        <span>AI 协作</span>
+        <span class="btn-text-full">AI 协作</span>
+        <span class="btn-text-short">AI</span>
       </button>
     `;
 
@@ -2100,8 +2102,10 @@
     document.getElementById('copyLinkBtn').addEventListener('click', () => {
       navigator.clipboard.writeText(window.location.href);
       const b = document.getElementById('copyLinkBtn');
-      b.innerHTML = `${SVG_ICONS.check} <span style="color:#10b981;">已复制</span>`;
+      b.classList.add('copy-success');
+      b.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
       setTimeout(() => {
+        b.classList.remove('copy-success');
         b.innerHTML = `${SVG_ICONS.link} <span class="btn-text-full">复制链接</span><span class="btn-text-short">链接</span>`;
       }, 2000);
     });
