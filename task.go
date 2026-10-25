@@ -74,9 +74,29 @@ func (tm *TaskManager) loadTasks() {
 		tm.tasks = loaded
 		// 如果上次意外断电导致 running 状态，标记为 failed
 		for _, t := range tm.tasks {
-			if t.Status == "running" || t.Status == "queued" {
-				t.Status = "failed"
-				t.ErrorMsg = "service restarted while task was in progress"
+			// 如果因为意外断电或服务升级重启，先自动校验是否实际已完成并落盘
+			if t.Status == "running" || t.Status == "queued" || (t.Status == "failed" && t.ErrorMsg == "service restarted while task was in progress") {
+				if tm.rm != nil && t.RepoID != "" {
+					if repo, err := tm.rm.GetRepoByID(t.RepoID); err == nil {
+						out := tm.detectOutputFile(repo, t, t.StartedAt)
+						if out != "" {
+							cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
+							t.Status = "completed"
+							t.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(out, "/")
+							t.TargetFile = out
+							t.ErrorMsg = ""
+							if t.EndedAt.IsZero() {
+								t.EndedAt = time.Now()
+							}
+							tm.rm.InvalidateCache(t.RepoID)
+							continue
+						}
+					}
+				}
+				if t.Status != "failed" {
+					t.Status = "failed"
+					t.ErrorMsg = "service restarted while task was in progress"
+				}
 			}
 			// 防御性截断，避免历史 tasks.json 膨胀导致启动 OOM
 			if rPrompt := []rune(t.Prompt); len(rPrompt) > 500 {
