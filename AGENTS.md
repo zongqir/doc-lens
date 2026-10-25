@@ -15,7 +15,7 @@ DocLens 是一个轻量级、单二进制的本地技术文档/代码透视知�
 | :--- | :--- | :--- |
 | **`web/index.html`** | SPA 骨架与 DOM 结构 | `#articleHeader`（文档头部）、`#articleBody`（正文）、`#sidebar`（目录树）、各种 Modal 弹窗 |
 | **`web/css/style.css`** | 全局样式与响应式断点 | • 前半部：主题变量、排版、卡片、按钮规范(`.btn`)<br>• `~L2234`: `@media (max-width: 900px)`（平板/目录折叠）<br>• `~L2279`: `@media (max-width: 640px)`（手机端优化、`.article-actions` 单行排版） |
-| **`web/js/app.js`** | 纯原生 JS 业务逻辑与渲染控制器 | • `renderDocContent()`: 文档正文与头部操作按钮渲染<br>• `toggleFavorite()`: 文档/目录收藏状态切换<br>• `renderTree()`: 左侧目录树高性能递归与过滤<br>• `openAiExplainModal()` / `openAiWriteModal()`: AI 任务模态框<br>• `openQuickSearch()`: 跨库快速全局检索弹窗 |
+| **`web/js/app.js`** | 纯原生 JS 业务逻辑与渲染控制器 | • `renderDocContent()`: 文档正文与头部操作按钮渲染<br>• `toggleFavorite()`: 文档/目录收藏状态切换<br>• `renderTree()`: 左侧目录树高性能递归与过滤<br>• `openAiTaskModal()`: AI 知识库任务派发与操作流模态框<br>• `openQuickSearch()`: 跨库快速全局检索弹窗 |
 
 ### 后端模块 (`*.go`)
 | 文件路径 | 职责范围 |

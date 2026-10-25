@@ -96,6 +96,8 @@ func (tm *TaskManager) loadTasks() {
 				}
 			}
 		}
+		// 持久化更新后的任务状态与路径
+		tm.saveTasks()
 	}
 }
 
@@ -343,7 +345,48 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 		}
 	}
 
-	// 2. 遍历仓库根目录，寻找在任务开始后（留出 10 秒缓冲）被新创建或修改的 markdown 文件
+	// 2. 从任务日志中匹配文件路径（精准度最高）
+	if task.LogFile != "" {
+		if data, err := os.ReadFile(task.LogFile); err == nil {
+			content := string(data)
+			cleanRepoPath := strings.TrimRight(repo.Path, "/")
+			re := regexp.MustCompile(`(?:file:/*)?` + regexp.QuoteMeta(strings.TrimPrefix(cleanRepoPath, "/")) + `/([^\s\)\"\'>]+?\.(?:md|markdown|html))`)
+			matches := re.FindAllStringSubmatch(content, -1)
+			for i := len(matches) - 1; i >= 0; i-- {
+				relPath := matches[i][1]
+				candidate := filepath.Join(repo.Path, relPath)
+				if fInfo, err := os.Stat(candidate); err == nil && !fInfo.IsDir() {
+					return filepath.ToSlash(relPath)
+				}
+				// 容错：如果日志打印的相对路径在多层子目录下发生了归档偏移，根据基础文件名在仓库内精确定位
+				baseName := filepath.Base(relPath)
+				cleanBase := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-`).ReplaceAllString(baseName, "")
+				var matchedRel string
+				_ = filepath.WalkDir(repo.Path, func(path string, d os.DirEntry, err error) error {
+					if err != nil || matchedRel != "" {
+						return nil
+					}
+					if d.IsDir() {
+						if strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "logs" || d.Name() == "bin" {
+							return filepath.SkipDir
+						}
+						return nil
+					}
+					if d.Name() == baseName || (cleanBase != "" && d.Name() == cleanBase) {
+						if r, err := filepath.Rel(repo.Path, path); err == nil {
+							matchedRel = filepath.ToSlash(r)
+						}
+					}
+					return nil
+				})
+				if matchedRel != "" {
+					return matchedRel
+				}
+			}
+		}
+	}
+
+	// 3. 遍历仓库根目录，寻找在任务开始后（留出 10 秒缓冲）被新创建或修改的 markdown 文件
 	var newestFile string
 	var newestMod time.Time
 	searchThreshold := startTime.Add(-10 * time.Second)
@@ -379,21 +422,6 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 	if newestFile != "" {
 		if rel, err := filepath.Rel(repo.Path, newestFile); err == nil {
 			return filepath.ToSlash(rel)
-		}
-	}
-
-	// 3. 从任务日志中匹配文件绝对路径或相对路径
-	if task.LogFile != "" {
-		if data, err := os.ReadFile(task.LogFile); err == nil {
-			content := string(data)
-			re := regexp.MustCompile(`(?:file://)?` + regexp.QuoteMeta(repo.Path) + `/([^\s\)\"\'>]+?\.(?:md|markdown|html))`)
-			matches := re.FindAllStringSubmatch(content, -1)
-			for i := len(matches) - 1; i >= 0; i-- {
-				candidate := filepath.Join(repo.Path, matches[i][1])
-				if fInfo, err := os.Stat(candidate); err == nil && !fInfo.IsDir() {
-					return filepath.ToSlash(matches[i][1])
-				}
-			}
 		}
 	}
 

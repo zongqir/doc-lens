@@ -1686,9 +1686,9 @@
         ${SVG_ICONS.link}
         <span>复制链接</span>
       </button>
-      <button class="btn btn-primary" id="aiExplainBtn" title="AI 深度解剖">
+      <button class="btn btn-primary" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
-        <span>AI 深度解剖</span>
+        <span>AI 协作</span>
       </button>
     `;
 
@@ -1705,8 +1705,8 @@
       }, 2000);
     });
 
-    document.getElementById('aiExplainBtn').addEventListener('click', () => {
-      openAiExplainModal(doc);
+    document.getElementById('aiDocTaskBtn').addEventListener('click', () => {
+      openAiTaskModal({ doc: doc, defaultAction: 'append' });
     });
 
     if (doc.type === 'markdown') {
@@ -2535,35 +2535,81 @@
     enhanceCodeBlocksAsync();
   }
 
-  function openDraftModal() {
-    if (state.currentRepo && el.draftRepo) {
-      el.draftRepo.value = state.currentRepo.ID;
+  function openAiTaskModal(options = {}) {
+    const doc = options.doc || null;
+    state.draftContextDoc = doc;
+
+    const targetRepoId = doc ? doc.repo_id : (options.repoId || (state.currentRepo ? state.currentRepo.ID : ''));
+    if (targetRepoId && el.draftRepo) {
+      el.draftRepo.value = targetRepoId;
     }
-    const titleEl = document.getElementById('draftModalTitle');
-    if (titleEl) titleEl.textContent = '派发 AI 创作 / 深度研报';
-    const typeEl = document.getElementById('draftTaskType');
-    if (typeEl) typeEl.value = 'draft';
+
+    if (doc && (doc.rel_path || doc.path)) {
+      const rel = doc.rel_path || doc.path;
+      if (el.draftTargetFile) el.draftTargetFile.value = rel;
+      if (el.draftDocContextPath) el.draftDocContextPath.textContent = rel;
+      if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'block';
+    } else {
+      if (el.draftTargetFile) el.draftTargetFile.value = '';
+      if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'none';
+    }
+
+    const defaultAction = options.defaultAction || (doc ? 'append' : 'new');
+    setTaskActionType(defaultAction);
+
+    if (options.prompt && el.draftPrompt) {
+      el.draftPrompt.value = options.prompt;
+    } else if (el.draftPrompt) {
+      el.draftPrompt.value = '';
+    }
+
     openModal(el.aiDraftModal);
+    setTimeout(() => {
+      if (el.draftPrompt) el.draftPrompt.focus();
+    }, 150);
   }
 
-  function openAiExplainModal(doc) {
-    const prompt = `请对当前技术研报进行深度解剖，全面梳理三大核心架构论点、潜在缺陷与关键边界：${doc.path}`;
-    if (el.draftPrompt) el.draftPrompt.value = prompt;
-    if (el.draftRepo) el.draftRepo.value = doc.repo_id;
-    if (el.draftFileName) el.draftFileName.value = '';
+  function setTaskActionType(action) {
+    if (!action) action = 'new';
+    if (el.draftTaskType) el.draftTaskType.value = action;
+
+    document.querySelectorAll('.task-action-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.getAttribute('data-action') === action);
+    });
+
     const titleEl = document.getElementById('draftModalTitle');
-    if (titleEl) titleEl.textContent = '派发 AI 深度解剖当前文章';
-    const typeEl = document.getElementById('draftTaskType');
-    if (typeEl) typeEl.value = 'explain';
-    openModal(el.aiDraftModal);
+    const titleMap = {
+      new: '派发 AI 新增文档任务',
+      append: '派发 AI 补充深化文章',
+      modify: '派发 AI 修改重构文章',
+      explain: '派发 AI 深度解剖文章'
+    };
+    if (titleEl) titleEl.textContent = titleMap[action] || 'AI 任务派发';
+
+    const placeholders = {
+      new: '请输入你想研究或沉淀的课题要求（例如：结合朝韩历史与粮食账本，深入剖析平壤政权韧性的核心支柱与生存实相...）',
+      append: '请输入你想在当前文章中补充的论点、问答、图表、客观账本或案例...',
+      modify: '请输入你想针对当前文章修改的段落、错误纠错、术语替换或重构要求...',
+      explain: '针对当前文章，指出核心矛盾、客观利益账本、潜在盲点与要点总结...'
+    };
+    if (el.draftPrompt) {
+      el.draftPrompt.placeholder = placeholders[action] || placeholders.new;
+    }
+  }
+
+  function clearContextDoc() {
+    state.draftContextDoc = null;
+    if (el.draftTargetFile) el.draftTargetFile.value = '';
+    if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'none';
+    setTaskActionType('new');
   }
 
   async function handleDraftSubmit(e) {
     e.preventDefault();
     const prompt = el.draftPrompt.value.trim();
     const repoID = el.draftRepo.value;
-    const fileName = el.draftFileName.value.trim();
-    const taskType = document.getElementById('draftTaskType').value || 'draft';
+    const taskType = (el.draftTaskType && el.draftTaskType.value) || 'new';
+    const targetFile = (el.draftTargetFile && el.draftTargetFile.value.trim()) || '';
 
     if (!prompt) return;
 
@@ -2574,7 +2620,7 @@
         body: JSON.stringify({
           type: taskType,
           repo_id: repoID,
-          target_file: fileName,
+          target_file: targetFile,
           prompt: prompt
         })
       });
@@ -2586,7 +2632,6 @@
       const task = await res.json();
       closeModal(el.aiDraftModal);
       el.draftPrompt.value = '';
-      el.draftFileName.value = '';
       openTaskCenter();
       inspectTask(task.id || task.ID);
     } catch (err) {
@@ -2635,19 +2680,42 @@
         failed: '<span style="color:#ef4444;">❌ 失败</span>'
       };
 
+      const hasOutputFile = t.output_file && t.status === 'completed';
+
       item.innerHTML = `
         <div class="terminal-task-status-row">
           <span class="task-status-badge">${statusMap[t.status] || t.status}</span>
           <span class="task-time-str">${new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         <div class="terminal-task-prompt" title="${escapeHtml(t.prompt)}">${escapeHtml(t.prompt)}</div>
+        ${hasOutputFile ? `
+          <div class="terminal-task-jump-row">
+            <button type="button" class="btn btn-primary btn-task-jump-doc" data-jump-file="${escapeHtml(t.output_file)}">
+              📖 立即打开文档 ➔
+            </button>
+          </div>
+        ` : ''}
       `;
 
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-task-jump-doc')) return;
         document.querySelectorAll('.terminal-task-item').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         inspectTask(taskId);
       });
+
+      const jumpBtn = item.querySelector('.btn-task-jump-doc');
+      if (jumpBtn) {
+        jumpBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetUrl = jumpBtn.getAttribute('data-jump-file');
+          if (targetUrl) {
+            closeAllModals();
+            if (state.docCache) state.docCache.delete(targetUrl);
+            routeTo(targetUrl, true);
+          }
+        });
+      }
 
       el.taskList.appendChild(item);
     });
@@ -2673,19 +2741,20 @@
     const task = state.tasks.find(t => (t.id || t.ID) === taskId);
     if (task) {
       el.activeTaskMeta.innerHTML = `
-        <span style="font-weight:600;color:var(--text-primary);">[${task.type.toUpperCase()}]</span>
+        <span style="font-weight:600;color:var(--text-primary);">[${(task.type || 'TASK').toUpperCase()}]</span>
         <span>ID: ${taskId.substring(0, 8)}</span>
         <span>仓库: ${escapeHtml(task.repo_id)}</span>
       `;
 
-      if (task.output_file) {
+      if (task.output_file && task.status === 'completed') {
         el.activeTaskActions.innerHTML = `
-          <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:3px 10px;font-size:12px;">
-            直达生成文档 ➔
+          <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <span>📖 立即打开文档 ➔</span>
           </button>
         `;
         document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
           closeAllModals();
+          if (state.docCache) state.docCache.delete(task.output_file);
           routeTo(task.output_file, true);
         });
       } else {
@@ -2716,6 +2785,20 @@
             state.taskLogTimer = null;
           }
           loadTasks();
+
+          if (task.status === 'completed' && task.output_file && (task.id || task.ID) === state.activeTaskId) {
+            el.activeTaskActions.innerHTML = `
+              <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
+                <span>📖 立即打开文档 ➔</span>
+              </button>
+            `;
+            document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
+              closeAllModals();
+              if (state.docCache) state.docCache.delete(task.output_file);
+              routeTo(task.output_file, true);
+            });
+          }
+
           if (task.status === 'completed') {
             const rId = task.repo_id || task.RepoID;
             if (rId && state.currentRepo && state.currentRepo.ID === rId) {
