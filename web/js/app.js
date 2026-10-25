@@ -3145,7 +3145,7 @@
         }
 
         chaptersHtml += `
-          <div class="welcome-chapter-card ${isCurrentChapter ? 'is-active-chapter' : ''}" data-chapter-path="${escapeHtml(ch.path)}">
+          <div class="welcome-chapter-card ${isCurrentChapter ? 'is-active-chapter' : ''}" id="chapter-card-${idx}" data-chapter-path="${escapeHtml(ch.path)}">
             <div class="chapter-card-header">
               <div class="chapter-card-title-group">
                 <span class="chapter-icon">
@@ -3178,23 +3178,34 @@
     const isChaptersCollapsed = localStorage.getItem('doc_lens_chapters_collapsed_' + currentRepo.ID) === '1';
     const isRecentCollapsed = localStorage.getItem('doc_lens_recent_collapsed_' + currentRepo.ID) === '1';
 
-    // 6. 构建“快速切换其他知识库”（移至最底部）
-    let switchReposHtml = '';
-    const otherRepos = state.repos.filter(r => r.ID !== currentRepo.ID);
-    otherRepos.forEach(r => {
-      switchReposHtml += `
-        <div class="welcome-repo-card" data-repoid="${r.ID}">
-          <div class="welcome-repo-name">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-            <span>${escapeHtml(r.Name)}</span>
+    // 6. 构建“快速切换知识库体系”（知识库集群空间树结构）
+    let repoTreeBranchesHtml = '';
+    state.repos.forEach(r => {
+      const isCurrent = (r.ID === currentRepo.ID);
+      repoTreeBranchesHtml += `
+        <div class="repo-tree-node ${isCurrent ? 'is-current' : ''}" data-repoid="${escapeHtml(r.ID)}" title="${isCurrent ? '当前所在知识库空间' : '点击秒级切换至该知识库'}">
+          <div class="repo-tree-node-left">
+            <div class="repo-tree-node-icon">${isCurrent ? '🟢' : '📚'}</div>
+            <div class="repo-tree-node-text">
+              <div class="repo-tree-node-title-row">
+                <span class="repo-tree-node-title">${escapeHtml(r.Name)}</span>
+                ${isCurrent ? '<span class="repo-tree-badge-active">当前浏览中</span>' : '<span class="repo-tree-badge-switch">一键切换 ➔</span>'}
+              </div>
+              <div class="repo-tree-node-desc">${escapeHtml(r.Description || '架构研报、深度技术解剖与代码透视知识库')}</div>
+              <div class="repo-tree-node-meta">
+                <span class="repo-tree-meta-item">访问前缀: <code>${escapeHtml(r.RoutePrefix || '/')}</code></span>
+                ${r.Path ? `<span class="repo-tree-meta-item">本地挂载: <code>${escapeHtml(r.Path)}</code></span>` : ''}
+              </div>
+            </div>
           </div>
-          <div class="welcome-repo-desc">${escapeHtml(r.Description || '技术研报与知识架构')}</div>
-          <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-accent);margin-top:4px;">前缀: ${r.RoutePrefix}</div>
+          <div class="repo-tree-node-action">
+            ${isCurrent ? '<button type="button" class="btn btn-sm" disabled style="opacity:0.75;cursor:default;">当前空间</button>' : '<button type="button" class="btn btn-sm btn-primary repo-switch-action-btn">穿梭至该库 🚀</button>'}
+          </div>
         </div>
       `;
     });
 
-    // 7. 渲染页面
+    // 7. 渲染页面（划分为三大部分：1. 最近阅读与动态，2. 章节导航，3. 快速切换知识库体系）
     el.articleBody.innerHTML = `
       <div class="welcome-dashboard-container">
         <!-- 头部导读 -->
@@ -3204,11 +3215,10 @@
           <p class="welcome-desc">${escapeHtml(currentRepo.Description || '架构研报、深度技术解剖与代码透视知识库')}</p>
         </div>
 
-        <!-- 模块 1：上次阅读高亮卡片 -->
-        ${lastReadCardHtml}
+        <!-- 第一部分：最近阅读与生成动态 (包含上次阅读卡片 + 最近生成与更新文章) -->
+        <div class="welcome-section welcome-recent-section" id="homeSectionRecent">
+          ${lastReadCardHtml}
 
-        <!-- 模块 2：最近生成与更新的文章 (重点展示，支持收起/展开) -->
-        <div class="welcome-section welcome-recent-section">
           <div class="welcome-section-header">
             <div class="welcome-section-title-wrap">
               <div class="welcome-section-title">
@@ -3238,13 +3248,13 @@
           </div>
         </div>
 
-        <!-- 模块 3：知识库完整章节分布 (支持一键收缩折叠) -->
-        <div class="welcome-section welcome-chapters-section">
+        <!-- 第二部分：知识库完整章节分布与导航 -->
+        <div class="welcome-section welcome-chapters-section" id="homeSectionChapters">
           <div class="welcome-section-header">
             <div class="welcome-section-title-wrap">
               <div class="welcome-section-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
-                <span>知识库完整章节分布</span>
+                <span>知识库章节全览导航</span>
               </div>
               <span class="welcome-section-subtitle">共 ${chapters.length} 个核心章节 · 点击文章直达阅读</span>
             </div>
@@ -3263,16 +3273,32 @@
           </div>
         </div>
 
-        <!-- 模块 4：最下方的快速切换其他知识库 -->
-        <div class="welcome-section welcome-switch-section">
+        <!-- 第三部分：快速切换知识库 (树状空间架构体系) -->
+        <div class="welcome-section welcome-switch-section" id="homeSectionRepos">
           <div class="welcome-section-header">
-            <div class="welcome-section-title">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-              <span>快速切换其他知识库</span>
+            <div class="welcome-section-title-wrap">
+              <div class="welcome-section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                <span>快速切换知识库体系</span>
+              </div>
+              <span class="welcome-section-subtitle">知识库集群空间树 · 支持跨仓库一键秒级穿梭</span>
             </div>
-            <span class="welcome-section-subtitle">可跨仓库秒级穿梭检索</span>
+            <div class="welcome-section-actions">
+              <span class="welcome-repo-count-badge">共挂载 ${state.repos.length} 个独立知识库空间</span>
+            </div>
           </div>
-          <div class="welcome-repo-grid">${switchReposHtml}</div>
+          <div class="welcome-repo-tree-card">
+            <div class="repo-tree-root">
+              <span class="repo-tree-root-icon">🏛️</span>
+              <div class="repo-tree-root-info">
+                <span class="repo-tree-root-title">DocLens 本地知识库集群网络 (Cluster)</span>
+                <span class="repo-tree-root-desc">全局多库独立索引与统一穿梭管理</span>
+              </div>
+            </div>
+            <div class="repo-tree-branches">
+              ${repoTreeBranchesHtml}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -3427,15 +3453,23 @@
       });
     });
 
-    // 绑定事件：切换知识库（在主页直接切换知识库全景大厅，并平滑滚动到顶部，确保极致跟手）
-    document.querySelectorAll('.welcome-switch-section .welcome-repo-card').forEach(card => {
+    // 绑定事件：切换知识库（在主页直接切换知识库空间，并平滑滚动到顶部，确保极致跟手）
+    document.querySelectorAll('.welcome-switch-section .repo-tree-node').forEach(card => {
       card.addEventListener('click', async () => {
         const repoId = card.getAttribute('data-repoid');
+        if (!repoId) return;
+
+        // 若是当前仓库空间，平滑滚回顶部即可
+        if (state.currentRepo && repoId === state.currentRepo.ID) {
+          if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+
         const targetRepo = state.repos.find(r => r.ID === repoId);
         if (!targetRepo) return;
 
         // 微触感点击动画
-        card.style.transform = 'scale(0.97)';
+        card.style.transform = 'scale(0.98)';
         setTimeout(() => { card.style.transform = ''; }, 120);
 
         // 切换仓库（不跳转到单篇历史文档，保持在主页视角）
@@ -3444,7 +3478,7 @@
         state.currentPath = targetRepo.RoutePrefix || '/';
         try {
           window.history.pushState(null, '', targetRepo.RoutePrefix || '/');
-        } catch (e) {}
+        } catch (_) {}
 
         renderWelcomeDashboard();
 
@@ -3455,8 +3489,8 @@
       });
     });
 
-    el.tocList.innerHTML = '';
-    el.mobileTocList.innerHTML = '';
+    // 8. 构建并渲染主页专属本页导航（第一部分：最近阅读与动态，第二部分：章节导航，第三部分：快速切换知识库空间树）
+    buildHomeToc(lastRead, recentDocs, chapters, currentRepo, state.repos);
   }
 
   function renderErrorDocument(path, errorMsg) {
@@ -5343,49 +5377,56 @@
 
   // ==========================================================================
   // 本页大纲 (TOC) 多层级快速收缩与精准导轨控制器
+  // 需求规范：手机版默认选 1 级，电脑版默认选 2 级
   // ==========================================================================
-  let currentTocLevel = 'all'; // '1' (仅一级大章节), '2' (一二级章节), 'all' (展开全部)
+  let currentDesktopTocLevel = localStorage.getItem('doc_lens_toc_level_desktop') || '2';
+  let currentMobileTocLevel = localStorage.getItem('doc_lens_toc_level_mobile') || '1';
 
   function initTocLevelControl() {
-    const handleLevelClick = (e) => {
-      const btn = e.target.closest('.toc-level-btn');
-      if (!btn) return;
-      const targetLevel = btn.getAttribute('data-level');
-      applyTocLevelFilter(targetLevel);
-    };
-
     if (el.tocLevelCtrl) {
-      el.tocLevelCtrl.addEventListener('click', handleLevelClick);
+      el.tocLevelCtrl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.toc-level-btn');
+        if (!btn) return;
+        const targetLevel = btn.getAttribute('data-level');
+        applyDesktopTocLevel(targetLevel);
+      });
     }
     if (el.mobileTocLevelCtrl) {
-      el.mobileTocLevelCtrl.addEventListener('click', handleLevelClick);
+      el.mobileTocLevelCtrl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.toc-level-btn');
+        if (!btn) return;
+        const targetLevel = btn.getAttribute('data-level');
+        applyMobileTocLevel(targetLevel);
+      });
     }
+
+    // 初始化应用各自默认/记忆层级
+    applyDesktopTocLevel(currentDesktopTocLevel);
+    applyMobileTocLevel(currentMobileTocLevel);
   }
 
-  function applyTocLevelFilter(level) {
-    currentTocLevel = level || 'all';
+  function applyDesktopTocLevel(level) {
+    currentDesktopTocLevel = level || '2';
+    try { localStorage.setItem('doc_lens_toc_level_desktop', currentDesktopTocLevel); } catch (e) {}
 
-    // 1. 同步更新所有收缩控制按钮的 active 状态
-    document.querySelectorAll('.toc-level-btn').forEach(btn => {
-      if (btn.getAttribute('data-level') === currentTocLevel) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
+    // 1. 同步更新电脑端收缩控制按钮的 active 状态
+    if (el.tocLevelCtrl) {
+      el.tocLevelCtrl.querySelectorAll('.toc-level-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-level') === currentDesktopTocLevel);
+      });
+    }
+
+    // 2. 更新桌面端 TOC 列表容器的 CSS 过滤类
+    if (el.tocList) {
+      el.tocList.classList.remove('toc-filter-1', 'toc-filter-2');
+      if (currentDesktopTocLevel === '1') {
+        el.tocList.classList.add('toc-filter-1');
+      } else if (currentDesktopTocLevel === '2') {
+        el.tocList.classList.add('toc-filter-2');
       }
-    });
+    }
 
-    // 2. 更新桌面端与移动端 TOC 列表容器的 CSS 过滤类
-    [el.tocList, el.mobileTocList].forEach(list => {
-      if (!list) return;
-      list.classList.remove('toc-filter-1', 'toc-filter-2');
-      if (currentTocLevel === '1') {
-        list.classList.add('toc-filter-1');
-      } else if (currentTocLevel === '2') {
-        list.classList.add('toc-filter-2');
-      }
-    });
-
-    // 3. 收缩后重新校验当前高亮位置，若当前高亮节点被折叠，自动向上冒泡高亮其归属的可见大章节
+    // 3. 收缩后重新校验当前高亮位置
     const activeLink = el.tocList?.querySelector('.toc-link.active');
     if (activeLink) {
       const id = activeLink.getAttribute('href')?.replace('#', '');
@@ -5393,38 +5434,96 @@
     }
   }
 
+  function applyMobileTocLevel(level) {
+    currentMobileTocLevel = level || '1';
+    try { localStorage.setItem('doc_lens_toc_level_mobile', currentMobileTocLevel); } catch (e) {}
+
+    // 1. 同步更新移动端收缩控制按钮的 active 状态
+    if (el.mobileTocLevelCtrl) {
+      el.mobileTocLevelCtrl.querySelectorAll('.toc-level-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-level') === currentMobileTocLevel);
+      });
+    }
+
+    // 2. 更新移动端 TOC 列表容器的 CSS 过滤类
+    if (el.mobileTocList) {
+      el.mobileTocList.classList.remove('toc-filter-1', 'toc-filter-2');
+      if (currentMobileTocLevel === '1') {
+        el.mobileTocList.classList.add('toc-filter-1');
+      } else if (currentMobileTocLevel === '2') {
+        el.mobileTocList.classList.add('toc-filter-2');
+      }
+    }
+
+    // 3. 收缩后重新校验当前高亮位置
+    const activeLink = el.mobileTocList?.querySelector('.mobile-toc-link.active');
+    if (activeLink) {
+      const id = activeLink.getAttribute('href')?.replace('#', '');
+      if (id) highlightTocLink(id);
+    }
+  }
+
+  function applyTocLevelFilter(level) {
+    if (level) {
+      applyDesktopTocLevel(level);
+      applyMobileTocLevel(level);
+    } else {
+      applyDesktopTocLevel(currentDesktopTocLevel);
+      applyMobileTocLevel(currentMobileTocLevel);
+    }
+  }
+
   function highlightTocLink(activeId) {
-    if (!el.tocList) return;
-    const allItems = Array.from(el.tocList.querySelectorAll('.toc-item'));
-    const allLinks = el.tocList.querySelectorAll('.toc-link');
-    const allMobileLinks = el.mobileTocList ? el.mobileTocList.querySelectorAll('.mobile-toc-link') : [];
+    if (!activeId) return;
 
-    allLinks.forEach(l => l.classList.remove('active'));
-    allMobileLinks.forEach(l => l.classList.remove('active'));
+    // 桌面端高亮与智能冒泡
+    if (el.tocList) {
+      const allItems = Array.from(el.tocList.querySelectorAll('.toc-item'));
+      const allLinks = el.tocList.querySelectorAll('.toc-link');
+      allLinks.forEach(l => l.classList.remove('active'));
 
-    const targetItem = el.tocList.querySelector(`.toc-item a[href="#${activeId}"]`)?.closest('.toc-item');
-    if (!targetItem) return;
-
-    let itemToHighlight = targetItem;
-    // 智能冒泡：若当前项在收缩模式下不可见（display: none），向上回溯最近的一个可见父级章节
-    if (itemToHighlight.offsetParent === null) {
-      const idx = allItems.indexOf(targetItem);
-      for (let i = idx - 1; i >= 0; i--) {
-        if (allItems[i].offsetParent !== null) {
-          itemToHighlight = allItems[i];
-          break;
+      const targetItem = el.tocList.querySelector(`.toc-item a[href="#${activeId}"]`)?.closest('.toc-item');
+      if (targetItem) {
+        let itemToHighlight = targetItem;
+        // 若当前项在当前收缩层级下不可见，向上回溯最近的一个可见父级章节
+        if (itemToHighlight.offsetParent === null) {
+          const idx = allItems.indexOf(targetItem);
+          for (let i = idx - 1; i >= 0; i--) {
+            if (allItems[i].offsetParent !== null) {
+              itemToHighlight = allItems[i];
+              break;
+            }
+          }
+        }
+        if (itemToHighlight) {
+          const activeLink = itemToHighlight.querySelector('.toc-link');
+          if (activeLink) activeLink.classList.add('active');
         }
       }
     }
 
-    if (itemToHighlight) {
-      const activeLink = itemToHighlight.querySelector('.toc-link');
-      if (activeLink) activeLink.classList.add('active');
+    // 移动端独立判断高亮与智能冒泡
+    if (el.mobileTocList) {
+      const allMobileItems = Array.from(el.mobileTocList.querySelectorAll('.mobile-toc-item'));
+      const allMobileLinks = el.mobileTocList.querySelectorAll('.mobile-toc-link');
+      allMobileLinks.forEach(l => l.classList.remove('active'));
 
-      const linkHref = activeLink?.getAttribute('href');
-      if (linkHref && el.mobileTocList) {
-        const mLink = el.mobileTocList.querySelector(`.mobile-toc-link[href="${linkHref}"]`);
-        if (mLink) mLink.classList.add('active');
+      const targetMobileItem = el.mobileTocList.querySelector(`.mobile-toc-item a[href="#${activeId}"]`)?.closest('.mobile-toc-item');
+      if (targetMobileItem) {
+        let mobileItemToHighlight = targetMobileItem;
+        if (mobileItemToHighlight.offsetParent === null) {
+          const mIdx = allMobileItems.indexOf(targetMobileItem);
+          for (let i = mIdx - 1; i >= 0; i--) {
+            if (allMobileItems[i].offsetParent !== null) {
+              mobileItemToHighlight = allMobileItems[i];
+              break;
+            }
+          }
+        }
+        if (mobileItemToHighlight) {
+          const mLink = mobileItemToHighlight.querySelector('.mobile-toc-link');
+          if (mLink) mLink.classList.add('active');
+        }
       }
     }
   }
@@ -5507,10 +5606,202 @@
     el.tocList.appendChild(fragment);
     el.mobileTocList.appendChild(mobileFragment);
 
-    // 默认或保持当前收缩/展开层级设置
-    applyTocLevelFilter(currentTocLevel);
+    // 默认或保持当前收缩/展开层级设置：电脑端默认 2 级，手机端默认 1 级
+    applyDesktopTocLevel(currentDesktopTocLevel);
+    applyMobileTocLevel(currentMobileTocLevel);
 
     setupScrollSpy(headings);
+  }
+
+  // ==========================================================================
+  // 主页模式专属“本页导航”体系 (第一部分：最近阅读，第二部分：章节导航，第三部分：快速切换知识库空间树)
+  // ==========================================================================
+  function buildHomeToc(lastRead, recentDocs, chapters, currentRepo, repos) {
+    if (!el.tocList || !el.mobileTocList) return;
+
+    el.tocList.innerHTML = '';
+    el.mobileTocList.innerHTML = '';
+
+    // 主页具有多级大纲（1级主模块，2级子章节与空间树分支），开启快速层级收缩控制器
+    if (el.tocLevelCtrl) el.tocLevelCtrl.style.display = 'inline-flex';
+    if (el.mobileTocLevelCtrl) el.mobileTocLevelCtrl.style.display = 'inline-flex';
+
+    const desktopFrag = document.createDocumentFragment();
+    const mobileFrag = document.createDocumentFragment();
+
+    function createHomeTocNode(text, href, level, iconSvg, onClick) {
+      const tag = level === '1' ? 'h2' : 'h3';
+
+      // 1. 桌面端导航节点
+      const li = document.createElement('li');
+      li.className = `toc-item ${tag}`;
+      li.setAttribute('data-level', level);
+
+      const a = document.createElement('a');
+      a.className = 'toc-link';
+      a.href = href;
+      a.title = text;
+      a.innerHTML = `${iconSvg ? `<span class="toc-icon" style="margin-right:6px;display:inline-flex;align-items:center;vertical-align:-1px;">${iconSvg}</span>` : ''}<span>${escapeHtml(text)}</span>`;
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (onClick) {
+          onClick();
+        } else {
+          scrollToAnchor(href);
+        }
+      });
+      li.appendChild(a);
+      desktopFrag.appendChild(li);
+
+      // 2. 移动端抽屉导航节点
+      const mLi = document.createElement('li');
+      mLi.className = `mobile-toc-item ${tag}`;
+      mLi.setAttribute('data-level', level);
+
+      const mA = document.createElement('a');
+      mA.className = 'mobile-toc-link';
+      mA.href = href;
+      mA.title = text;
+      mA.innerHTML = `${iconSvg ? `<span class="toc-icon" style="margin-right:8px;display:inline-flex;align-items:center;vertical-align:-1px;">${iconSvg}</span>` : ''}<span>${escapeHtml(text)}</span>`;
+      mA.addEventListener('click', (e) => {
+        e.preventDefault();
+        closeModal(el.mobileTocModal);
+        if (onClick) {
+          onClick();
+        } else {
+          scrollToAnchor(href);
+        }
+      });
+      mLi.appendChild(mA);
+      mobileFrag.appendChild(mLi);
+    }
+
+    // ====== 第一部分：最近阅读与动态 ======
+    createHomeTocNode(
+      '最近阅读与动态',
+      '#homeSectionRecent',
+      '1',
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+    );
+    if (lastRead) {
+      createHomeTocNode(
+        `上次读到: ${lastRead.name}`,
+        '#welcomeLastReadCard',
+        '2',
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>',
+        () => {
+          const card = document.getElementById('welcomeLastReadCard');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      );
+    }
+    createHomeTocNode(
+      `最新更新 (${recentDocs ? recentDocs.length : 0} 篇)`,
+      '#homeSectionRecent',
+      '2',
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+      () => {
+        const sec = document.getElementById('homeSectionRecent');
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    );
+
+    // ====== 第二部分：知识库章节导航 ======
+    createHomeTocNode(
+      '知识库章节导航',
+      '#homeSectionChapters',
+      '1',
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>'
+    );
+    if (chapters && chapters.length > 0) {
+      chapters.forEach((ch, idx) => {
+        createHomeTocNode(
+          `📁 ${ch.name} (${ch.docs.length}篇)`,
+          `#chapter-card-${idx}`,
+          '2',
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>',
+          () => {
+            const card = document.getElementById(`chapter-card-${idx}`);
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              card.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+              card.style.borderColor = 'var(--accent-color)';
+              card.style.boxShadow = '0 0 0 2px var(--accent-color)';
+              setTimeout(() => {
+                card.style.borderColor = '';
+                card.style.boxShadow = '';
+              }, 1200);
+            }
+          }
+        );
+      });
+    }
+
+    // ====== 第三部分：快速切换知识库 (空间树体系) ======
+    createHomeTocNode(
+      '快速切换知识库 (空间树)',
+      '#homeSectionRepos',
+      '1',
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>'
+    );
+    if (repos && repos.length > 0) {
+      repos.forEach(r => {
+        const isCurrent = currentRepo && r.ID === currentRepo.ID;
+        const label = isCurrent ? `🏷️ ${r.Name} (当前空间)` : `📚 ${r.Name}`;
+        createHomeTocNode(
+          label,
+          '#homeSectionRepos',
+          '2',
+          isCurrent
+            ? '<span style="color:#10b981;font-size:11px;">●</span>'
+            : '<span style="color:var(--text-muted);font-size:11px;">○</span>',
+          async () => {
+            if (isCurrent) {
+              const sec = document.getElementById('homeSectionRepos');
+              if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+              await selectRepo(r.ID, false);
+              state.currentDoc = null;
+              state.currentPath = r.RoutePrefix || '/';
+              try { window.history.pushState(null, '', r.RoutePrefix || '/'); } catch (_) {}
+              renderWelcomeDashboard();
+              if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }
+        );
+      });
+    }
+
+    el.tocList.appendChild(desktopFrag);
+    el.mobileTocList.appendChild(mobileFrag);
+
+    // 应用层级：电脑端默认 2 级，手机端默认 1 级
+    applyDesktopTocLevel(currentDesktopTocLevel);
+    applyMobileTocLevel(currentMobileTocLevel);
+
+    // 默认高亮首项
+    highlightTocLink('homeSectionRecent');
+
+    // 关联 ScrollSpy 导轨跟踪
+    const spyTargets = [];
+    const secRecent = document.getElementById('homeSectionRecent');
+    if (secRecent) spyTargets.push(secRecent);
+    const lastCard = document.getElementById('welcomeLastReadCard');
+    if (lastCard) spyTargets.push(lastCard);
+    const secChapters = document.getElementById('homeSectionChapters');
+    if (secChapters) spyTargets.push(secChapters);
+    if (chapters && chapters.length > 0) {
+      chapters.forEach((_, idx) => {
+        const cCard = document.getElementById(`chapter-card-${idx}`);
+        if (cCard) spyTargets.push(cCard);
+      });
+    }
+    const secRepos = document.getElementById('homeSectionRepos');
+    if (secRepos) spyTargets.push(secRepos);
+
+    if (spyTargets.length > 0) {
+      setupScrollSpy(spyTargets);
+    }
   }
 
   function setupScrollSpy(headings) {

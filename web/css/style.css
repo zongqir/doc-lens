@@ -1516,6 +1516,188 @@ body.modal-open {
   line-height: 1.4;
 }
 
+/* 知识库集群空间树 (Repo Architecture Tree) */
+.welcome-repo-tree-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.repo-tree-root {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 16px;
+}
+
+.repo-tree-root-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.repo-tree-root-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  display: block;
+}
+
+.repo-tree-root-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.repo-tree-branches {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 18px;
+  padding-left: 20px;
+  border-left: 2px dashed var(--border-default);
+  position: relative;
+}
+
+.repo-tree-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.repo-tree-node::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  width: 20px;
+  height: 2px;
+  background: var(--border-default);
+}
+
+.repo-tree-node:hover {
+  border-color: var(--accent-color);
+  background: var(--bg-surface-hover);
+  transform: translateX(3px);
+  box-shadow: var(--shadow-sm);
+}
+
+.repo-tree-node.is-current {
+  border-color: var(--accent-color);
+  background: var(--accent-subtle);
+  cursor: default;
+}
+
+.repo-tree-node.is-current:hover {
+  transform: none;
+}
+
+.repo-tree-node-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.repo-tree-node-icon {
+  font-size: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.repo-tree-node-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.repo-tree-node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.repo-tree-node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.repo-tree-badge-active {
+  font-size: 11px;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.repo-tree-badge-switch {
+  font-size: 11px;
+  color: var(--accent-color);
+  background: var(--accent-subtle);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.repo-tree-node-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.repo-tree-node-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.repo-tree-node-meta code {
+  font-family: var(--font-mono);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--accent-color);
+}
+
+.welcome-repo-count-badge {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.toc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -1px;
+  flex-shrink: 0;
+}
+
 /* 现代化知识库主页全景大厅 (Welcome Dashboard Redesign) */
 .welcome-dashboard-container {
   width: 100%;
@@ -5114,6 +5296,28 @@ body.modal-open {
   .welcome-repo-grid {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .repo-tree-branches {
+    margin-left: 8px !important;
+    padding-left: 12px !important;
+  }
+  .repo-tree-node::before {
+    left: -14px !important;
+    width: 12px !important;
+  }
+  .repo-tree-node {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 12px 14px !important;
+  }
+  .repo-tree-node-action {
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+  .repo-tree-node-action button {
+    width: 100% !important;
   }
 
   /* 手机端 Markdown 正文与高密排版 */
