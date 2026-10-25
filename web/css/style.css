@@ -2244,6 +2244,7 @@ body.modal-open {
   align-items: center;
   font-weight: 600;
   font-size: 14.5px;
+  flex-shrink: 0;
 }
 
 .modal-title-with-icon {
@@ -2252,9 +2253,20 @@ body.modal-open {
   gap: 8px;
 }
 
+.modal-card > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .modal-body {
   padding: 20px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-footer {
@@ -2264,6 +2276,7 @@ body.modal-open {
   justify-content: flex-end;
   gap: 10px;
   background-color: var(--bg-subtle);
+  flex-shrink: 0;
 }
 
 .form-group {

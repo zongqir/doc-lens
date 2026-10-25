@@ -297,6 +297,17 @@
       });
     }
 
+    if (el.draftPrompt) {
+      el.draftPrompt.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          if (el.aiDraftForm) {
+            el.aiDraftForm.requestSubmit();
+          }
+        }
+      });
+    }
+
     // 手机端任务终端 Tab 切换
     document.querySelectorAll('.terminal-tab').forEach(tab => {
       tab.addEventListener('click', () => {
