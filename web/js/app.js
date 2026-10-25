@@ -3062,7 +3062,6 @@
   function updateMindmapBreadcrumbs() {
     const track = document.getElementById('mindmapBreadcrumbsTrack');
     const backBtn = document.getElementById('mindmapBackBtn');
-    const tipEl = document.getElementById('mindmapDrillTip');
     if (!track) return;
 
     if (backBtn) {
@@ -3088,21 +3087,6 @@
 
     track.innerHTML = html;
 
-    if (tipEl) {
-      if (mindmapDrillStack.length > 1) {
-        const current = mindmapDrillStack[mindmapDrillStack.length - 1];
-        tipEl.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
-          <span>已下钻分支聚焦 · 仅呈现<strong>「${escapeHtml(current.title)}」</strong>及其子项</span>
-        `;
-      } else {
-        tipEl.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
-          <span>提示：双击分支或悬停点击“聚焦”可下钻深入单分支</span>
-        `;
-      }
-    }
-
     track.querySelectorAll('.crumb-link').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3119,12 +3103,24 @@
     if (!currentMarkmapInstance || mindmapDrillStack.length === 0) return;
     hideFocusPill();
 
+    const isDocRoot = mindmapDrillStack.length === 1;
     const currentLevel = mindmapDrillStack[mindmapDrillStack.length - 1];
     const treeToRender = cloneMindmapTree(currentLevel.rawNode);
+
+    // 第一层主干根节点：清空文字只保留一个核心圆圈支点（文章本身已知，无需冗余文字）
+    if (isDocRoot && treeToRender.children && treeToRender.children.length > 0) {
+      treeToRender.content = '';
+    }
+
     if (treeToRender.payload) {
       treeToRender.payload.fold = 0;
     }
     setTreeFoldDepth(treeToRender, 0, currentMindmapExpandDepth);
+
+    const svgEl = document.getElementById('mindmapSvg');
+    if (svgEl) {
+      svgEl.classList.toggle('mindmap-at-doc-root', isDocRoot);
+    }
 
     await currentMarkmapInstance.setData(treeToRender);
     updateMindmapBreadcrumbs();
@@ -3181,18 +3177,12 @@
     const modal = document.getElementById('mindmapModal');
     if (!modal) return;
 
-    const modalTitle = document.getElementById('mindmapModalTitle');
-    if (modalTitle) {
-      const rawTitle = doc.title || cleanDocTitle(doc.name) || '文档';
-      modalTitle.textContent = `${rawTitle} · 思维导图`;
-    }
-
     const loadingEl = document.getElementById('mindmapLoading');
     const svgEl = document.getElementById('mindmapSvg');
     if (loadingEl) {
       loadingEl.innerHTML = `
         <div class="mindmap-spinner"></div>
-        <span>正在解析生成全景思维导图...</span>
+        <span>正在解析生成思维导图...</span>
       `;
       loadingEl.style.display = 'flex';
     }
@@ -3235,7 +3225,13 @@
       });
 
       const initialTree = cloneMindmapTree(root);
+      // 第一层主干根节点清空文字，只保留一个圆圈支点
+      if (initialTree.children && initialTree.children.length > 0) {
+        initialTree.content = '';
+      }
       setTreeFoldDepth(initialTree, 0, 2);
+
+      svgEl.classList.add('mindmap-at-doc-root');
 
       const colors = getMarkmapPalette();
       const mm = window.markmap.Markmap.create(svgEl, {
@@ -3252,11 +3248,15 @@
       currentMarkmapInstance = mm;
       updateMindmapBreadcrumbs();
 
-      // 鼠标悬停在分支节点上时，弹出聚焦下钻气泡按钮
+      // 鼠标悬停在分支节点上时，弹出聚焦下钻气泡按钮（根节点圆圈不弹出）
       svgEl.onmouseover = (e) => {
         const nodeGroup = e.target.closest('g.markmap-node');
         if (nodeGroup && nodeGroup.__data__) {
           const datum = nodeGroup.__data__;
+          if (datum && datum.state && datum.state.depth === 1) {
+            hideFocusPill();
+            return;
+          }
           if (datum && datum.children && datum.children.length > 0) {
             showFocusPillForNode(nodeGroup, datum);
           }
@@ -3281,20 +3281,23 @@
         if (!datum) return;
 
         if (!e.target.closest('circle')) {
-          if (datum.children && datum.children.length > 0) {
+          if (datum.children && datum.children.length > 0 && !(datum.state && datum.state.depth === 1)) {
             showFocusPillForNode(nodeGroup, datum);
           }
           mm.centerNode(datum);
         }
       };
 
-      // 双击：类似幕布下钻深入此分支聚焦，同时阻止 D3 默认双击放大
+      // 双击：下钻深入此分支聚焦（根节点自身不触发下钻）
       svgEl.ondblclick = (e) => {
         const nodeGroup = e.target.closest('g.markmap-node');
         if (nodeGroup && nodeGroup.__data__) {
+          const datum = nodeGroup.__data__;
+          if (datum && datum.state && datum.state.depth === 1) {
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
-          const datum = nodeGroup.__data__;
           if (datum && datum.children && datum.children.length > 0) {
             drillIntoNode(datum);
           }

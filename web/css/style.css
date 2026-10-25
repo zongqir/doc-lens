@@ -4678,14 +4678,10 @@ body.modal-open {
     height: 24px !important;
   }
 
-  .mindmap-drill-tip {
-    display: none !important;
-  }
-
-  .mindmap-nav-bar {
-    padding: 4px 10px !important;
-    min-height: 34px !important;
-    gap: 6px !important;
+  .mindmap-modal-header {
+    padding: 6px 10px !important;
+    min-height: 40px !important;
+    gap: 8px !important;
   }
 
   .crumb-item {
