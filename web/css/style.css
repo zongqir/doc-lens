@@ -4975,14 +4975,27 @@ body.modal-open {
 
   .quick-search-trigger {
     display: inline-flex !important;
-    padding: 6px 8px !important;
-    background: transparent !important;
-    border: none !important;
-    min-width: 32px !important;
-    height: 32px !important;
+    padding: 0 !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid var(--border-default) !important;
+    background-color: var(--bg-surface) !important;
+    box-shadow: var(--shadow-inner-glow) !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+
+  .quick-search-trigger:hover {
+    background-color: var(--bg-surface-hover) !important;
+    border-color: var(--border-strong) !important;
+  }
+
+  .quick-search-trigger:active {
+    transform: scale(0.97);
   }
 
   .quick-search-trigger .quick-search-text,
@@ -4991,8 +5004,8 @@ body.modal-open {
   }
 
   .quick-search-trigger svg {
-    width: 18px !important;
-    height: 18px !important;
+    width: 15px !important;
+    height: 15px !important;
     color: var(--text-primary) !important;
   }
 
@@ -5896,8 +5909,8 @@ body.modal-open {
    ========================================================================= */
 .modal-diff-card {
   max-width: 840px;
-  width: 92%;
-  max-height: 85vh;
+  width: 94vw;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
@@ -5905,38 +5918,35 @@ body.modal-open {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2xl);
   overflow: hidden;
+  box-sizing: border-box;
   animation: modalScaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.diff-header-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  border-radius: 9999px;
-  margin-left: 10px;
-  font-weight: 500;
-}
-
-.diff-modal-toolbar {
-  padding: 10px 18px;
+.diff-modal-header {
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.diff-version-select-wrap {
+.diff-select-container {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.diff-history-icon {
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 .diff-commit-select {
@@ -5944,37 +5954,78 @@ body.modal-open {
   color: var(--text-primary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  font-size: 12.5px;
-  max-width: 420px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
   outline: none;
   font-family: inherit;
-  transition: border-color 0.15s ease;
+  cursor: pointer;
+  -webkit-appearance: menulist;
+  appearance: menulist;
+  touch-action: manipulation;
 }
 .diff-commit-select:focus {
   border-color: var(--accent);
+}
+
+.diff-modal-header .close-modal-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diff-time-bar {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .diff-toolbar-meta {
   font-size: 12px;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .diff-summary-banner {
-  margin: 14px 18px 4px;
-  padding: 12px 16px;
+  margin: 10px 14px 4px;
+  padding: 10px 14px;
   background: rgba(59, 130, 246, 0.08);
   border: 1px solid rgba(59, 130, 246, 0.22);
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.45;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .diff-modal-body {
@@ -6096,6 +6147,45 @@ body.modal-open {
   border-radius: var(--radius-sm);
   scroll-margin-top: 80px;
   transition: all 0.2s ease;
+}
+
+@media (max-width: 640px) {
+  .modal-diff-card {
+    width: 95vw !important;
+    max-height: 90vh !important;
+    border-radius: var(--radius-md) !important;
+  }
+  .diff-modal-header {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+  .diff-commit-select {
+    font-size: 12.5px !important;
+    padding: 6px 8px !important;
+  }
+  .diff-time-bar {
+    padding: 5px 10px !important;
+    font-size: 11.5px !important;
+  }
+  .diff-summary-banner {
+    margin: 8px 10px 4px !important;
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+  .diff-modal-body {
+    padding: 8px 10px 12px !important;
+    gap: 7px !important;
+  }
+  .diff-section-card {
+    padding: 10px 11px !important;
+  }
+  .diff-section-title {
+    font-size: 13px !important;
+  }
+  .diff-jump-btn {
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+  }
 }
 
 
