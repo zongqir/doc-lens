@@ -2054,20 +2054,43 @@
     `;
 
     const fav = isFavorite(doc.path);
+    const isMarkdown = doc.type === 'markdown';
     el.articleActions.innerHTML = `
+      ${isMarkdown ? `
+      <button class="btn btn-mindmap" id="docMindmapBtn" title="查看文章思维导图（层级大纲脑图）">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        <span class="btn-text-full">思维导图</span>
+        <span class="btn-text-short">导图</span>
+      </button>` : ''}
       <button class="btn ${fav ? 'btn-favorite-active' : ''}" id="favoriteBtn" title="${fav ? '取消收藏' : '收藏此文档'}">
         ${fav ? SVG_ICONS.starFilled : SVG_ICONS.star}
         <span>${fav ? '已收藏' : '收藏'}</span>
       </button>
       <button class="btn" id="copyLinkBtn" title="复制直达链接">
         ${SVG_ICONS.link}
-        <span>复制链接</span>
+        <span class="btn-text-full">复制链接</span>
+        <span class="btn-text-short">链接</span>
       </button>
       <button class="btn btn-primary" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
         <span>AI 协作</span>
       </button>
     `;
+
+    if (isMarkdown) {
+      const mindmapBtn = document.getElementById('docMindmapBtn');
+      if (mindmapBtn) {
+        mindmapBtn.addEventListener('click', () => {
+          openDocMindmap(doc);
+        });
+      }
+    }
 
     document.getElementById('favoriteBtn').addEventListener('click', () => {
       toggleFavorite(doc);
@@ -2078,7 +2101,7 @@
       const b = document.getElementById('copyLinkBtn');
       b.innerHTML = `${SVG_ICONS.check} <span style="color:#10b981;">已复制</span>`;
       setTimeout(() => {
-        b.innerHTML = `${SVG_ICONS.link} <span>复制链接</span>`;
+        b.innerHTML = `${SVG_ICONS.link} <span class="btn-text-full">复制链接</span><span class="btn-text-short">链接</span>`;
       }, 2000);
     });
 
@@ -2790,12 +2813,83 @@
 
   function initMermaid() {
     if (window.mermaid) {
+      const isDark = state.theme === 'dark';
       window.mermaid.initialize({
         startOnLoad: false,
-        theme: state.theme === 'dark' ? 'dark' : 'neutral',
+        theme: 'base',
         securityLevel: 'loose',
         fontFamily: 'var(--font-sans)',
-        suppressErrorRendering: true
+        suppressErrorRendering: true,
+        flowchart: {
+          curve: 'basis',
+          htmlLabels: true,
+          padding: 16,
+          nodeSpacing: 45,
+          rankSpacing: 45
+        },
+        themeVariables: isDark ? {
+          darkMode: true,
+          fontFamily: 'var(--font-sans)',
+          fontSize: '13px',
+          background: 'transparent',
+          primaryColor: '#1e293b',
+          primaryBorderColor: '#3b82f6',
+          primaryTextColor: '#f8fafc',
+          lineColor: '#94a3b8',
+          textColor: '#f1f5f9',
+          mainBkg: '#1e293b',
+          nodeBorder: '#475569',
+          nodeTextColor: '#f8fafc',
+          clusterBkg: '#0f172a',
+          clusterBorder: '#334155',
+          defaultLinkColor: '#94a3b8',
+          titleColor: '#f8fafc',
+          edgeLabelBackground: '#1e293b',
+          actorBorder: '#475569',
+          actorBkg: '#1e293b',
+          actorTextColor: '#f8fafc',
+          actorLineColor: '#64748b',
+          signalColor: '#cbd5e1',
+          signalTextColor: '#f8fafc',
+          labelBoxBkgColor: '#1e293b',
+          labelBoxBorderColor: '#334155',
+          labelTextColor: '#f8fafc',
+          loopTextColor: '#f8fafc',
+          noteBorderColor: '#854d0e',
+          noteBkgColor: '#2d2516',
+          noteTextColor: '#fef08a'
+        } : {
+          darkMode: false,
+          fontFamily: 'var(--font-sans)',
+          fontSize: '13px',
+          background: 'transparent',
+          primaryColor: '#f8fafc',
+          primaryBorderColor: '#3b82f6',
+          primaryTextColor: '#0f172a',
+          lineColor: '#64748b',
+          textColor: '#0f172a',
+          mainBkg: '#f8fafc',
+          nodeBorder: '#cbd5e1',
+          nodeTextColor: '#0f172a',
+          clusterBkg: '#f8fafc',
+          clusterBorder: '#e2e8f0',
+          defaultLinkColor: '#64748b',
+          titleColor: '#0f172a',
+          edgeLabelBackground: '#ffffff',
+          actorBorder: '#cbd5e1',
+          actorBkg: '#f8fafc',
+          actorTextColor: '#0f172a',
+          actorLineColor: '#94a3b8',
+          signalColor: '#475569',
+          signalTextColor: '#0f172a',
+          labelBoxBkgColor: '#ffffff',
+          labelBoxBorderColor: '#cbd5e1',
+          labelTextColor: '#0f172a',
+          loopTextColor: '#0f172a',
+          noteBorderColor: '#fde68a',
+          noteBkgColor: '#fefce8',
+          noteTextColor: '#854d0e'
+        }
       });
     }
   }
@@ -2819,6 +2913,142 @@
       document.head.appendChild(script);
     });
     return mermaidLoadingPromise;
+  }
+
+  // ==========================================================================
+  // 思维导图 (Markmap) 离线引擎与全景弹窗控制器
+  // ==========================================================================
+  let currentMarkmapInstance = null;
+  let markmapLoadingPromise = null;
+
+  function ensureMarkmapLoaded() {
+    if (window.markmap && window.markmap.Markmap && window.markmap.Transformer) {
+      return Promise.resolve(window.markmap);
+    }
+    if (markmapLoadingPromise) return markmapLoadingPromise;
+    markmapLoadingPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = '/js/markmap.min.js';
+      script.async = true;
+      script.onload = () => {
+        resolve(window.markmap);
+      };
+      script.onerror = (err) => {
+        markmapLoadingPromise = null;
+        reject(err);
+      };
+      document.head.appendChild(script);
+    });
+    return markmapLoadingPromise;
+  }
+
+  function getMarkmapPalette() {
+    return state.theme === 'dark'
+      ? ['#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa', '#38bdf8', '#4ade80']
+      : ['#2563eb', '#059669', '#db2777', '#d97706', '#7c3aed', '#0284c7', '#16a34a'];
+  }
+
+  function updateMindmapTheme() {
+    const mindmapModal = document.getElementById('mindmapModal');
+    if (!mindmapModal) return;
+    const isDark = state.theme === 'dark';
+    mindmapModal.classList.toggle('markmap-dark', isDark);
+
+    if (currentMarkmapInstance && mindmapModal.classList.contains('open')) {
+      const colors = getMarkmapPalette();
+      currentMarkmapInstance.setOptions({
+        color: (node) => colors[(node.state?.depth || 0) % colors.length]
+      });
+      currentMarkmapInstance.renderData();
+    }
+  }
+
+  async function openDocMindmap(doc) {
+    if (!doc || !doc.content) return;
+    const modal = document.getElementById('mindmapModal');
+    if (!modal) return;
+
+    const modalTitle = document.getElementById('mindmapModalTitle');
+    if (modalTitle) {
+      const rawTitle = doc.title || cleanDocTitle(doc.name) || '文档';
+      modalTitle.textContent = `${rawTitle} · 思维导图`;
+    }
+
+    const loadingEl = document.getElementById('mindmapLoading');
+    const svgEl = document.getElementById('mindmapSvg');
+    if (loadingEl) {
+      loadingEl.innerHTML = `
+        <div class="mindmap-spinner"></div>
+        <span>正在解析生成全景思维导图...</span>
+      `;
+      loadingEl.style.display = 'flex';
+    }
+    if (svgEl) svgEl.style.opacity = '0';
+
+    openModal(modal);
+
+    try {
+      await ensureMarkmapLoaded();
+
+      const transformer = new window.markmap.Transformer();
+      const { root } = transformer.transform(doc.content);
+
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (svgEl) svgEl.style.opacity = '1';
+
+      if (currentMarkmapInstance) {
+        try {
+          currentMarkmapInstance.destroy();
+        } catch (_) {}
+        currentMarkmapInstance = null;
+      }
+
+      svgEl.innerHTML = '';
+
+      const isDark = state.theme === 'dark';
+      modal.classList.toggle('markmap-dark', isDark);
+
+      const colors = getMarkmapPalette();
+      const mm = window.markmap.Markmap.create(svgEl, {
+        duration: 250,
+        color: (node) => colors[(node.state?.depth || 0) % colors.length],
+        paddingX: 18,
+        spacingVertical: 8,
+        spacingHorizontal: 70,
+        autoFit: true
+      }, root);
+
+      currentMarkmapInstance = mm;
+
+      // 挂载辅助工具栏（放大、缩小、居中适配、递归折叠）
+      const mount = document.getElementById('mindmapToolbarMount');
+      if (mount && window.markmap.Toolbar) {
+        mount.innerHTML = '';
+        const toolbar = new window.markmap.Toolbar();
+        toolbar.setItems(['zoomIn', 'zoomOut', 'fit', 'recurse']);
+        toolbar.attach(mm);
+        const toolbarNode = toolbar.render();
+        mount.appendChild(toolbarNode);
+      }
+
+      // 首次布局完成后自适应视口
+      setTimeout(() => {
+        if (currentMarkmapInstance) {
+          currentMarkmapInstance.fit();
+        }
+      }, 120);
+
+    } catch (err) {
+      console.error('Failed to render mindmap:', err);
+      if (loadingEl) {
+        loadingEl.style.display = 'flex';
+        loadingEl.innerHTML = `
+          <div style="color:#ef4444;font-size:13px;display:flex;align-items:center;gap:6px;">
+            <span>思维导图解析失败，请检查文档内容格式</span>
+          </div>
+        `;
+      }
+    }
   }
 
   function renderMarkdownDoc(rawMarkdown) {
@@ -3176,6 +3406,8 @@
         }
       });
     });
+  }
+
   // 1. 轻量解析 Markdown 顶部的 YAML Frontmatter（纯原生，零外部依赖，毫秒级解析）
   function parseYamlFrontmatter(markdown) {
     if (!markdown || typeof markdown !== 'string' || !markdown.startsWith('---')) {
