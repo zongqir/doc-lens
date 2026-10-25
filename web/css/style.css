@@ -2415,6 +2415,40 @@ body.modal-open {
   color: var(--accent-color);
 }
 
+/* 顶部文章工具栏快捷翻页按钮组 (双导轨设计) */
+.header-doc-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border-default);
+}
+
+.header-nav-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  border-radius: var(--radius-sm) !important;
+  cursor: pointer;
+  transition: all var(--transition-fast) !important;
+}
+
+.header-nav-btn:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-surface-elevated) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.header-nav-btn svg {
+  width: 13px !important;
+  height: 13px !important;
+  flex-shrink: 0;
+}
+
 .markdown-body pre {
   margin: 0;
   padding: 16px 18px;

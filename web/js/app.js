@@ -2123,11 +2123,71 @@
     return docs;
   }
 
-  function renderDocPagination() {
+  function updateHeaderPaginationButtons(prevDoc, nextDoc) {
+    const oldGroup = document.getElementById('headerDocNavGroup');
+    if (oldGroup) oldGroup.remove();
+
+    if (!prevDoc && !nextDoc) return;
+    if (!el.articleActions) return;
+
+    const navGroup = document.createElement('div');
+    navGroup.className = 'header-doc-nav-group';
+    navGroup.id = 'headerDocNavGroup';
+
+    let prevBtnHtml = '';
+    if (prevDoc) {
+      prevBtnHtml = `
+        <button class="btn btn-icon header-nav-btn" id="headerPrevDocBtn" title="上一篇: ${escapeHtml(cleanDocTitle(prevDoc.name))}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <span class="header-nav-text">上一篇</span>
+        </button>
+      `;
+    }
+
+    let nextBtnHtml = '';
+    if (nextDoc) {
+      nextBtnHtml = `
+        <button class="btn btn-icon header-nav-btn" id="headerNextDocBtn" title="下一篇: ${escapeHtml(cleanDocTitle(nextDoc.name))}">
+          <span class="header-nav-text">下一篇</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      `;
+    }
+
+    navGroup.innerHTML = prevBtnHtml + nextBtnHtml;
+    el.articleActions.insertBefore(navGroup, el.articleActions.firstChild);
+
+    if (prevDoc) {
+      const btn = document.getElementById('headerPrevDocBtn');
+      if (btn) {
+        btn.addEventListener('pointerenter', () => prefetchDocument(prevDoc.fullRoute), { once: true });
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          routeTo(prevDoc.fullRoute, true);
+          if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    }
+
+    if (nextDoc) {
+      const btn = document.getElementById('headerNextDocBtn');
+      if (btn) {
+        btn.addEventListener('pointerenter', () => prefetchDocument(nextDoc.fullRoute), { once: true });
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          routeTo(nextDoc.fullRoute, true);
+          if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    }
+  }
+
+  async function renderDocPagination() {
     if (!el.docPagination) return;
     if (!state.currentDoc || !state.currentRepo || state.currentPath === '/' || state.currentPath === '/' + (state.currentRepo.RoutePrefix || '').replace(/^\/+|\/+$/g, '')) {
       el.docPagination.style.display = 'none';
       el.docPagination.innerHTML = '';
+      updateHeaderPaginationButtons(null, null);
       return;
     }
 
@@ -2135,6 +2195,20 @@
     let tree = state.treeData;
     if (!tree && state.repoTreeCache && state.repoTreeCache.has(repoId)) {
       tree = state.repoTreeCache.get(repoId);
+    }
+    // 1. 若当前内存中尚未加载树，从 SessionStorage 或异步加载中获取，绝不草率退出
+    if (!tree) {
+      const local = getStoredTree(repoId);
+      if (local && local.data) {
+        tree = local.data;
+        state.treeData = tree;
+      }
+    }
+    if (!tree && typeof loadTree === 'function') {
+      try {
+        await loadTree(repoId);
+        tree = state.treeData;
+      } catch (e) {}
     }
     if (!tree) {
       el.docPagination.style.display = 'none';
@@ -2145,27 +2219,59 @@
     if (!docs || docs.length <= 1) {
       el.docPagination.style.display = 'none';
       el.docPagination.innerHTML = '';
+      updateHeaderPaginationButtons(null, null);
       return;
     }
 
-    const currPath = state.currentPath;
-    const currIdx = docs.findIndex(d => {
-      if (currPath && d.fullRoute === currPath) return true;
+    // 2. 全向归一化路径比对器，支持各种 URL、相对路径、省略 .md、目录 README 匹配
+    const normalizeForMatch = (p) => {
+      if (!p) return '';
+      return decodeURIComponent(p)
+        .replace(/^\/+|\/+$/g, '')
+        .replace(/\/README\.md$/i, '')
+        .replace(/\/index\.md$/i, '')
+        .replace(/\.(md|markdown|html)$/i, '')
+        .toLowerCase();
+    };
+
+    const target1 = normalizeForMatch(state.currentPath);
+    const target2 = normalizeForMatch(state.currentDoc?.path);
+    const target3 = normalizeForMatch(state.currentDoc?.rel_path);
+
+    let currIdx = docs.findIndex(d => {
+      const dFull = decodeURIComponent(d.fullRoute || '').replace(/\/+$/, '');
+      const dPath = decodeURIComponent(d.path || '').replace(/^\/+|\/+$/g, '');
+
+      // 严格全等命中
+      if (state.currentPath && dFull === state.currentPath) return true;
       if (state.currentDoc) {
-        if (state.currentDoc.rel_path && d.path === state.currentDoc.rel_path) return true;
-        if (state.currentDoc.path && (d.path === state.currentDoc.path || '/' + d.path === state.currentDoc.path)) return true;
+        if (state.currentDoc.rel_path && (dPath === state.currentDoc.rel_path || dPath === decodeURIComponent(state.currentDoc.rel_path))) return true;
+        if (state.currentDoc.path && (dFull === state.currentDoc.path || dPath === state.currentDoc.path)) return true;
       }
+
+      // 归一化模糊命中（忽略 .md, README.md, 大小写, 编码差异）
+      const normFull = normalizeForMatch(dFull);
+      const normPath = normalizeForMatch(dPath);
+
+      if (target1 && (normFull === target1 || normPath === target1)) return true;
+      if (target2 && (normFull === target2 || normPath === target2)) return true;
+      if (target3 && (normFull === target3 || normPath === target3)) return true;
+
       return false;
     });
 
     if (currIdx === -1) {
       el.docPagination.style.display = 'none';
       el.docPagination.innerHTML = '';
+      updateHeaderPaginationButtons(null, null);
       return;
     }
 
     const prevDoc = currIdx > 0 ? docs[currIdx - 1] : null;
     const nextDoc = currIdx < docs.length - 1 ? docs[currIdx + 1] : null;
+
+    // 3. 同时更新顶部工具栏快捷翻页按钮（双导轨设计）
+    updateHeaderPaginationButtons(prevDoc, nextDoc);
 
     if (!prevDoc && !nextDoc) {
       el.docPagination.style.display = 'none';
@@ -2173,6 +2279,7 @@
       return;
     }
 
+    // 4. 渲染文章底部大卡片
     let html = '';
     if (prevDoc) {
       html += `
