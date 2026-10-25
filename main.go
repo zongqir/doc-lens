@@ -112,7 +112,11 @@ func (a *App) routes() http.Handler {
 			if strings.HasSuffix(path, ".woff2") || strings.HasSuffix(path, ".woff") || strings.Contains(path, "mermaid.min.js") || strings.Contains(path, "markdown-it.min.js") || strings.Contains(path, "prism.min.") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			} else if strings.HasSuffix(path, "/app.js") || strings.HasSuffix(path, "/style.css") {
-				w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
+				w.Header().Set("CDN-Cache-Control", "no-store")
+				w.Header().Set("Cloudflare-CDN-Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
 			} else if r.URL.RawQuery != "" {
 				w.Header().Set("Cache-Control", "public, max-age=604800")
 			} else {
@@ -129,7 +133,11 @@ func (a *App) routes() http.Handler {
 			if strings.Contains(path, "mermaid.min.js") || strings.Contains(path, "markdown-it.min.js") || strings.Contains(path, "prism.min.") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			} else if strings.HasSuffix(path, "/app.js") || strings.HasSuffix(path, "/style.css") {
-				w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
+				w.Header().Set("CDN-Cache-Control", "no-store")
+				w.Header().Set("Cloudflare-CDN-Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
 			} else if r.URL.RawQuery != "" {
 				w.Header().Set("Cache-Control", "public, max-age=604800")
 			} else {
@@ -151,6 +159,8 @@ func (a *App) routes() http.Handler {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
+		w.Header().Set("CDN-Cache-Control", "no-store")
+		w.Header().Set("Cloudflare-CDN-Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
 		_, _ = io.Copy(w, indexFile)
 	})
 
