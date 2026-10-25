@@ -3172,16 +3172,8 @@
         combined = combined ? (combined + '\n' + cleanContent) : cleanContent;
       }
       const t = type.toLowerCase();
-      const icon = ALERT_ICONS[t] || ALERT_ICONS.note;
-      const conf = ALERT_CONFIG[t] || { label: t.toUpperCase() };
       const contentHtml = mdParser ? mdParser.render(combined) : combined;
-      return `\n<div class="notion-callout markdown-alert markdown-alert-${t}">
-  <div class="notion-callout-icon">${icon}</div>
-  <div class="notion-callout-text">
-    <div class="notion-callout-lead"><span class="notion-callout-badge">${conf.label}</span></div>
-    <div class="notion-callout-body">${contentHtml}</div>
-  </div>
-</div>\n`;
+      return `\n<div class="markdown-alert markdown-alert-${t}">${contentHtml}</div>\n`;
     });
   }
 
