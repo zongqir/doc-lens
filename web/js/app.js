@@ -62,6 +62,15 @@
   document.addEventListener('DOMContentLoaded', initApp);
 
   async function initApp() {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('doc_lens_expanded_dirs_')) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (e) {}
+
     bindDOMElements();
     applyTheme(state.theme);
     initFontPreferences();
@@ -168,6 +177,21 @@
     if (el.menuBtn) el.menuBtn.addEventListener('click', toggleMobileSidebar);
     if (el.sidebarOverlay) el.sidebarOverlay.addEventListener('click', closeMobileSidebar);
     if (el.closeSidebarBtn) el.closeSidebarBtn.addEventListener('click', closeMobileSidebar);
+
+    const repoSwitcherBtn = document.getElementById('repoSwitcherBtn');
+    const repoDropdownMenu = document.getElementById('repoDropdownMenu');
+    if (repoSwitcherBtn && repoDropdownMenu) {
+      repoSwitcherBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleRepoDropdown();
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!repoDropdownMenu.contains(e.target) && e.target !== repoSwitcherBtn && !repoSwitcherBtn.contains(e.target)) {
+          closeRepoDropdown();
+        }
+      });
+    }
 
     if (el.fabTocBtn) el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
     if (el.loginForm) el.loginForm.addEventListener('submit', handleLoginSubmit);
@@ -356,6 +380,7 @@
       if (e.key === 'Escape') {
         closeAllModals();
         closeMobileSidebar();
+        closeRepoDropdown();
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
@@ -691,14 +716,16 @@
       const res = await fetch('/api/repos');
       if (!res.ok) return;
       state.repos = await res.json();
-      el.repoSelect.innerHTML = '';
+      if (el.repoSelect) el.repoSelect.innerHTML = '';
       if (el.draftRepo) el.draftRepo.innerHTML = '';
 
       state.repos.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r.ID;
-        opt.textContent = `${r.Name} (${r.RoutePrefix})`;
-        el.repoSelect.appendChild(opt);
+        if (el.repoSelect) {
+          const opt = document.createElement('option');
+          opt.value = r.ID;
+          opt.textContent = `${r.Name} (${r.RoutePrefix})`;
+          el.repoSelect.appendChild(opt);
+        }
 
         if (el.draftRepo) {
           const dOpt = document.createElement('option');
@@ -707,9 +734,57 @@
           el.draftRepo.appendChild(dOpt);
         }
       });
+
+      renderRepoDropdownMenu();
     } catch (e) {
       console.error('Failed to load repositories', e);
     }
+  }
+
+  function renderRepoDropdownMenu() {
+    const menuList = document.getElementById('repoMenuList');
+    if (!menuList) return;
+    menuList.innerHTML = '';
+    state.repos.forEach(r => {
+      const isCur = state.currentRepo && state.currentRepo.ID === r.ID;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `repo-menu-item ${isCur ? 'active' : ''}`;
+      btn.innerHTML = `
+        <div class="repo-item-main">
+          <span class="repo-item-icon">📁</span>
+          <span class="repo-item-name">${escapeHtml(r.Name)}</span>
+          <span class="repo-item-prefix">${escapeHtml(r.RoutePrefix || '')}</span>
+        </div>
+        ${isCur ? '<span class="repo-item-check">✓</span>' : ''}
+      `;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeRepoDropdown();
+        if (!state.currentRepo || state.currentRepo.ID !== r.ID) {
+          selectRepo(r.ID, false);
+          routeTo('/' + (r.RoutePrefix || '').replace(/^\/+|\/+$/g, ''), true);
+        }
+      });
+      menuList.appendChild(btn);
+    });
+  }
+
+  function toggleRepoDropdown() {
+    const switcherBtn = document.getElementById('repoSwitcherBtn');
+    const dropdownMenu = document.getElementById('repoDropdownMenu');
+    if (!switcherBtn || !dropdownMenu) return;
+    const isVisible = dropdownMenu.style.display !== 'none';
+    dropdownMenu.style.display = isVisible ? 'none' : 'flex';
+    switcherBtn.classList.toggle('active', !isVisible);
+    switcherBtn.setAttribute('aria-expanded', !isVisible);
+  }
+
+  function closeRepoDropdown() {
+    const switcherBtn = document.getElementById('repoSwitcherBtn');
+    const dropdownMenu = document.getElementById('repoDropdownMenu');
+    if (switcherBtn) switcherBtn.classList.remove('active');
+    if (dropdownMenu) dropdownMenu.style.display = 'none';
   }
 
   function findRepoForRoute(urlPath) {
@@ -727,42 +802,29 @@
   }
 
   // =========================================================================
-  // 目录展开状态持久化与侧边栏滚动记忆 (Per-Repo Directory Expansion Memory)
+  // 目录展开状态管理：默认纯净收拢缩进，阅读某篇文章时仅局部展开其祖先路径
   // =========================================================================
   function getExpandedDirs(repoID) {
-    if (!repoID) return new Set();
-    try {
-      const saved = localStorage.getItem('doc_lens_expanded_dirs_' + repoID);
-      if (saved) {
-        const arr = JSON.parse(saved);
-        if (Array.isArray(arr)) return new Set(arr);
-      }
-    } catch (e) {}
+    // 目录树默认全部收拢折叠，杜绝旧历史缓存导致全盘铺开
     return new Set();
   }
 
   function saveExpandedDirs(repoID, set) {
-    if (!repoID || !set) return;
-    try {
-      localStorage.setItem('doc_lens_expanded_dirs_' + repoID, JSON.stringify([...set]));
-    } catch (e) {}
+    // 不再向持久存储膨胀式累计所有历史目录
   }
 
   function setDirExpanded(repoID, dirPath, expanded) {
     if (!repoID || !dirPath) return;
-    if (!state.expandedDirs) state.expandedDirs = getExpandedDirs(repoID);
+    if (!state.expandedDirs) state.expandedDirs = new Set();
     if (expanded) {
       state.expandedDirs.add(dirPath);
     } else {
       state.expandedDirs.delete(dirPath);
     }
-    saveExpandedDirs(repoID, state.expandedDirs);
   }
 
   function clearAllExpandedDirs(repoID) {
-    if (!repoID) return;
     state.expandedDirs = new Set();
-    saveExpandedDirs(repoID, state.expandedDirs);
   }
 
   function restoreSidebarScroll(repoID) {
@@ -784,15 +846,20 @@
     const repo = state.repos.find(r => r.ID === repoID);
     if (!repo) return;
     state.currentRepo = repo;
-    state.expandedDirs = getExpandedDirs(repoID);
-    el.repoSelect.value = repoID;
+    // 切换知识库时，目录树重置为纯净收拢缩进状态
+    state.expandedDirs = new Set();
+    if (el.repoSelect) el.repoSelect.value = repoID;
+    const titleEl = document.getElementById('currentRepoName');
+    if (titleEl) titleEl.textContent = repo.Name;
+    renderRepoDropdownMenu();
+
     try {
       localStorage.setItem('doc_lens_last_repo', repoID);
     } catch (e) {}
 
     renderRecentReads();
 
-    // 核心修复：切换仓库时必须先无缝挂载并渲染该仓库的目录树，确保侧边栏目录即时切换
+    // 加载并渲染目录树
     await loadTree(repoID);
     loadRecentCreated(repoID);
 
@@ -801,12 +868,6 @@
       const cleanPrefix = '/' + (repo.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
       if (lastDoc && lastDoc !== '/' && lastDoc !== cleanPrefix) {
         await routeTo(lastDoc, true);
-        restoreSidebarScroll(repoID);
-        return;
-      }
-      const lastDir = localStorage.getItem('doc_lens_last_dir_' + repoID);
-      if (lastDir) {
-        expandPathToNode(lastDir);
         restoreSidebarScroll(repoID);
         return;
       }
@@ -1950,12 +2011,7 @@
       }
     }
 
-    // 2. 自动在左侧目录树中定位并展开上次阅读的章节
-    if (lastRead && lastRead.path) {
-      setTimeout(() => {
-        expandPathToNode(lastRead.path);
-      }, 150);
-    }
+    // 2. 默认保持目录树整体收拢折叠，用户阅读具体文章时才局部展开该文章路径
 
     // 3. 提取当前知识库的所有章节
     const chapters = extractChaptersFromTree(state.treeData, cleanPrefix);

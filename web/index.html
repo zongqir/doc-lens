@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2.4.3">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=2.4.3">
   <link rel="apple-touch-icon" href="/favicon.svg?v=2.4.3">
-  <link rel="stylesheet" href="/css/style.css?v=2.7.0">
+  <link rel="stylesheet" href="/css/style.css?v=2.7.1">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js"></script>
@@ -121,18 +121,22 @@
     <!-- 左侧文档资源管理器 -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-mobile-title-bar">
-          <span style="font-weight:600;font-size:14px;">📚 知识库目录</span>
-          <button class="btn btn-icon-only" id="closeSidebarBtn" title="关闭目录">✕</button>
-        </div>
+        <!-- 现代化知识库工作区切换器 (动态自定义下拉框，省去独立旧式下拉行) -->
+        <div class="repo-dropdown-container" id="repoDropdownContainer">
+          <button type="button" class="repo-switcher-btn" id="repoSwitcherBtn" aria-haspopup="true" aria-expanded="false" title="切换挂载知识库">
+            <span class="repo-switcher-icon">📚</span>
+            <span class="repo-switcher-title" id="currentRepoName">知识库目录</span>
+            <svg class="repo-switcher-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <button class="btn btn-icon-only close-sidebar-btn" id="closeSidebarBtn" title="关闭目录">✕</button>
 
-        <div class="repo-selector-wrapper">
-          <div class="repo-select-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-          </div>
-          <select class="custom-select" id="repoSelect" aria-label="选择挂载仓库"></select>
-          <div class="select-chevron">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <!-- 保持兼容性的隐藏 select 元素 -->
+          <select class="custom-select" id="repoSelect" aria-label="选择挂载仓库" style="display:none;"></select>
+
+          <!-- 自定义浮层下拉菜单 (非系统原生，高质感悬浮卡片) -->
+          <div class="repo-dropdown-menu" id="repoDropdownMenu" style="display:none;">
+            <div class="repo-menu-header">切换知识库空间</div>
+            <div class="repo-menu-list" id="repoMenuList"></div>
           </div>
         </div>
 
@@ -468,6 +472,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=2.7.0"></script>
+  <script src="/js/app.js?v=2.7.1"></script>
 </body>
 </html>

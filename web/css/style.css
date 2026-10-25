@@ -411,63 +411,184 @@ body.modal-open {
   flex-shrink: 0;
 }
 
-.sidebar-mobile-title-bar {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* 自定义仓库选择器 */
-.repo-selector-wrapper {
+/* ==========================================================================
+   现代化知识库工作区切换器 (Workspace / Repo Dropdown Switcher)
+   ========================================================================== */
+.repo-dropdown-container {
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.repo-select-icon {
-  position: absolute;
-  left: 10px;
-  pointer-events: none;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-}
-
-.custom-select {
+  justify-content: space-between;
   width: 100%;
-  appearance: none;
-  -webkit-appearance: none;
-  padding: 8px 28px 8px 32px;
+  min-height: 36px;
+}
+
+.repo-switcher-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background-color: var(--bg-subtle);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 500;
-  outline: none;
+  padding: 6px 8px;
   cursor: pointer;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   transition: all var(--transition-fast);
+  max-width: calc(100% - 36px);
+  text-align: left;
+  user-select: none;
 }
 
-.custom-select:hover {
+.repo-switcher-btn:hover {
   background-color: var(--bg-surface-hover);
+  border-color: var(--border-default);
+}
+
+.repo-switcher-btn.active {
+  background-color: var(--bg-surface);
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
-.custom-select:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-subtle);
+.repo-switcher-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.select-chevron {
-  position: absolute;
-  right: 10px;
-  pointer-events: none;
+.repo-switcher-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-switcher-chevron {
+  flex-shrink: 0;
   color: var(--text-muted);
+  transition: transform var(--transition-fast);
+  margin-left: 2px;
+}
+
+.repo-switcher-btn.active .repo-switcher-chevron {
+  transform: rotate(180deg);
+  color: var(--accent-color);
+}
+
+.close-sidebar-btn {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .close-sidebar-btn {
+    display: inline-flex;
+  }
+}
+
+/* 自定义浮层下拉菜单 (非系统原生，高质感悬浮卡片) */
+.repo-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 260px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: fadeInDown 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.repo-menu-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  letter-spacing: 0.03em;
+}
+
+.repo-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.repo-menu-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.repo-menu-item:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-default);
+}
+
+.repo-menu-item.active {
+  background-color: var(--accent-subtle);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.repo-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.repo-item-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-item-prefix {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.repo-item-check {
+  font-size: 12px;
+  color: var(--accent-color);
+  flex-shrink: 0;
+  margin-left: 8px;
+  font-weight: 700;
+}
+
+/* 兼容隐藏与备用 select 样式 */
+.custom-select {
+  display: none;
 }
 
 /* 搜索过滤框 */
@@ -2997,8 +3118,8 @@ body.modal-open {
     transform: translateX(0);
   }
 
-  .sidebar-mobile-title-bar {
-    display: flex;
+  .close-sidebar-btn {
+    display: inline-flex;
   }
 
   .toc-sidebar {
