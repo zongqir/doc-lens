@@ -2178,16 +2178,14 @@
       html += `
         <div class="doc-pagination-card-wrapper doc-pagination-prev-wrapper">
           <a href="${prevDoc.fullRoute}" class="doc-pagination-card doc-pagination-prev" title="上一篇: ${escapeHtml(prevDoc.name)}">
-            <span class="doc-pagination-arrow">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <div class="doc-pagination-header">
+              <svg class="doc-pagination-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-            </span>
-            <div class="doc-pagination-info">
               <span class="doc-pagination-label">上一篇</span>
-              <span class="doc-pagination-title">${escapeHtml(cleanDocTitle(prevDoc.name))}</span>
             </div>
+            <div class="doc-pagination-title">${escapeHtml(cleanDocTitle(prevDoc.name))}</div>
           </a>
         </div>
       `;
@@ -2199,16 +2197,14 @@
       html += `
         <div class="doc-pagination-card-wrapper doc-pagination-next-wrapper">
           <a href="${nextDoc.fullRoute}" class="doc-pagination-card doc-pagination-next" title="下一篇: ${escapeHtml(nextDoc.name)}">
-            <div class="doc-pagination-info">
+            <div class="doc-pagination-header">
               <span class="doc-pagination-label">下一篇</span>
-              <span class="doc-pagination-title">${escapeHtml(cleanDocTitle(nextDoc.name))}</span>
-            </div>
-            <span class="doc-pagination-arrow">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="doc-pagination-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
-            </span>
+            </div>
+            <div class="doc-pagination-title">${escapeHtml(cleanDocTitle(nextDoc.name))}</div>
           </a>
         </div>
       `;
