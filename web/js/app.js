@@ -3928,9 +3928,10 @@
     if (commitMeta) commitMeta.textContent = '';
 
     const repoID = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const docPath = doc.rel_path || doc.path;
 
     try {
-      const res = await fetch(`/api/doc/history?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(doc.path)}`);
+      const res = await fetch(`/api/doc/history?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(docPath)}`);
       if (!res.ok) throw new Error('读取版本记录失败');
       const commits = await res.json();
 
@@ -3980,8 +3981,10 @@
     summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在纯算法提取增量结构...</div>';
     sectionsList.innerHTML = '<div class="diff-empty-state">正在提取章节、流程图与数据表格...</div>';
 
+    const docPath = doc.rel_path || doc.path;
+
     try {
-      const res = await fetch(`/api/doc/diff?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(doc.path)}&commit=${encodeURIComponent(commitHash)}`);
+      const res = await fetch(`/api/doc/diff?repo=${encodeURIComponent(repoID)}&path=${encodeURIComponent(docPath)}&commit=${encodeURIComponent(commitHash)}`);
       if (!res.ok) throw new Error('提取增量失败');
       const data = await res.json();
 

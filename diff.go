@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -408,10 +410,12 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 	return resp
 }
 
-// API: 获取文档 Commit 历史
-func (a *App) handleDocHistory(w http.ResponseWriter, r *http.Request) {
-	repoID := r.URL.Query().Get("repo")
-	queryPath := r.URL.Query().Get("path")
+// resolveDocRepoAndRelPath 自适应解析仓库与文档相对路径 (兼容带前缀全路由、纯相对路径与无扩展名容错)
+func (a *App) resolveDocRepoAndRelPath(repoID, queryPath string) (*RepoConfig, string, error) {
+	queryPath = strings.TrimSpace(queryPath)
+	if queryPath == "" {
+		return nil, "", errors.New("empty doc path")
+	}
 
 	var repo *RepoConfig
 	var relPath string
@@ -419,22 +423,70 @@ func (a *App) handleDocHistory(w http.ResponseWriter, r *http.Request) {
 
 	if repoID != "" {
 		repo, err = a.rm.GetRepoByID(repoID)
-		if err != nil {
-			http.Error(w, `{"error":"invalid repository"}`, http.StatusBadRequest)
-			return
+	}
+
+	if repo != nil {
+		cleanQuery := "/" + strings.Trim(filepath.ToSlash(queryPath), "/")
+		cleanPrefix := "/" + strings.Trim(filepath.ToSlash(repo.RoutePrefix), "/")
+		cleanID := "/" + strings.Trim(filepath.ToSlash(repo.ID), "/")
+
+		if cleanPrefix != "/" && strings.HasPrefix(cleanQuery, cleanPrefix+"/") {
+			relPath = strings.TrimPrefix(cleanQuery, cleanPrefix+"/")
+		} else if cleanPrefix != "/" && cleanQuery == cleanPrefix {
+			relPath = ""
+		} else if cleanID != "/" && strings.HasPrefix(cleanQuery, cleanID+"/") {
+			relPath = strings.TrimPrefix(cleanQuery, cleanID+"/")
+		} else if cleanID != "/" && cleanQuery == cleanID {
+			relPath = ""
+		} else {
+			relPath = strings.TrimPrefix(cleanQuery, "/")
 		}
-		relPath = queryPath
 	} else {
 		repo, relPath, err = a.rm.FindRepoByRoute(queryPath)
 		if err != nil {
-			http.Error(w, `{"error":"failed to match repository route"}`, http.StatusBadRequest)
-			return
+			return nil, "", err
 		}
 	}
 
-	// 安全校验
-	if _, err := a.rm.SafeResolve(repo, relPath); err != nil {
-		http.Error(w, `{"error":"access forbidden or file does not exist"}`, http.StatusForbidden)
+	relPath = strings.Trim(filepath.ToSlash(filepath.Clean(relPath)), "/")
+	if strings.HasPrefix(relPath, "..") {
+		return nil, "", errors.New("invalid path: path traversal detected")
+	}
+
+	// 深度安全校验与路径容错（.md 补全与目录段去重）
+	absPath, err := a.rm.SafeResolve(repo, relPath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if _, statErr := os.Stat(absPath); statErr != nil {
+		if _, mdErr := os.Stat(absPath + ".md"); mdErr == nil {
+			relPath = relPath + ".md"
+		} else {
+			dedup := deduplicatePathSegments(relPath)
+			if dedup != relPath {
+				if dAbs, dErr := a.rm.SafeResolve(repo, dedup); dErr == nil {
+					if _, sdErr := os.Stat(dAbs); sdErr == nil {
+						relPath = dedup
+					} else if _, smdErr := os.Stat(dAbs + ".md"); smdErr == nil {
+						relPath = dedup + ".md"
+					}
+				}
+			}
+		}
+	}
+
+	return repo, relPath, nil
+}
+
+// API: 获取文档 Commit 历史
+func (a *App) handleDocHistory(w http.ResponseWriter, r *http.Request) {
+	repoID := r.URL.Query().Get("repo")
+	queryPath := r.URL.Query().Get("path")
+
+	repo, relPath, err := a.resolveDocRepoAndRelPath(repoID, queryPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
@@ -454,28 +506,9 @@ func (a *App) handleDocIncrementalDiff(w http.ResponseWriter, r *http.Request) {
 	queryPath := r.URL.Query().Get("path")
 	commitHash := r.URL.Query().Get("commit")
 
-	var repo *RepoConfig
-	var relPath string
-	var err error
-
-	if repoID != "" {
-		repo, err = a.rm.GetRepoByID(repoID)
-		if err != nil {
-			http.Error(w, `{"error":"invalid repository"}`, http.StatusBadRequest)
-			return
-		}
-		relPath = queryPath
-	} else {
-		repo, relPath, err = a.rm.FindRepoByRoute(queryPath)
-		if err != nil {
-			http.Error(w, `{"error":"failed to match repository route"}`, http.StatusBadRequest)
-			return
-		}
-	}
-
-	// 安全校验
-	if _, err := a.rm.SafeResolve(repo, relPath); err != nil {
-		http.Error(w, `{"error":"access forbidden or file does not exist"}`, http.StatusForbidden)
+	repo, relPath, err := a.resolveDocRepoAndRelPath(repoID, queryPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
