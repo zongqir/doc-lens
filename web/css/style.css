@@ -3569,7 +3569,50 @@ body.modal-open {
 .mindmap-header-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.mindmap-depth-controls {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-surface-hover);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  gap: 3px;
+}
+
+.depth-ctrl-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  user-select: none;
+}
+
+.depth-btn {
+  padding: 3px 8px !important;
+  font-size: 11.5px !important;
+  height: 26px !important;
+  line-height: 1 !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  border-radius: var(--radius-xs) !important;
+  cursor: pointer;
+  transition: all var(--transition-fast) !important;
+}
+
+.depth-btn:hover {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-surface) !important;
+}
+
+.depth-btn.active {
+  background-color: var(--bg-surface) !important;
+  color: var(--accent-primary, #3b82f6) !important;
+  font-weight: 600 !important;
+  border-color: var(--border-default) !important;
+  box-shadow: var(--shadow-xs) !important;
 }
 
 .mindmap-loading {
@@ -3600,13 +3643,45 @@ body.modal-open {
   to { transform: rotate(360deg); }
 }
 
-/* Markmap 文本与节点深度定制 */
+/* Markmap 文本与节点深度定制 (大字号、高对比度、清晰防微缩) */
 .markmap {
-  --markmap-font: 450 14px/1.5 var(--font-sans, -apple-system, sans-serif);
+  --markmap-font: 500 15px/1.6 var(--font-sans, system-ui, -apple-system, sans-serif);
   --markmap-text-color: var(--text-primary);
   --markmap-circle-open-bg: var(--bg-surface);
   --markmap-code-bg: var(--bg-surface-hover);
   --markmap-code-color: var(--text-primary);
+  --markmap-max-width: 480px;
+}
+
+/* 节点支点交互与文字胶囊悬浮 */
+.markmap-node {
+  cursor: pointer;
+}
+
+.markmap-foreign {
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, filter 0.15s ease;
+}
+
+.markmap-node:hover .markmap-foreign {
+  background-color: var(--bg-surface-hover);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.06));
+}
+
+.markmap-node > circle {
+  cursor: pointer;
+  stroke-width: 2px !important;
+  transition: r 0.15s ease, stroke 0.15s ease;
+}
+
+.markmap-node:hover > circle {
+  r: 7px !important;
+}
+
+.markmap-link {
+  stroke-width: 2px !important;
+  stroke-opacity: 0.85;
 }
 
 [data-theme="dark"] .markmap,
@@ -3617,7 +3692,11 @@ body.modal-open {
   --markmap-circle-open-bg: #0f172a;
 }
 
-/* Markmap 内置 Toolbar 样式 */
+/* Markmap 内置 Toolbar 样式与商标彻底隐藏 */
+.mm-toolbar-brand {
+  display: none !important;
+}
+
 .mm-toolbar {
   display: flex;
   user-select: none;
@@ -4318,6 +4397,21 @@ body.modal-open {
     height: 100vh !important;
     max-height: 100vh !important;
     border-radius: 0 !important;
+  }
+
+  .depth-ctrl-label {
+    display: none !important;
+  }
+
+  .mindmap-depth-controls {
+    gap: 1px !important;
+    padding: 1px 2px !important;
+  }
+
+  .depth-btn {
+    padding: 2px 5px !important;
+    font-size: 10.5px !important;
+    height: 24px !important;
   }
 
   /* 手机端新主页适配 */

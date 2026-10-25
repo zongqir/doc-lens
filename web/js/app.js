@@ -224,6 +224,15 @@
       });
     }
 
+    document.querySelectorAll('.depth-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = parseInt(btn.getAttribute('data-depth'));
+        if (!isNaN(d)) {
+          applyMindmapDepth(d);
+        }
+      });
+    });
+
     window.addEventListener('resize', () => {
       if (currentMarkmapInstance && document.getElementById('mindmapModal')?.classList.contains('open')) {
         currentMarkmapInstance.fit();
@@ -2953,6 +2962,48 @@
       : ['#2563eb', '#059669', '#db2777', '#d97706', '#7c3aed', '#0284c7', '#16a34a'];
   }
 
+  let currentMindmapRawTree = null;
+  let currentMindmapExpandDepth = 2;
+
+  function cloneMindmapTree(n) {
+    if (!n) return null;
+    return {
+      ...n,
+      payload: { ...(n.payload || {}) },
+      children: (n.children || []).map(cloneMindmapTree)
+    };
+  }
+
+  function setTreeFoldDepth(node, currentDepth, maxDepth) {
+    if (!node) return;
+    if (node.children && node.children.length > 0) {
+      node.payload = node.payload || {};
+      if (currentDepth >= maxDepth) {
+        node.payload.fold = 1;
+      } else {
+        node.payload.fold = 0;
+      }
+      node.children.forEach(c => setTreeFoldDepth(c, currentDepth + 1, maxDepth));
+    }
+  }
+
+  async function applyMindmapDepth(depth) {
+    if (!currentMarkmapInstance || !currentMindmapRawTree) return;
+    currentMindmapExpandDepth = depth;
+
+    document.querySelectorAll('.depth-btn').forEach(btn => {
+      const bDepth = parseInt(btn.getAttribute('data-depth'));
+      btn.classList.toggle('active', bDepth === depth);
+    });
+
+    const treeCopy = cloneMindmapTree(currentMindmapRawTree);
+    setTreeFoldDepth(treeCopy, 0, depth);
+    await currentMarkmapInstance.setData(treeCopy);
+    setTimeout(() => {
+      if (currentMarkmapInstance) currentMarkmapInstance.fit();
+    }, 80);
+  }
+
   function updateMindmapTheme() {
     const mindmapModal = document.getElementById('mindmapModal');
     if (!mindmapModal) return;
@@ -3013,26 +3064,57 @@
       const isDark = state.theme === 'dark';
       modal.classList.toggle('markmap-dark', isDark);
 
+      // 保存全局树数据，并默认聚焦到第 2 层（章节大纲，避免全展开导致文字缩成蚂蚁看不清）
+      currentMindmapRawTree = root;
+      currentMindmapExpandDepth = 2;
+      document.querySelectorAll('.depth-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.getAttribute('data-depth')) === 2);
+      });
+
+      const initialTree = cloneMindmapTree(root);
+      setTreeFoldDepth(initialTree, 0, 2);
+
       const colors = getMarkmapPalette();
       const mm = window.markmap.Markmap.create(svgEl, {
-        duration: 250,
+        duration: 300,
         color: (node) => colors[(node.state?.depth || 0) % colors.length],
-        paddingX: 18,
-        spacingVertical: 8,
-        spacingHorizontal: 70,
-        autoFit: true
-      }, root);
+        paddingX: 22,
+        spacingVertical: 14,
+        spacingHorizontal: 80,
+        fitRatio: 0.92,
+        maxInitialScale: 1.5,
+        initialExpandLevel: 2
+      }, initialTree);
 
       currentMarkmapInstance = mm;
 
-      // 挂载辅助工具栏（放大、缩小、居中适配、递归折叠）
+      // 支点聚焦交互：点击节点文字时，自动展开/收起该支点并平滑居中聚焦！
+      svgEl.onclick = (e) => {
+        const nodeGroup = e.target.closest('g.markmap-node');
+        if (!nodeGroup) return;
+        // 如果点击的是末端圆点，Markmap 自带折叠切换；
+        // 如果点击的是文字标签部分，自动折叠/展开并居中平移聚焦
+        if (!e.target.closest('circle')) {
+          const datum = nodeGroup.__data__;
+          if (datum) {
+            if (datum.children && datum.children.length > 0) {
+              mm.toggleNode(datum);
+            }
+            mm.centerNode(datum);
+          }
+        }
+      };
+
+      // 挂载辅助工具栏（放大、缩小、居中适配），彻底移除任何商标或外链
       const mount = document.getElementById('mindmapToolbarMount');
       if (mount && window.markmap.Toolbar) {
         mount.innerHTML = '';
         const toolbar = new window.markmap.Toolbar();
-        toolbar.setItems(['zoomIn', 'zoomOut', 'fit', 'recurse']);
+        toolbar.setBrand(false); // 彻底隐藏商标
+        toolbar.setItems(['zoomIn', 'zoomOut', 'fit']);
         toolbar.attach(mm);
         const toolbarNode = toolbar.render();
+        toolbarNode.querySelectorAll('.mm-toolbar-brand').forEach(b => b.remove());
         mount.appendChild(toolbarNode);
       }
 
