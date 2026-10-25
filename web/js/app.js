@@ -2519,7 +2519,7 @@
         <span class="btn-text-full">思维导图</span>
         <span class="btn-text-short">导图</span>
       </button>
-      <button class="btn btn-history-diff" id="docHistoryDiffBtn" title="查看章节与大结构增量 (纯机械比对，无AI噪音)">
+      <button class="btn btn-history-diff" id="docHistoryDiffBtn" title="查看文档版本章节增量">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 14 14"></polyline>
@@ -3922,8 +3922,8 @@
 
     openModal(modal);
 
-    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在读取 Git 版本时间线与增量结构...</div>';
-    sectionsList.innerHTML = '<div class="diff-empty-state">正在通过纯机械算法比对大块增量...</div>';
+    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在读取版本记录...</div>';
+    sectionsList.innerHTML = '<div class="diff-empty-state">正在比对章节增量...</div>';
     commitSelect.innerHTML = '<option value="">正在读取提交历史...</option>';
     if (commitMeta) commitMeta.textContent = '';
 
@@ -3956,13 +3956,13 @@
         const selectedHash = commitSelect.value;
         const selectedCommit = commits.find(c => c.hash === selectedHash);
         if (selectedCommit && commitMeta) {
-          commitMeta.textContent = `作者: ${selectedCommit.author} · ${selectedCommit.date}`;
+          commitMeta.textContent = selectedCommit.date ? `时间: ${selectedCommit.date}` : '';
         }
         loadIncrementalDiff(doc, repoID, selectedHash);
       };
 
       if (commitMeta && commits[0]) {
-        commitMeta.textContent = `作者: ${commits[0].author} · ${commits[0].date}`;
+        commitMeta.textContent = commits[0].date ? `时间: ${commits[0].date}` : '';
       }
 
       // 默认加载最新版本的增量
@@ -3978,7 +3978,7 @@
     const sectionsList = document.getElementById('diffSectionsList');
     if (!summaryBanner || !sectionsList) return;
 
-    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在纯算法提取增量结构...</div>';
+    summaryBanner.innerHTML = '<div style="color:var(--text-muted);"><span class="live-dot" style="margin-right:6px;"></span>正在提取增量结构...</div>';
     sectionsList.innerHTML = '<div class="diff-empty-state">正在提取章节、流程图与数据表格...</div>';
 
     const docPath = doc.rel_path || doc.path;
