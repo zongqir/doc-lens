@@ -2872,6 +2872,42 @@
     return chapters;
   }
 
+  // 提取当前知识库中按修改/生成时间倒序排列的最新文档
+  function extractRecentDocsFromTree(treeData, cleanPrefix, limit = 8) {
+    if (!treeData) return [];
+    const allDocs = [];
+
+    function walk(node) {
+      if (!node) return;
+      if (!node.is_dir) {
+        const ext = (node.name.split('.').pop() || '').toLowerCase();
+        if (['md', 'markdown', 'mdown'].includes(ext)) {
+          const rawName = node.name;
+          const cleanName = rawName.replace(/\.(md|markdown|mdown)$/i, '');
+          const dirPath = node.path ? node.path.split('/').slice(0, -1).join('/') || '/' : '/';
+          allDocs.push({
+            name: cleanName,
+            rawName: rawName,
+            path: node.path,
+            fullRoute: cleanPrefix + '/' + node.path.replace(/^\/+/, ''),
+            modTime: node.mod_time || 0,
+            dirPath: dirPath
+          });
+        }
+        return;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          walk(child);
+        }
+      }
+    }
+
+    walk(treeData);
+    allDocs.sort((a, b) => (b.modTime || 0) - (a.modTime || 0));
+    return allDocs.slice(0, limit);
+  }
+
   function renderWelcomeDashboard() {
     if (el.articleHeader) el.articleHeader.style.display = 'none';
     if (el.docPagination) el.docPagination.style.display = 'none';
@@ -2924,7 +2960,30 @@
       }
     }
 
-    // 2. 默认保持目录树整体收拢折叠，用户阅读具体文章时才局部展开该文章路径
+    // 2. 提取当前知识库的最近生成/更新文档
+    const recentDocs = extractRecentDocsFromTree(state.treeData, cleanPrefix, 8);
+    let recentDocsHtml = '';
+    if (recentDocs.length > 0) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      recentDocs.forEach(d => {
+        const timeAgo = formatTimeAgo(d.modTime * 1000);
+        const isVeryRecent = (nowSec - d.modTime) < 86400 * 2; // 48小时内更新标记
+        recentDocsHtml += `
+          <a href="${escapeHtml(d.fullRoute)}" class="welcome-recent-card" data-path="${escapeHtml(d.fullRoute)}">
+            <div class="recent-card-top">
+              <span class="recent-card-icon">${SVG_ICONS.markdown}</span>
+              <span class="recent-card-time ${isVeryRecent ? 'is-new' : ''}">
+                ${isVeryRecent ? '⚡ ' : ''}${timeAgo}
+              </span>
+            </div>
+            <div class="recent-card-title" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
+            <div class="recent-card-path" title="${escapeHtml(d.dirPath)}">📂 ${escapeHtml(d.dirPath)}</div>
+          </a>
+        `;
+      });
+    } else {
+      recentDocsHtml = `<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">当前知识库暂未检索到文章</div>`;
+    }
 
     // 3. 提取当前知识库的所有章节
     const chapters = extractChaptersFromTree(state.treeData, cleanPrefix);
@@ -3020,6 +3079,9 @@
       chaptersHtml = `<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">当前知识库正在整理中，暂未发现文档章节</div>`;
     }
 
+    // 检查章节分布折叠偏好
+    const isChaptersCollapsed = localStorage.getItem('doc_lens_chapters_collapsed_' + currentRepo.ID) === '1';
+
     // 6. 构建“快速切换其他知识库”（移至最底部）
     let switchReposHtml = '';
     const otherRepos = state.repos.filter(r => r.ID !== currentRepo.ID);
@@ -3049,21 +3111,51 @@
         <!-- 模块 1：上次阅读高亮卡片 -->
         ${lastReadCardHtml}
 
-        <!-- 模块 2：知识库完整章节分布 -->
+        <!-- 模块 2：最近生成与更新的文章 (重点展示) -->
+        <div class="welcome-section welcome-recent-section">
+          <div class="welcome-section-header">
+            <div class="welcome-section-title-wrap">
+              <div class="welcome-section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>最近生成与更新</span>
+              </div>
+              <span class="welcome-section-subtitle">最新技术研报与文章动态 · 保持前沿敏锐度</span>
+            </div>
+            <div class="welcome-section-actions">
+              <span class="recent-live-badge"><span class="live-dot"></span>实时同步</span>
+            </div>
+          </div>
+          <div class="welcome-recent-grid" id="welcomeRecentGrid">
+            ${recentDocsHtml}
+          </div>
+        </div>
+
+        <!-- 模块 3：知识库完整章节分布 (支持一键收缩折叠) -->
         <div class="welcome-section welcome-chapters-section">
           <div class="welcome-section-header">
-            <div class="welcome-section-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
-              <span>知识库完整章节分布</span>
+            <div class="welcome-section-title-wrap">
+              <div class="welcome-section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                <span>知识库完整章节分布</span>
+              </div>
+              <span class="welcome-section-subtitle">共 ${chapters.length} 个核心章节 · 点击文章直达阅读</span>
             </div>
-            <span class="welcome-section-subtitle">共 ${chapters.length} 个核心章节 · 点击文章直达阅读</span>
+            <div class="welcome-section-actions">
+              <button type="button" class="btn-collapse-chapters" id="toggleChaptersBtn" title="点击收起或展开章节分布">
+                <span id="toggleChaptersText">${isChaptersCollapsed ? '展开章节' : '收起章节'}</span>
+                <svg id="toggleChaptersIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:${isChaptersCollapsed ? 'rotate(180deg)' : 'rotate(0deg)'};transition:transform 0.2s ease;"><polyline points="18 15 12 9 6 15"></polyline></svg>
+              </button>
+            </div>
           </div>
-          <div class="welcome-chapters-grid">
+          <div class="welcome-chapters-collapsed-bar" id="chaptersCollapsedBar" style="${isChaptersCollapsed ? '' : 'display:none;'}">
+            <span>已收起完整章节分布（共 ${chapters.length} 节，点击展开）</span>
+          </div>
+          <div class="welcome-chapters-grid ${isChaptersCollapsed ? 'is-collapsed' : ''}" id="welcomeChaptersGrid">
             ${chaptersHtml}
           </div>
         </div>
 
-        <!-- 模块 3：最下方的快速切换其他知识库 -->
+        <!-- 模块 4：最下方的快速切换其他知识库 -->
         <div class="welcome-section welcome-switch-section">
           <div class="welcome-section-header">
             <div class="welcome-section-title">
@@ -3098,6 +3190,37 @@
         });
       }
     }
+
+    // 绑定事件：最近生成与更新卡片直达
+    document.querySelectorAll('.welcome-recent-card').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const p = item.getAttribute('data-path');
+        if (p) routeTo(p);
+      });
+    });
+
+    // 绑定事件：收起与展开章节分布
+    const toggleChaptersBtn = document.getElementById('toggleChaptersBtn');
+    const chaptersCollapsedBar = document.getElementById('chaptersCollapsedBar');
+    const chaptersGrid = document.getElementById('welcomeChaptersGrid');
+    const toggleText = document.getElementById('toggleChaptersText');
+    const toggleIcon = document.getElementById('toggleChaptersIcon');
+
+    const handleToggleChapters = () => {
+      if (!chaptersGrid) return;
+      const willCollapse = !chaptersGrid.classList.contains('is-collapsed');
+      chaptersGrid.classList.toggle('is-collapsed', willCollapse);
+      if (chaptersCollapsedBar) chaptersCollapsedBar.style.display = willCollapse ? 'flex' : 'none';
+      if (toggleText) toggleText.textContent = willCollapse ? '展开章节' : '收起章节';
+      if (toggleIcon) toggleIcon.style.transform = willCollapse ? 'rotate(180deg)' : 'rotate(0deg)';
+      try {
+        localStorage.setItem('doc_lens_chapters_collapsed_' + currentRepo.ID, willCollapse ? '1' : '0');
+      } catch (e) {}
+    };
+
+    if (toggleChaptersBtn) toggleChaptersBtn.addEventListener('click', handleToggleChapters);
+    if (chaptersCollapsedBar) chaptersCollapsedBar.addEventListener('click', handleToggleChapters);
 
     // 绑定事件：章节文章直达
     document.querySelectorAll('.chapter-doc-item').forEach(item => {

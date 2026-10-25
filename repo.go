@@ -71,8 +71,24 @@ var allowedDocExtensions = map[string]bool{
 	".h":        true,
 	".conf":     true,
 	".ini":      true,
-	".txt":      true,
-	".csv":      true,
+	".txt":        true,
+	".csv":        true,
+	".java":       true,
+	".kt":         true,
+	".kts":        true,
+	".scala":      true,
+	".proto":      true,
+	".dockerfile": true,
+	".gradle":     true,
+	".properties": true,
+}
+
+func isAllowedDocFile(name, ext string) bool {
+	if allowedDocExtensions[ext] {
+		return true
+	}
+	lower := strings.ToLower(name)
+	return lower == "dockerfile" || lower == "makefile"
 }
 
 type TreeNode struct {
@@ -366,7 +382,7 @@ func (rm *RepoManager) scanDirectory(realRoot, relPath string, currentDepth, max
 
 	if !info.IsDir() {
 		// 非目录且不在允许白名单内的杂质文件，直接过滤
-		if !allowedDocExtensions[node.Ext] {
+		if !isAllowedDocFile(node.Name, node.Ext) {
 			return nil, nil
 		}
 		return node, nil
@@ -402,7 +418,7 @@ func (rm *RepoManager) scanDirectory(realRoot, relPath string, currentDepth, max
 
 		if !entry.IsDir() {
 			ext := strings.ToLower(filepath.Ext(name))
-			if !allowedDocExtensions[ext] {
+			if !isAllowedDocFile(name, ext) {
 				continue
 			}
 			fInfo, fErr := entry.Info()
@@ -606,7 +622,7 @@ func (rm *RepoManager) GetCachedFile(repo *RepoConfig, relPath string) (*CachedD
 	}
 
 	ext := strings.ToLower(filepath.Ext(info.Name()))
-	if !allowedDocExtensions[ext] {
+	if !isAllowedDocFile(info.Name(), ext) {
 		return nil, errors.New("file type not allowed for preview")
 	}
 	fileType := detectFileType(ext)
@@ -672,7 +688,8 @@ func detectFileType(ext string) string {
 		return "html"
 	case ".py", ".sh", ".bash", ".zsh", ".json", ".yaml", ".yml", ".go", ".rs",
 		".js", ".ts", ".css", ".sql", ".toml", ".xml", ".c", ".cpp", ".h",
-		".conf", ".ini", ".txt", ".log", ".csv":
+		".conf", ".ini", ".txt", ".log", ".csv",
+		".java", ".kt", ".kts", ".scala", ".proto", ".dockerfile", ".gradle", ".properties":
 		return "code"
 	default:
 		return "text"
