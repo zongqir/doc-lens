@@ -85,6 +85,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/tree", a.requireAuth(a.handleTree))
 	mux.HandleFunc("/api/recent", a.requireAuth(a.handleRecent))
 	mux.HandleFunc("/api/content", a.requireAuth(a.handleContent))
+	mux.HandleFunc("/api/search", a.requireAuth(a.handleSearch))
 
 	// 3. AI 异步任务 API (需要认证)
 	mux.HandleFunc("/api/tasks", a.requireAuth(a.handleTasks))
@@ -451,6 +452,38 @@ func (a *App) handleContent(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(cachedDoc.JSONBytes)
+}
+
+func (a *App) handleSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]SearchResultItem{})
+		return
+	}
+
+	repoID := r.URL.Query().Get("repo")
+	mode := r.URL.Query().Get("mode")
+	if mode != "content" {
+		mode = "title"
+	}
+
+	limit := 35
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	results, err := a.rm.Search(repoID, q, mode, limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 var allowedRawExtensions = map[string]bool{

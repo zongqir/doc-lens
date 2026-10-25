@@ -538,19 +538,37 @@
           <div class="mindmap-spinner"></div>
           <span>正在生成思维导图...</span>
         </div>
+        <div class="mindmap-empty-state" id="mindmapEmptyState" style="display:none;">
+          <div class="empty-state-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div class="empty-state-title">未检测到文档层级大纲</div>
+          <div class="empty-state-desc">当前文档仅包含纯正文段落，未包含层级标题（#、##）或列表大纲。<br>在正文中添加章节标题后即可自动呈现全景思维导图。</div>
+          <button type="button" class="btn btn-sm empty-state-close-btn" onclick="closeModal(document.getElementById('mindmapModal'))">返回阅读正文</button>
+        </div>
         <svg id="mindmapSvg"></svg>
         <div id="mindmapToolbarMount" class="mindmap-toolbar-mount"></div>
-        <!-- 悬浮下钻聚焦气泡按钮 -->
+        <!-- 悬浮操作气泡按钮（聚焦下钻 / 定位正文） -->
         <div id="mindmapFocusPill" class="mindmap-focus-pill" style="display:none;">
-          <button type="button" class="mindmap-pill-action" id="mindmapPillFocusBtn" title="聚焦下钻深入此分支（幕布模式）">
+          <button type="button" class="mindmap-pill-action mindmap-pill-focus" id="mindmapPillFocusBtn" title="下钻深入此分支（幕布聚焦）">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
-            <span>聚焦此分支</span>
+            <span>聚焦</span>
+          </button>
+          <button type="button" class="mindmap-pill-action mindmap-pill-locate" id="mindmapPillLocateBtn" title="在文章正文中定位并高亮此章节">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+            <span>正文</span>
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="/js/app.js?v=20261025_1930"></script>
+  <script src="/js/app.js?v=20261025_1940"></script>
 </body>
 </html>
