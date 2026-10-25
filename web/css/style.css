@@ -6086,15 +6086,16 @@ body.modal-open {
 }
 
 @keyframes diffHeadingPulse {
-  0% { background: rgba(16, 185, 129, 0.35); outline: 3px solid #10b981; }
-  50% { background: rgba(16, 185, 129, 0.18); outline: 2px solid #10b981; }
-  100% { background: transparent; outline: none; }
+  0% { background: rgba(16, 185, 129, 0.32); outline: 2px solid #10b981; box-shadow: 0 0 16px rgba(16, 185, 129, 0.35); }
+  50% { background: rgba(16, 185, 129, 0.16); outline: 2px solid #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.18); }
+  100% { background: transparent; outline: none; box-shadow: none; }
 }
 
 .diff-target-highlight {
-  animation: diffHeadingPulse 2.4s ease forwards;
-  border-radius: 4px;
-  padding: 4px 8px;
+  animation: diffHeadingPulse 2.6s ease forwards;
+  border-radius: var(--radius-sm);
+  scroll-margin-top: 80px;
+  transition: all 0.2s ease;
 }
 
 

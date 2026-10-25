@@ -195,6 +195,8 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 	var removedCount int
 
 	headingRegex := regexp.MustCompile(`^(\+|-)\s*(#{1,6})\s+(.+)$`)
+	contextHeadingRegex := regexp.MustCompile(`^\s*(#{1,6})\s+(.+)$`)
+	currentHeading := ""
 
 	// 块追踪状态
 	inMermaid := false
@@ -212,13 +214,14 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 		if consecutiveAddLines >= 5 {
 			s := strings.TrimSpace(blockSnippet.String())
 			runes := []rune(s)
-			if len(runes) > 90 {
-				s = string(runes[:90]) + "..."
+			if len(runes) > 120 {
+				s = string(runes[:120]) + "..."
 			}
 			resp.Sections = append(resp.Sections, IncrementalSection{
-				Type:    "add_block",
-				Title:   fmt.Sprintf("新增密集分析推演大段 (连续 %d 行)", consecutiveAddLines),
-				Snippet: s,
+				Type:           "add_block",
+				Title:          fmt.Sprintf("新增密集分析推演大段 (连续 %d 行)", consecutiveAddLines),
+				Snippet:        s,
+				ContextHeading: currentHeading,
 			})
 		}
 		consecutiveAddLines = 0
@@ -229,9 +232,10 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 		if inTable {
 			if tableRows >= 2 {
 				resp.Sections = append(resp.Sections, IncrementalSection{
-					Type:    "add_table",
-					Title:   fmt.Sprintf("新增客观利益与数据对比表格 (%d 行)", tableRows),
-					Snippet: tableHeader,
+					Type:           "add_table",
+					Title:          fmt.Sprintf("新增客观利益与数据对比表格 (%d 行)", tableRows),
+					Snippet:        tableHeader,
+					ContextHeading: currentHeading,
 				})
 			}
 			inTable = false
@@ -267,9 +271,10 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 			if inMermaid {
 				if strings.HasPrefix(trimmedSpace, "```") {
 					resp.Sections = append(resp.Sections, IncrementalSection{
-						Type:    "add_diagram",
-						Title:   "新增 Mermaid 架构 / 机制推演流程图",
-						Snippet: mermaidSnippet,
+						Type:           "add_diagram",
+						Title:          "新增 Mermaid 架构 / 机制推演流程图",
+						Snippet:        mermaidSnippet,
+						ContextHeading: currentHeading,
 					})
 					inMermaid = false
 					mermaidLines = 0
@@ -289,10 +294,12 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 				flushTable()
 				level := len(m[2])
 				cleanTitle := strings.TrimSpace(m[3])
+				currentHeading = cleanTitle
 				resp.Sections = append(resp.Sections, IncrementalSection{
-					Type:  "add_heading",
-					Level: level,
-					Title: cleanTitle,
+					Type:           "add_heading",
+					Level:          level,
+					Title:          cleanTitle,
+					ContextHeading: cleanTitle,
 				})
 				continue
 			}
@@ -349,6 +356,9 @@ func parseDeterministicIncrementalDiff(rawDiff string) *IncrementalDiffResponse 
 		// 上下文未修改行 (空格开头)
 		flushLargeBlock()
 		flushTable()
+		if m := contextHeadingRegex.FindStringSubmatch(line); m != nil {
+			currentHeading = strings.TrimSpace(m[2])
+		}
 	}
 
 	flushLargeBlock()

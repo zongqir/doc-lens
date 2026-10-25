@@ -4037,22 +4037,26 @@
             badgeHtml = `<span class="diff-type-badge badge-add-block">结构增量</span>`;
         }
 
-        const canJump = s.type === 'add_heading' || s.type === 'add_diagram' || s.type === 'add_table';
+        const canJump = s.type !== 'del_heading';
 
         card.innerHTML = `
           <div class="diff-section-header">
             ${badgeHtml}
-            ${canJump ? `<button type="button" class="diff-jump-btn">定位正文 ➔</button>` : ''}
+            ${canJump ? `<button type="button" class="diff-jump-btn" title="点击定位正文对应位置">定位正文 ➔</button>` : '<span style="font-size:11px;color:var(--text-muted);">已移除章节</span>'}
           </div>
           <div class="diff-section-title">${escapeHtml(s.title)}</div>
           ${s.snippet ? `<div class="diff-section-snippet">${escapeHtml(s.snippet)}</div>` : ''}
         `;
 
         if (canJump) {
+          card.style.cursor = 'pointer';
           card.addEventListener('click', () => {
             closeModal(document.getElementById('incrementalDiffModal'));
             scrollToSectionInDoc(s);
           });
+        } else {
+          card.style.cursor = 'default';
+          card.style.opacity = '0.75';
         }
 
         sectionsList.appendChild(card);
@@ -4063,48 +4067,99 @@
     }
   }
 
+  function findHeadingElement(headingText) {
+    if (!el.articleBody || !headingText) return null;
+    const headings = el.articleBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const target = headingText.trim().toLowerCase();
+    for (const h of headings) {
+      const text = h.textContent.trim().toLowerCase();
+      if (text === target || text.includes(target) || target.includes(text)) {
+        return h;
+      }
+    }
+    return null;
+  }
+
+  function findNextElementAfterHeading(headingText, selector) {
+    const heading = findHeadingElement(headingText);
+    if (!heading) return null;
+    let cur = heading.nextElementSibling;
+    while (cur) {
+      if (/^H[1-6]$/i.test(cur.tagName)) break;
+      if (cur.matches && cur.matches(selector)) return cur;
+      if (cur.querySelector) {
+        const inside = cur.querySelector(selector);
+        if (inside) return inside;
+      }
+      cur = cur.nextElementSibling;
+    }
+    return null;
+  }
+
   function scrollToSectionInDoc(section) {
-    if (!el.articleBody) return;
+    if (!el.articleBody || !section) return;
+
+    let matched = null;
 
     if (section.type === 'add_heading') {
-      const headings = el.articleBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      const targetText = (section.title || '').trim().toLowerCase();
-      let matched = null;
+      matched = findHeadingElement(section.title);
+    } else if (section.type === 'add_block') {
+      // 1. 优先通过文本探针（取前 20~28 字特征字符串）精准匹配段落/列表/引用块
+      const cleanSnippet = (section.snippet || '')
+        .replace(/[#*`_~>\-|[\]()]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const probe = cleanSnippet.slice(0, Math.min(26, cleanSnippet.length)).trim().toLowerCase();
 
-      for (const h of headings) {
-        const text = h.textContent.trim().toLowerCase();
-        if (text === targetText || text.includes(targetText) || targetText.includes(text)) {
-          matched = h;
-          break;
+      if (probe.length >= 4) {
+        const candidates = el.articleBody.querySelectorAll('p, li, blockquote, pre, div.markdown-body > *');
+        for (const elem of candidates) {
+          const text = elem.textContent.trim().toLowerCase();
+          if (text.includes(probe)) {
+            matched = elem;
+            break;
+          }
         }
       }
 
-      if (matched) {
-        matched.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        matched.classList.add('diff-target-highlight');
-        setTimeout(() => matched.classList.remove('diff-target-highlight'), 2500);
-        return;
+      // 2. 若文本探针未能直接匹配，则降级定位至其所属的大章节标题或章节正文首段
+      if (!matched && section.context_heading) {
+        matched = findNextElementAfterHeading(section.context_heading, 'p, li, blockquote') || findHeadingElement(section.context_heading);
+      }
+    } else if (section.type === 'add_diagram') {
+      // 优先匹配所属章节后的图表
+      if (section.context_heading) {
+        matched = findNextElementAfterHeading(section.context_heading, '.mermaid, .mermaid-wrapper, pre.mermaid');
+      }
+      if (!matched) {
+        const diagrams = el.articleBody.querySelectorAll('.mermaid, .mermaid-wrapper, pre.mermaid');
+        if (diagrams.length > 0) matched = diagrams[0];
+      }
+    } else if (section.type === 'add_table') {
+      // 优先匹配所属章节后的数据对比表格
+      if (section.context_heading) {
+        matched = findNextElementAfterHeading(section.context_heading, 'table');
+      }
+      if (!matched && section.snippet) {
+        const probe = section.snippet.replace(/[|\s-]/g, '').slice(0, 15).toLowerCase();
+        const tables = el.articleBody.querySelectorAll('table');
+        for (const tbl of tables) {
+          if (tbl.textContent.replace(/[|\s-]/g, '').toLowerCase().includes(probe)) {
+            matched = tbl;
+            break;
+          }
+        }
+      }
+      if (!matched) {
+        const tables = el.articleBody.querySelectorAll('table');
+        if (tables.length > 0) matched = tables[0];
       }
     }
 
-    if (section.type === 'add_diagram') {
-      const diagrams = el.articleBody.querySelectorAll('.mermaid, .mermaid-wrapper');
-      if (diagrams.length > 0) {
-        diagrams[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        diagrams[0].classList.add('diff-target-highlight');
-        setTimeout(() => diagrams[0].classList.remove('diff-target-highlight'), 2500);
-        return;
-      }
-    }
-
-    if (section.type === 'add_table') {
-      const tables = el.articleBody.querySelectorAll('table');
-      if (tables.length > 0) {
-        tables[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        tables[0].classList.add('diff-target-highlight');
-        setTimeout(() => tables[0].classList.remove('diff-target-highlight'), 2500);
-        return;
-      }
+    if (matched) {
+      matched.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      matched.classList.add('diff-target-highlight');
+      setTimeout(() => matched.classList.remove('diff-target-highlight'), 2600);
     }
   }
 
