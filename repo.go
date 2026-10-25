@@ -69,7 +69,6 @@ var allowedDocExtensions = map[string]bool{
 	".h":        true,
 	".conf":     true,
 	".ini":      true,
-	".env":      true,
 	".txt":      true,
 	".csv":      true,
 }
@@ -170,10 +169,47 @@ func (rm *RepoManager) FindRepoByRoute(urlPath string) (*RepoConfig, string, err
 	return nil, "", errors.New("no matching repository found")
 }
 
+func isPathPermitted(repo *RepoConfig, cleanRel string) error {
+	norm := filepath.ToSlash(cleanRel)
+	parts := strings.Split(norm, "/")
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		if strings.HasPrefix(part, ".") {
+			return errors.New("access to hidden file or directory is forbidden")
+		}
+		if ignoredDirNames[part] {
+			return fmt.Errorf("access to restricted directory '%s' is forbidden", part)
+		}
+	}
+
+	// 检查仓库配置中的忽略目录列表
+	for _, ign := range repo.IgnoreDirs {
+		cleanIgn := filepath.ToSlash(filepath.Clean(filepath.FromSlash(ign)))
+		cleanIgn = strings.Trim(cleanIgn, "/")
+		if cleanIgn == "" {
+			continue
+		}
+		if norm == cleanIgn || strings.HasPrefix(norm, cleanIgn+"/") {
+			return errors.New("access to ignored directory is forbidden")
+		}
+	}
+	return nil
+}
+
 func (rm *RepoManager) SafeResolve(repo *RepoConfig, relPath string) (string, error) {
+	if strings.Contains(relPath, "\x00") {
+		return "", errors.New("invalid path: null byte detected")
+	}
 	cleanRel := filepath.Clean(filepath.FromSlash(relPath))
-	if strings.HasPrefix(cleanRel, "..") || strings.HasPrefix(cleanRel, "/") {
+	if strings.HasPrefix(cleanRel, "..") || strings.HasPrefix(cleanRel, "/") || filepath.IsAbs(cleanRel) {
 		return "", errors.New("invalid path: path traversal detected")
+	}
+
+	// 深度安全防护：禁止访问隐藏文件/目录（如 .git, .env）以及受保护/配置忽略的敏感目录
+	if err := isPathPermitted(repo, cleanRel); err != nil {
+		return "", err
 	}
 
 	absPath := filepath.Join(repo.Path, cleanRel)
@@ -186,8 +222,11 @@ func (rm *RepoManager) SafeResolve(repo *RepoConfig, relPath string) (string, er
 	if err != nil {
 		parent := filepath.Dir(absPath)
 		realParent, pErr := filepath.EvalSymlinks(parent)
-		if pErr == nil && (realParent == realRepo || strings.HasPrefix(realParent, realRepo+string(filepath.Separator))) {
-			return absPath, nil
+		if pErr != nil {
+			return "", fmt.Errorf("security check failed: cannot resolve parent directory: %w", pErr)
+		}
+		if realParent != realRepo && !strings.HasPrefix(realParent, realRepo+string(filepath.Separator)) {
+			return "", errors.New("security check failed: parent directory is outside repository root")
 		}
 		return absPath, nil
 	}
@@ -217,8 +256,11 @@ func (rm *RepoManager) GetTree(repoID string, forceRefresh bool) (*TreeNode, err
 	cachedTime := rm.cacheTimes[repoID]
 	rm.cacheMu.RUnlock()
 
-	// 缓存 15 分钟有效，极大消除频繁磁盘扫描
+	// 缓存 15 分钟有效；强制刷新时增加 10 秒防抖，防止攻击者高频刷新击穿磁盘 I/O
 	if ok && !forceRefresh && time.Since(cachedTime) < 15*time.Minute {
+		return cached, nil
+	}
+	if ok && forceRefresh && time.Since(cachedTime) < 10*time.Second {
 		return cached, nil
 	}
 
@@ -432,6 +474,9 @@ func (rm *RepoManager) ReadFile(repo *RepoConfig, relPath string) (*FileContentR
 	}
 
 	ext := strings.ToLower(filepath.Ext(info.Name()))
+	if !allowedDocExtensions[ext] {
+		return nil, errors.New("file type not allowed for preview")
+	}
 	fileType := detectFileType(ext)
 
 	lines := strings.Count(string(data), "\n") + 1
@@ -459,7 +504,7 @@ func detectFileType(ext string) string {
 		return "html"
 	case ".py", ".sh", ".bash", ".zsh", ".json", ".yaml", ".yml", ".go", ".rs",
 		".js", ".ts", ".css", ".sql", ".toml", ".xml", ".c", ".cpp", ".h",
-		".conf", ".ini", ".env", ".txt", ".log", ".csv":
+		".conf", ".ini", ".txt", ".log", ".csv":
 		return "code"
 	default:
 		return "text"

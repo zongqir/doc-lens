@@ -11,6 +11,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -142,7 +143,7 @@ func (a *App) routes() http.Handler {
 		_, _ = io.Copy(w, indexFile)
 	})
 
-	return a.gzipMiddleware(a.corsAndSecurityMiddleware(mux))
+	return a.gzipMiddleware(a.corsAndSecurityMiddleware(a.apiRateLimitMiddleware(mux)))
 }
 
 type gzipResponseWriter struct {
@@ -168,11 +169,29 @@ func (a *App) gzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (a *App) apiRateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 仅针对 /api/ 应用分 IP 令牌桶限流保护（每秒 2 个，突发 40 个，即 120 req/min）
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			ip := GetClientIP(r)
+			if !globalAPILimiter.Allow(ip, 2.0, 40.0) {
+				w.Header().Set("Retry-After", "5")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"error":"too many requests, please slow down"}`))
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (a *App) corsAndSecurityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -194,10 +213,27 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := GetClientIP(r)
+
+	// 全局登录请求限流（防止分布式请求耗尽 NAS CPU）
+	if !globalLoginLimiter.Allow("global_login", 10.0, 20.0) {
+		http.Error(w, `{"error":"system busy, please try again later"}`, http.StatusTooManyRequests)
+		return
+	}
+
+	// 单 IP 高频探测限制（30秒内最多10次）
+	if !limiter.AllowAttempt(ip) {
+		http.Error(w, `{"error":"too many attempts, please slow down"}`, http.StatusTooManyRequests)
+		return
+	}
+
+	// 密码错误锁定限制（15分钟输错5次锁定）
 	if !limiter.Allow(ip) {
 		http.Error(w, `{"error":"too many attempts, locked for 15 minutes"}`, http.StatusTooManyRequests)
 		return
 	}
+
+	// 安全加固：限制请求体最大 1KB，防止巨型 Body OOM
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 
 	var req struct {
 		Password string `json:"password"`
@@ -220,7 +256,7 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	SetAuthCookie(w, token, a.cfg.Auth.SessionDays)
+	SetAuthCookie(w, r, token, a.cfg.Auth.SessionDays)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
@@ -230,7 +266,7 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
-	ClearAuthCookie(w)
+	ClearAuthCookie(w, r)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
@@ -321,6 +357,25 @@ func (a *App) handleContent(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(contentResp)
 }
 
+var allowedRawExtensions = map[string]bool{
+	".html":     true,
+	".htm":      true,
+	".md":       true,
+	".markdown": true,
+	".mdown":    true,
+	".txt":      true,
+	".json":     true,
+	".css":      true,
+	".js":       true,
+	".svg":      true,
+	".png":      true,
+	".jpg":      true,
+	".jpeg":     true,
+	".gif":      true,
+	".webp":     true,
+	".ico":      true,
+}
+
 func (a *App) handleRaw(w http.ResponseWriter, r *http.Request) {
 	rawPath := strings.TrimPrefix(r.URL.Path, "/raw")
 	repo, relPath, err := a.rm.FindRepoByRoute(rawPath)
@@ -335,9 +390,19 @@ func (a *App) handleRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 针对 HTML 设置沙箱安全头
-	if strings.HasSuffix(strings.ToLower(absPath), ".html") || strings.HasSuffix(strings.ToLower(absPath), ".htm") {
-		w.Header().Set("Content-Security-Policy", "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;")
+	ext := strings.ToLower(filepath.Ext(absPath))
+	if !allowedRawExtensions[ext] {
+		http.Error(w, "forbidden file extension", http.StatusForbidden)
+		return
+	}
+
+	// 针对 HTML 与 SVG 实施沙箱化 CSP 与防嗅探，杜绝同源 XSS 攻击
+	if ext == ".html" || ext == ".htm" {
+		w.Header().Set("Content-Security-Policy", "sandbox allow-scripts allow-forms; default-src 'self' 'unsafe-inline' data: blob: https:;")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+	} else if ext == ".svg" {
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:;")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 	}
 
 	http.ServeFile(w, r, absPath)
@@ -358,6 +423,9 @@ func (a *App) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
+		// 安全加固：限制请求体最大 32KB，防止巨型 Prompt OOM 同时支持 5000 汉字 UTF-8
+		r.Body = http.MaxBytesReader(w, r.Body, 32*1024)
+
 		var req struct {
 			Type       string `json:"type"`        // "draft" | "explain"
 			RepoID     string `json:"repo_id"`
@@ -368,8 +436,12 @@ func (a *App) handleTasks(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"invalid json request"}`, http.StatusBadRequest)
 			return
 		}
-		if req.Prompt == "" {
+		if strings.TrimSpace(req.Prompt) == "" {
 			http.Error(w, `{"error":"prompt cannot be empty"}`, http.StatusBadRequest)
+			return
+		}
+		if len([]rune(req.Prompt)) > 5000 {
+			http.Error(w, `{"error":"prompt too long (max 5000 chars)"}`, http.StatusBadRequest)
 			return
 		}
 		if req.Type == "" {
@@ -404,6 +476,9 @@ func (a *App) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 			if t, err := strconv.ParseInt(tStr, 10, 64); err == nil && t > 0 {
 				tailBytes = t
 			}
+		}
+		if tailBytes > 512*1024 {
+			tailBytes = 512 * 1024 // 安全硬上限 512KB
 		}
 		logContent, err := a.tm.ReadTaskLog(taskID, tailBytes)
 		if err != nil {

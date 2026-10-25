@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ type Task struct {
 	ID         string    `json:"id"`
 	Type       string    `json:"type"`       // "draft" (生成新文章) | "explain" (解释文章)
 	Status     string    `json:"status"`     // "queued" | "running" | "completed" | "failed"
-	Prompt     string    `json:"prompt"`
+	Prompt     string    `json:"prompt"`     // 持久化存储的前 500 字符摘要
 	RepoID     string    `json:"repo_id"`
 	RepoName   string    `json:"repo_name"`
 	TargetFile string    `json:"target_file"` // 生成的新文件路径或正在解释的目标路径
@@ -27,6 +28,7 @@ type Task struct {
 	ExitCode   int       `json:"exit_code"`
 	ErrorMsg   string    `json:"error_msg,omitempty"`
 	LogFile    string    `json:"log_file"`
+	rawPrompt  string    // 内存中保留的完整 Prompt (最大 5000 字符)，供 Worker 执行
 }
 
 type TaskManager struct {
@@ -74,6 +76,10 @@ func (tm *TaskManager) loadTasks() {
 				t.Status = "failed"
 				t.ErrorMsg = "service restarted while task was in progress"
 			}
+			// 防御性截断，避免历史 tasks.json 膨胀导致启动 OOM
+			if rPrompt := []rune(t.Prompt); len(rPrompt) > 500 {
+				t.Prompt = string(rPrompt[:500]) + "..."
+			}
 		}
 	}
 }
@@ -90,24 +96,57 @@ func (tm *TaskManager) saveTasks() {
 }
 
 func (tm *TaskManager) SubmitTask(taskType, repoID, targetFile, prompt string) (*Task, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return nil, errors.New("prompt cannot be empty")
+	}
+	if len([]rune(prompt)) > 5000 {
+		return nil, errors.New("prompt exceeds maximum limit of 5000 characters")
+	}
+
 	repo, err := tm.rm.GetRepoByID(repoID)
 	if err != nil {
 		return nil, err
 	}
 
+	// 安全校验：校验 TargetFile 防止路径穿越与非法探测
+	if strings.TrimSpace(targetFile) != "" {
+		cleanTarget, err := tm.rm.SafeResolve(repo, targetFile)
+		if err != nil {
+			return nil, fmt.Errorf("invalid target file path: %w", err)
+		}
+		if taskType == "explain" {
+			fInfo, err := os.Stat(cleanTarget)
+			if err != nil {
+				return nil, fmt.Errorf("target file does not exist: %w", err)
+			}
+			if fInfo.IsDir() {
+				return nil, errors.New("target file cannot be a directory")
+			}
+		}
+	}
+
 	taskID := fmt.Sprintf("task_%s_%s", time.Now().Format("20060102_150405"), randomHex(4))
 	logFile := filepath.Join(tm.stateDir, "logs", fmt.Sprintf("%s.log", taskID))
+
+	// tasks.json 中只持久化前 500 字符摘要，彻底杜绝 tasks.json 膨胀导致启动 OOM
+	promptRunes := []rune(prompt)
+	promptSummary := prompt
+	if len(promptRunes) > 500 {
+		promptSummary = string(promptRunes[:500]) + "..."
+	}
 
 	task := &Task{
 		ID:         taskID,
 		Type:       taskType,
 		Status:     "queued",
-		Prompt:     prompt,
+		Prompt:     promptSummary,
 		RepoID:     repoID,
 		RepoName:   repo.Name,
 		TargetFile: targetFile,
 		CreatedAt:  time.Now(),
 		LogFile:    logFile,
+		rawPrompt:  prompt,
 	}
 
 	tm.mu.Lock()
@@ -134,7 +173,17 @@ func (tm *TaskManager) SubmitTask(taskType, repoID, targetFile, prompt string) (
 
 func (tm *TaskManager) workerLoop() {
 	for task := range tm.queue {
-		tm.executeTask(task)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					task.Status = "failed"
+					task.ErrorMsg = fmt.Sprintf("internal worker panic: %v", r)
+					task.EndedAt = time.Now()
+					tm.saveTasks()
+				}
+			}()
+			tm.executeTask(task)
+		}()
 	}
 }
 
@@ -162,8 +211,13 @@ func (tm *TaskManager) executeTask(task *Task) {
 	}
 	defer logF.Close()
 
+	execPrompt := task.rawPrompt
+	if execPrompt == "" {
+		execPrompt = task.Prompt
+	}
+
 	header := fmt.Sprintf("=== doc-lens AI Task: %s ===\nType: %s\nTarget: %s\nRepo: %s (%s)\nTime: %s\nPrompt: %s\n===============================\n\n",
-		task.ID, task.Type, task.TargetFile, repo.Name, repo.Path, task.StartedAt.Format("2006-01-02 15:04:05"), task.Prompt)
+		task.ID, task.Type, task.TargetFile, repo.Name, repo.Path, task.StartedAt.Format("2006-01-02 15:04:05"), execPrompt)
 	_, _ = logF.WriteString(header)
 
 	// 构造执行命令
@@ -183,10 +237,10 @@ func (tm *TaskManager) executeTask(task *Task) {
 			targetFileHint = fmt.Sprintf("建议存入文件路径：%s。", strings.TrimSpace(task.TargetFile))
 		}
 		fullPrompt = fmt.Sprintf("任务：根据用户要求在目录 %s 下生成一篇深度、专业、格式严密的 Markdown 文档。文件名要求：%s。写作准则：严格遵循本仓库 AGENTS.md 规范，采取唯物现实主义与去道德化客观视角，包含多级标题目录结构、必要时使用 Mermaid 图表展示架构与流程、严禁敷衍。用户需求：%s",
-			repo.Path, targetFileHint, task.Prompt)
+			repo.Path, targetFileHint, execPrompt)
 	} else {
 		fullPrompt = fmt.Sprintf("任务：请对文件 %s 进行深度逻辑解剖与透视分析。针对用户关注的问题：%s。要求：指出核心矛盾、客观利益账本、潜在盲点与要点总结，使用结构化 Markdown 呈现。",
-			task.TargetFile, task.Prompt)
+			task.TargetFile, execPrompt)
 	}
 
 	execArgs = []string{"-p", fullPrompt}
@@ -269,14 +323,20 @@ func (tm *TaskManager) ReadTaskLog(id string, tailBytes int64) (string, error) {
 		return "", fmt.Errorf("log file not found: %w", err)
 	}
 
+	// 硬上限限制为 512KB，杜绝任意 tail 导致的内存耗尽
+	const maxTailBytes = int64(512 * 1024)
+	if tailBytes <= 0 || tailBytes > maxTailBytes {
+		tailBytes = maxTailBytes
+	}
+
 	file, err := os.Open(task.LogFile)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
-	if tailBytes <= 0 || info.Size() <= tailBytes {
-		data, err := io.ReadAll(file)
+	if info.Size() <= tailBytes {
+		data, err := io.ReadAll(io.LimitReader(file, tailBytes))
 		return string(data), err
 	}
 
@@ -285,6 +345,6 @@ func (tm *TaskManager) ReadTaskLog(id string, tailBytes int64) (string, error) {
 	if _, err := file.Seek(offset, io.SeekStart); err != nil {
 		return "", err
 	}
-	data, err := io.ReadAll(file)
+	data, err := io.ReadAll(io.LimitReader(file, tailBytes))
 	return string(data), err
 }
