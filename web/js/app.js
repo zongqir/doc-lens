@@ -4408,35 +4408,48 @@
         continue;
       }
 
-      // 对非代码块行，跳过行内代码段后修复 emphasis 空格
-      // 策略：按行内代码分割，只对非代码段做修复
-      const segments = line.split(/(`{1,2}[^`]+`{1,2})/);
+      // 严格保护行首列表项标记（如 "* ", "  * ", "- ", "1. "），彻底隔离列表结构符号，避免被正则误伤
+      const listMatch = line.match(/^([ \t]*[*+-] +|[ \t]*\d+\. +)/);
+      const prefix = listMatch ? listMatch[0] : '';
+      const body = listMatch ? line.slice(prefix.length) : line;
+
+      // 对非代码块行，跳过行内代码段后修复 emphasis 内部首尾空格
+      // 策略：按行内代码分割，采用成对定界符匹配，仅修剪内部空格，绝不吞噬定界符外部空格
+      const segments = body.split(/(`{1,2}[^`]+`{1,2})/);
       const fixed = segments.map((seg, idx) => {
         // 奇数索引是行内代码匹配，不动
         if (idx % 2 === 1) return seg;
 
-        // 不处理列表行开头的 "* " (无前置非空字符)
-        // 修复 strong (**) 先于 em (*)
         let s = seg;
 
-        // ** text** → **text**  (开启 ** 后的空格)
-        s = s.replace(/(\*{2}) +([\S])/g, '$1$2');
-        // **text ** → **text**  (闭合 ** 前的空格)
-        s = s.replace(/([\S]) +(\*{2})/g, '$1$2');
+        // 1. 粗斜体: *** content *** → ***content***
+        s = s.replace(/(?<!\*)\*{3}([ \t]*)([\s\S]+?)([ \t]*)\*{3}(?!\*)/g, (match, p1, p2, p3) => {
+          const t = p2.trim();
+          if (!t || /^\*+$/.test(t)) return match;
+          if (!p1 && !p3) return match;
+          return `***${t}***`;
+        });
 
-        // * text* → *text*  (开启 * 后的空格，但排除行首列表项)
-        // 只修复 * 前面有非空白字符 或 * 在行首非列表位置的情况
-        s = s.replace(/(?<=\S)(\*) +([\S])/g, '$1$2');
-        // 注意：行首 `* ` 开头几乎一定是列表项，不做 emphasis 修复——
-        // 误删空格会将 `* **bold**` 变成 `***bold**`（bold-italic 而非 list + bold）
+        // 2. 粗体: ** content ** → **content** (修复开启/闭合多余空格，成对处理避免吞噬外部正常空格)
+        s = s.replace(/(?<!\*)\*{2}([ \t]*)([\s\S]+?)([ \t]*)\*{2}(?!\*)/g, (match, p1, p2, p3) => {
+          const t = p2.trim();
+          if (!t || /^\*+$/.test(t)) return match;
+          if (!p1 && !p3) return match;
+          return `**${t}**`;
+        });
 
-        // *text * → *text*  (闭合 * 前的空格)
-        s = s.replace(/([\S]) +(\*)(?!\*)/g, '$1$2');
+        // 3. 斜体: * content * → *content* (仅处理成对且无比较/数学符号的安全斜体)
+        s = s.replace(/(?<!\*)\*([ \t]*)([^\n*+=<>]+?)([ \t]*)\*(?!\*)/g, (match, p1, p2, p3) => {
+          if (!p1 && !p3) return match;
+          const t = p2.trim();
+          if (!t) return match;
+          return `*${t}*`;
+        });
 
         return s;
       }).join('');
 
-      result.push(fixed);
+      result.push(prefix + fixed);
     }
 
     return result.join('\n');
