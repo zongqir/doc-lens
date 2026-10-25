@@ -3135,8 +3135,9 @@
       chaptersHtml = `<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">当前知识库正在整理中，暂未发现文档章节</div>`;
     }
 
-    // 检查章节分布折叠偏好
+    // 检查章节分布与最近文章折叠偏好
     const isChaptersCollapsed = localStorage.getItem('doc_lens_chapters_collapsed_' + currentRepo.ID) === '1';
+    const isRecentCollapsed = localStorage.getItem('doc_lens_recent_collapsed_' + currentRepo.ID) === '1';
 
     // 6. 构建“快速切换其他知识库”（移至最底部）
     let switchReposHtml = '';
@@ -3167,7 +3168,7 @@
         <!-- 模块 1：上次阅读高亮卡片 -->
         ${lastReadCardHtml}
 
-        <!-- 模块 2：最近生成与更新的文章 (重点展示) -->
+        <!-- 模块 2：最近生成与更新的文章 (重点展示，支持收起/展开) -->
         <div class="welcome-section welcome-recent-section">
           <div class="welcome-section-header">
             <div class="welcome-section-title-wrap">
@@ -3178,15 +3179,22 @@
               <span class="welcome-section-subtitle">最新技术研报与文章动态 · 保持前沿敏锐度</span>
             </div>
             <div class="welcome-section-actions">
-              <div class="recent-search-wrap">
+              <div class="recent-search-wrap" style="${isRecentCollapsed ? 'display:none;' : ''}" id="recentSearchWrap">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 <input type="text" class="recent-filter-input" id="recentFilterInput" placeholder="过滤最近文章..." autocomplete="off">
                 <button type="button" class="recent-clear-filter-btn" id="recentClearFilterBtn" style="display:none;" title="清空">✕</button>
               </div>
               <span class="recent-live-badge"><span class="live-dot"></span>实时同步</span>
+              <button type="button" class="btn-collapse-chapters" id="toggleRecentBtn" title="点击收起或展开最近生成与更新">
+                <span id="toggleRecentText">${isRecentCollapsed ? '展开' : '收起'}</span>
+                <svg id="toggleRecentIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:${isRecentCollapsed ? 'rotate(180deg)' : 'rotate(0deg)'};transition:transform 0.2s ease;"><polyline points="18 15 12 9 6 15"></polyline></svg>
+              </button>
             </div>
           </div>
-          <div class="welcome-recent-grid" id="welcomeRecentGrid">
+          <div class="welcome-chapters-collapsed-bar" id="recentCollapsedBar" style="${isRecentCollapsed ? '' : 'display:none;'}">
+            <span>已收起最近生成与更新文章（共 ${recentDocs.length} 篇，点击展开）</span>
+          </div>
+          <div class="welcome-recent-grid ${isRecentCollapsed ? 'is-collapsed' : ''}" id="welcomeRecentGrid">
             ${recentDocsHtml}
           </div>
         </div>
@@ -3310,6 +3318,30 @@
         });
       }
     }
+
+    // 绑定事件：收起与展开最近生成与更新
+    const toggleRecentBtn = document.getElementById('toggleRecentBtn');
+    const recentCollapsedBar = document.getElementById('recentCollapsedBar');
+    const recentGrid = document.getElementById('welcomeRecentGrid');
+    const recentSearchWrap = document.getElementById('recentSearchWrap');
+    const toggleRecentText = document.getElementById('toggleRecentText');
+    const toggleRecentIcon = document.getElementById('toggleRecentIcon');
+
+    const handleToggleRecent = () => {
+      if (!recentGrid) return;
+      const willCollapse = !recentGrid.classList.contains('is-collapsed');
+      recentGrid.classList.toggle('is-collapsed', willCollapse);
+      if (recentCollapsedBar) recentCollapsedBar.style.display = willCollapse ? 'flex' : 'none';
+      if (recentSearchWrap) recentSearchWrap.style.display = willCollapse ? 'none' : 'flex';
+      if (toggleRecentText) toggleRecentText.textContent = willCollapse ? '展开' : '收起';
+      if (toggleRecentIcon) toggleRecentIcon.style.transform = willCollapse ? 'rotate(180deg)' : 'rotate(0deg)';
+      try {
+        localStorage.setItem('doc_lens_recent_collapsed_' + currentRepo.ID, willCollapse ? '1' : '0');
+      } catch (e) {}
+    };
+
+    if (toggleRecentBtn) toggleRecentBtn.addEventListener('click', handleToggleRecent);
+    if (recentCollapsedBar) recentCollapsedBar.addEventListener('click', handleToggleRecent);
 
     // 绑定事件：收起与展开章节分布
     const toggleChaptersBtn = document.getElementById('toggleChaptersBtn');

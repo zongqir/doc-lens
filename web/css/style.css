@@ -1732,7 +1732,8 @@ body.modal-open {
   border-color: var(--accent-color);
 }
 
-.welcome-chapters-grid.is-collapsed {
+.welcome-chapters-grid.is-collapsed,
+.welcome-recent-grid.is-collapsed {
   display: none !important;
 }
 
