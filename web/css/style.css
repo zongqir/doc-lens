@@ -2942,17 +2942,75 @@ body.modal-open {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
   padding: 0 4px;
 }
 
-.toc-header svg {
+.toc-header-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.toc-header-title svg {
   color: var(--text-muted);
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+/* 分段收缩控制器 (Segmented Level Control) */
+.toc-level-ctrl {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 1.5px;
+  gap: 1.5px;
+  user-select: none;
+}
+
+.toc-level-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 1.5px 6.5px;
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.35;
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.toc-level-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.toc-level-btn.active {
+  background: var(--bg-surface);
+  color: var(--accent-color, #3b82f6);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* 目录分级快速收缩规则 */
+.toc-list.toc-filter-1 .toc-item[data-level="2"],
+.toc-list.toc-filter-1 .toc-item[data-level="3"],
+.mobile-toc-list.toc-filter-1 .mobile-toc-item[data-level="2"],
+.mobile-toc-list.toc-filter-1 .mobile-toc-item[data-level="3"] {
+  display: none !important;
+}
+
+.toc-list.toc-filter-2 .toc-item[data-level="3"],
+.mobile-toc-list.toc-filter-2 .mobile-toc-item[data-level="3"] {
+  display: none !important;
 }
 
 .toc-track {
@@ -3631,18 +3689,24 @@ body.modal-open {
   box-shadow: var(--shadow-xs) !important;
 }
 
-/* 面包屑下钻聚焦导航栏 (类似幕布聚焦导航条) */
-.mindmap-nav-bar {
+.mindmap-modal-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 16px;
-  background-color: var(--bg-surface-hover);
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
+  background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-default);
-  font-size: 12.5px;
-  min-height: 38px;
   box-sizing: border-box;
-  user-select: none;
+  min-height: 44px;
+}
+
+.mindmap-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .mindmap-back-btn {
@@ -3675,6 +3739,28 @@ body.modal-open {
   flex-wrap: wrap;
   flex: 1;
   min-width: 0;
+}
+
+/* 根节点无冗余文字，呈现为一个极简核心圆圈支点 */
+.mindmap-at-doc-root .markmap-node[data-depth="1"] > foreignObject,
+.mindmap-at-doc-root .markmap-node[data-depth="1"] > line {
+  display: none !important;
+}
+
+.mindmap-at-doc-root .markmap-node[data-depth="1"] > circle {
+  r: 8px !important;
+  stroke-width: 3.5px !important;
+  stroke: var(--accent-primary, #3b82f6) !important;
+  fill: var(--bg-surface) !important;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.4));
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mindmap-at-doc-root .markmap-node[data-depth="1"]:hover > circle {
+  r: 10px !important;
+  fill: var(--accent-primary, #3b82f6) !important;
+  stroke: var(--bg-surface) !important;
 }
 
 .crumb-item {

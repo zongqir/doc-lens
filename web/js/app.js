@@ -87,6 +87,7 @@
     initMarkdownParser();
     initMermaid();
     initMermaidLightboxEvents();
+    initTocLevelControl();
     bindGlobalKeybindings();
 
     initSidebarTabs();
@@ -156,6 +157,8 @@
 
     el.tocList = document.getElementById('tocList');
     el.mobileTocList = document.getElementById('mobileTocList');
+    el.tocLevelCtrl = document.getElementById('tocLevelCtrl');
+    el.mobileTocLevelCtrl = document.getElementById('mobileTocLevelCtrl');
     el.fabTocBtn = document.getElementById('fabTocBtn');
     el.mobileTocModal = document.getElementById('mobileTocModal');
 
@@ -4526,6 +4529,94 @@
     }
   }
 
+  // ==========================================================================
+  // 本页大纲 (TOC) 多层级快速收缩与精准导轨控制器
+  // ==========================================================================
+  let currentTocLevel = 'all'; // '1' (仅一级大章节), '2' (一二级章节), 'all' (展开全部)
+
+  function initTocLevelControl() {
+    const handleLevelClick = (e) => {
+      const btn = e.target.closest('.toc-level-btn');
+      if (!btn) return;
+      const targetLevel = btn.getAttribute('data-level');
+      applyTocLevelFilter(targetLevel);
+    };
+
+    if (el.tocLevelCtrl) {
+      el.tocLevelCtrl.addEventListener('click', handleLevelClick);
+    }
+    if (el.mobileTocLevelCtrl) {
+      el.mobileTocLevelCtrl.addEventListener('click', handleLevelClick);
+    }
+  }
+
+  function applyTocLevelFilter(level) {
+    currentTocLevel = level || 'all';
+
+    // 1. 同步更新所有收缩控制按钮的 active 状态
+    document.querySelectorAll('.toc-level-btn').forEach(btn => {
+      if (btn.getAttribute('data-level') === currentTocLevel) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    // 2. 更新桌面端与移动端 TOC 列表容器的 CSS 过滤类
+    [el.tocList, el.mobileTocList].forEach(list => {
+      if (!list) return;
+      list.classList.remove('toc-filter-1', 'toc-filter-2');
+      if (currentTocLevel === '1') {
+        list.classList.add('toc-filter-1');
+      } else if (currentTocLevel === '2') {
+        list.classList.add('toc-filter-2');
+      }
+    });
+
+    // 3. 收缩后重新校验当前高亮位置，若当前高亮节点被折叠，自动向上冒泡高亮其归属的可见大章节
+    const activeLink = el.tocList?.querySelector('.toc-link.active');
+    if (activeLink) {
+      const id = activeLink.getAttribute('href')?.replace('#', '');
+      if (id) highlightTocLink(id);
+    }
+  }
+
+  function highlightTocLink(activeId) {
+    if (!el.tocList) return;
+    const allItems = Array.from(el.tocList.querySelectorAll('.toc-item'));
+    const allLinks = el.tocList.querySelectorAll('.toc-link');
+    const allMobileLinks = el.mobileTocList ? el.mobileTocList.querySelectorAll('.mobile-toc-link') : [];
+
+    allLinks.forEach(l => l.classList.remove('active'));
+    allMobileLinks.forEach(l => l.classList.remove('active'));
+
+    const targetItem = el.tocList.querySelector(`.toc-item a[href="#${activeId}"]`)?.closest('.toc-item');
+    if (!targetItem) return;
+
+    let itemToHighlight = targetItem;
+    // 智能冒泡：若当前项在收缩模式下不可见（display: none），向上回溯最近的一个可见父级章节
+    if (itemToHighlight.offsetParent === null) {
+      const idx = allItems.indexOf(targetItem);
+      for (let i = idx - 1; i >= 0; i--) {
+        if (allItems[i].offsetParent !== null) {
+          itemToHighlight = allItems[i];
+          break;
+        }
+      }
+    }
+
+    if (itemToHighlight) {
+      const activeLink = itemToHighlight.querySelector('.toc-link');
+      if (activeLink) activeLink.classList.add('active');
+
+      const linkHref = activeLink?.getAttribute('href');
+      if (linkHref && el.mobileTocList) {
+        const mLink = el.mobileTocList.querySelector(`.mobile-toc-link[href="${linkHref}"]`);
+        if (mLink) mLink.classList.add('active');
+      }
+    }
+  }
+
   function generateTOC() {
     let headings = Array.from(el.articleBody.querySelectorAll('h2, h3, h4'));
     if (headings.length === 0) {
@@ -4536,9 +4627,23 @@
     el.mobileTocList.innerHTML = '';
 
     if (headings.length === 0) {
+      if (el.tocLevelCtrl) el.tocLevelCtrl.style.display = 'none';
+      if (el.mobileTocLevelCtrl) el.mobileTocLevelCtrl.style.display = 'none';
       el.tocList.innerHTML = '<li class="toc-item" style="color:var(--text-muted);font-size:12px;padding:8px 4px;">本文无层级章节标题</li>';
       el.mobileTocList.innerHTML = '<li class="toc-item" style="color:var(--text-muted);font-size:14px;padding:12px;">本文无章节标题</li>';
       return;
+    }
+
+    // 统计文中实际出现的标题级别（如 ['h2', 'h3', 'h4']）
+    const uniqueTags = Array.from(new Set(headings.map(h => h.tagName.toLowerCase()))).sort();
+    const hasMultiLevels = uniqueTags.length > 1;
+
+    // 仅当文章存在多级章节时，才显示快速收缩控制器，避免无意义的按钮干扰
+    if (el.tocLevelCtrl) {
+      el.tocLevelCtrl.style.display = hasMultiLevels ? 'inline-flex' : 'none';
+    }
+    if (el.mobileTocLevelCtrl) {
+      el.mobileTocLevelCtrl.style.display = hasMultiLevels ? 'inline-flex' : 'none';
     }
 
     const fragment = document.createDocumentFragment();
@@ -4550,8 +4655,14 @@
       const tag = h.tagName.toLowerCase();
       const text = h.textContent.trim();
 
+      // 计算相对层级 (1 = 最高大章节, 2 = 二级章节, 3 = 更深层级)
+      const tagIdx = uniqueTags.indexOf(tag);
+      const level = tagIdx === 0 ? '1' : (tagIdx === 1 ? '2' : '3');
+
       const li = document.createElement('li');
       li.className = `toc-item ${tag}`;
+      li.setAttribute('data-level', level);
+
       const a = document.createElement('a');
       a.className = 'toc-link';
       a.href = '#' + id;
@@ -4566,6 +4677,8 @@
 
       const mLi = document.createElement('li');
       mLi.className = `mobile-toc-item ${tag}`;
+      mLi.setAttribute('data-level', level);
+
       const mA = document.createElement('a');
       mA.className = 'mobile-toc-link';
       mA.href = '#' + id;
@@ -4582,6 +4695,9 @@
     el.tocList.appendChild(fragment);
     el.mobileTocList.appendChild(mobileFragment);
 
+    // 默认或保持当前收缩/展开层级设置
+    applyTocLevelFilter(currentTocLevel);
+
     setupScrollSpy(headings);
   }
 
@@ -4589,18 +4705,12 @@
     if (scrollSpyObserver) {
       scrollSpyObserver.disconnect();
     }
-    const links = el.tocList.querySelectorAll('.toc-link');
+
     scrollSpyObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           const id = entry.target.id;
-          links.forEach(l => {
-            if (l.getAttribute('href') === '#' + id) {
-              l.classList.add('active');
-            } else {
-              l.classList.remove('active');
-            }
-          });
+          highlightTocLink(id);
         }
       });
     }, { rootMargin: '0px 0px -70% 0px' });
@@ -4611,6 +4721,8 @@
   function renderHtmlDoc(path, content) {
     el.tocList.innerHTML = '';
     el.mobileTocList.innerHTML = '';
+    if (el.tocLevelCtrl) el.tocLevelCtrl.style.display = 'none';
+    if (el.mobileTocLevelCtrl) el.mobileTocLevelCtrl.style.display = 'none';
     const rawUrl = '/raw' + path;
     el.articleBody.innerHTML = `
       <div style="margin-bottom:14px;display:flex;gap:10px;">
@@ -4639,6 +4751,8 @@
   function renderCodeDoc(content, path) {
     el.tocList.innerHTML = '';
     el.mobileTocList.innerHTML = '';
+    if (el.tocLevelCtrl) el.tocLevelCtrl.style.display = 'none';
+    if (el.mobileTocLevelCtrl) el.mobileTocLevelCtrl.style.display = 'none';
     const ext = path.substring(path.lastIndexOf('.')).replace('.', '');
     el.articleBody.innerHTML = `
       <pre style="max-height:80vh;"><code class="language-${ext}">${escapeHtml(content)}</code></pre>
