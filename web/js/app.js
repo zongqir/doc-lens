@@ -2537,7 +2537,7 @@
         <span class="btn-text-full">复制链接</span>
         <span class="btn-text-short">链接</span>
       </button>
-      <button class="btn btn-primary" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
+      <button class="btn" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
         <span class="btn-text-full">AI 协作</span>
         <span class="btn-text-short">AI</span>
