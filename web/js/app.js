@@ -3325,7 +3325,6 @@
     // 绑定事件：收起与展开最近生成与更新
     const toggleRecentBtn = document.getElementById('toggleRecentBtn');
     const recentCollapsedBar = document.getElementById('recentCollapsedBar');
-    const recentGrid = document.getElementById('welcomeRecentGrid');
     const recentSearchWrap = document.getElementById('recentSearchWrap');
     const toggleRecentText = document.getElementById('toggleRecentText');
     const toggleRecentIcon = document.getElementById('toggleRecentIcon');
