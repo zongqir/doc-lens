@@ -1057,6 +1057,9 @@
         updateTreeFileStats(state.treeData);
       }
       renderDocPagination();
+      if (!state.currentDoc) {
+        renderWelcomeDashboard();
+      }
     };
 
     // 1. 内存层命中：0ms 秒开

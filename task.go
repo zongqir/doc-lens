@@ -76,26 +76,33 @@ func (tm *TaskManager) loadTasks() {
 		for _, t := range tm.tasks {
 			// 如果因为意外断电或服务升级重启，先自动校验是否实际已完成并落盘
 			if t.Status == "running" || t.Status == "queued" || (t.Status == "failed" && t.ErrorMsg == "service restarted while task was in progress") {
+				recovered := false
 				if tm.rm != nil && t.RepoID != "" {
 					if repo, err := tm.rm.GetRepoByID(t.RepoID); err == nil {
 						out := tm.detectOutputFile(repo, t, t.StartedAt)
 						if out != "" {
-							cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
-							t.Status = "completed"
-							t.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(out, "/")
-							t.TargetFile = out
-							t.ErrorMsg = ""
-							if t.EndedAt.IsZero() {
-								t.EndedAt = time.Now()
+							fullPath := filepath.Join(repo.Path, out)
+							if fi, err := os.Stat(fullPath); err == nil && fi.ModTime().After(t.StartedAt.Add(-10*time.Second)) {
+								cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
+								t.Status = "completed"
+								t.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(out, "/")
+								t.TargetFile = out
+								t.ErrorMsg = ""
+								if t.EndedAt.IsZero() {
+									t.EndedAt = fi.ModTime()
+								}
+								tm.rm.InvalidateCache(t.RepoID)
+								recovered = true
 							}
-							tm.rm.InvalidateCache(t.RepoID)
-							continue
 						}
 					}
 				}
-				if t.Status != "failed" {
+				if !recovered {
 					t.Status = "failed"
-					t.ErrorMsg = "service restarted while task was in progress"
+					t.ErrorMsg = "服务重启导致任务中断"
+					if t.EndedAt.IsZero() {
+						t.EndedAt = time.Now()
+					}
 				}
 			}
 			// 防御性截断，避免历史 tasks.json 膨胀导致启动 OOM
@@ -445,9 +452,14 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 		}
 	}
 
-	// 4. Fallback: 如果 task.TargetFile 不为空，尝试使用它
-	if strings.TrimSpace(task.TargetFile) != "" {
-		return strings.Trim(task.TargetFile, "/")
+	// 4. Fallback: 仅对追加或修改任务，才允许回退使用 task.TargetFile
+	// 对于 "new" 或 "draft"，TargetFile 仅作为参考上下文，严禁在未生成新文件时误回退到 TargetFile
+	if (task.Type == "append" || task.Type == "modify") && strings.TrimSpace(task.TargetFile) != "" {
+		clean := strings.Trim(task.TargetFile, "/")
+		full := filepath.Join(repo.Path, clean)
+		if fInfo, err := os.Stat(full); err == nil && !fInfo.IsDir() {
+			return filepath.ToSlash(clean)
+		}
 	}
 
 	return ""
