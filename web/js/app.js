@@ -713,32 +713,50 @@
 
   async function loadRepos() {
     try {
+      if (!state.repos || state.repos.length === 0) {
+        try {
+          const cached = sessionStorage.getItem('doc_lens_repos_cache');
+          if (cached) {
+            state.repos = JSON.parse(cached);
+            populateRepoSelect();
+          }
+        } catch (e) {}
+      }
+
       const res = await fetch('/api/repos');
       if (!res.ok) return;
       state.repos = await res.json();
-      if (el.repoSelect) el.repoSelect.innerHTML = '';
-      if (el.draftRepo) el.draftRepo.innerHTML = '';
-
-      state.repos.forEach(r => {
-        if (el.repoSelect) {
-          const opt = document.createElement('option');
-          opt.value = r.ID;
-          opt.textContent = `${r.Name} (${r.RoutePrefix})`;
-          el.repoSelect.appendChild(opt);
-        }
-
-        if (el.draftRepo) {
-          const dOpt = document.createElement('option');
-          dOpt.value = r.ID;
-          dOpt.textContent = r.Name;
-          el.draftRepo.appendChild(dOpt);
-        }
-      });
-
-      renderRepoDropdownMenu();
+      try {
+        sessionStorage.setItem('doc_lens_repos_cache', JSON.stringify(state.repos));
+      } catch (e) {}
+      populateRepoSelect();
     } catch (e) {
       console.error('Failed to load repositories', e);
     }
+  }
+
+  function populateRepoSelect() {
+    if (!state.repos) return;
+    if (el.repoSelect) el.repoSelect.innerHTML = '';
+    if (el.draftRepo) el.draftRepo.innerHTML = '';
+
+    state.repos.forEach(r => {
+      if (el.repoSelect) {
+        const opt = document.createElement('option');
+        opt.value = r.ID;
+        opt.textContent = `${r.Name} (${r.RoutePrefix})`;
+        el.repoSelect.appendChild(opt);
+      }
+
+      if (el.draftRepo) {
+        const dOpt = document.createElement('option');
+        dOpt.value = r.ID;
+        dOpt.textContent = r.Name;
+        el.draftRepo.appendChild(dOpt);
+      }
+    });
+
+    renderRepoDropdownMenu();
   }
 
   function renderRepoDropdownMenu() {
@@ -859,8 +877,8 @@
 
     renderRecentReads();
 
-    // 加载并渲染目录树
-    await loadTree(repoID);
+    // 异步加载并渲染目录树
+    loadTree(repoID);
     loadRecentCreated(repoID);
 
     if (restoreLastActive) {
@@ -880,34 +898,99 @@
     restoreSidebarScroll(repoID);
   }
 
+  const TREE_STORAGE_PREFIX = 'doc_lens_tree_v2_';
+
+  function getStoredTree(repoID) {
+    try {
+      const raw = sessionStorage.getItem(TREE_STORAGE_PREFIX + repoID);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.data && parsed.ts) {
+        return parsed;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function saveStoredTree(repoID, data) {
+    try {
+      sessionStorage.setItem(TREE_STORAGE_PREFIX + repoID, JSON.stringify({
+        ts: Date.now(),
+        data: data
+      }));
+    } catch (e) {
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(TREE_STORAGE_PREFIX) && k !== (TREE_STORAGE_PREFIX + repoID)) {
+            sessionStorage.removeItem(k);
+          }
+        }
+        sessionStorage.setItem(TREE_STORAGE_PREFIX + repoID, JSON.stringify({
+          ts: Date.now(),
+          data: data
+        }));
+      } catch (err) {}
+    }
+  }
+
   async function loadTree(repoID, forceRefresh = false) {
     state.expandedDirs = getExpandedDirs(repoID);
     if (!state.repoTreeCache) state.repoTreeCache = new Map();
-    if (!forceRefresh && state.repoTreeCache.has(repoID)) {
-      state.treeData = state.repoTreeCache.get(repoID);
+
+    const applyTreeData = (treeData) => {
+      state.treeData = treeData;
+      state.repoTreeCache.set(repoID, treeData);
       if (state.filterFavoritesOnly || (el.searchInput && el.searchInput.value.trim())) {
         filterFileTree(el.searchInput ? el.searchInput.value : '');
       } else {
         renderFileTree(state.treeData, el.fileTree);
         updateTreeFileStats(state.treeData);
       }
+    };
+
+    // 1. 内存层命中：0ms 秒开
+    if (!forceRefresh && state.repoTreeCache.has(repoID)) {
+      applyTreeData(state.repoTreeCache.get(repoID));
       return;
     }
 
-    el.fileTree.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">加载目录索引...</div>';
+    // 2. 本地 SessionStorage 命中：0ms 瞬间秒出
+    let hasLocalRendered = false;
+    let localTs = 0;
+    if (!forceRefresh) {
+      const local = getStoredTree(repoID);
+      if (local && local.data) {
+        applyTreeData(local.data);
+        hasLocalRendered = true;
+        localTs = local.ts;
+        // 如果本地缓存小于 5 分钟，完全无需发起网络请求
+        if (Date.now() - localTs < 5 * 60 * 1000) {
+          return;
+        }
+      }
+    }
+
+    // 若本地未命中且无缓存，展示轻量加载提示
+    if (!hasLocalRendered) {
+      el.fileTree.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">加载目录索引...</div>';
+    }
+
+    // 3. 网络请求（若已有本地渲染，则为后台静默 stale-while-revalidate）
     try {
       const res = await fetch(`/api/tree?repo=${encodeURIComponent(repoID)}&refresh=${forceRefresh}`);
-      if (!res.ok) throw new Error('Failed to load tree');
-      state.treeData = await res.json();
-      state.repoTreeCache.set(repoID, state.treeData);
-      if (state.filterFavoritesOnly || (el.searchInput && el.searchInput.value.trim())) {
-        filterFileTree(el.searchInput ? el.searchInput.value : '');
-      } else {
-        renderFileTree(state.treeData, el.fileTree);
-        updateTreeFileStats(state.treeData);
+      if (res.status === 304 && hasLocalRendered) {
+        saveStoredTree(repoID, state.treeData);
+        return;
       }
+      if (!res.ok) throw new Error('Failed to load tree');
+      const freshTree = await res.json();
+      saveStoredTree(repoID, freshTree);
+      applyTreeData(freshTree);
     } catch (e) {
-      el.fileTree.innerHTML = `<div style="padding:16px;color:#ef4444;font-size:12px;">加载失败: ${e.message}</div>`;
+      if (!hasLocalRendered) {
+        el.fileTree.innerHTML = `<div style="padding:16px;color:#ef4444;font-size:12px;">加载失败: ${e.message}</div>`;
+      }
     }
   }
 
@@ -1705,9 +1788,12 @@
     if (targetRepo && (!state.currentRepo || state.currentRepo.ID !== targetRepo.ID)) {
       state.currentRepo = targetRepo;
       state.expandedDirs = getExpandedDirs(targetRepo.ID);
-      el.repoSelect.value = targetRepo.ID;
-      // 必须先加载完成目录树，保障 expandPathToNode 能够即时命中节点
-      await loadTree(targetRepo.ID);
+      if (el.repoSelect) el.repoSelect.value = targetRepo.ID;
+      const titleEl = document.getElementById('currentRepoName');
+      if (titleEl) titleEl.textContent = targetRepo.Name;
+      renderRepoDropdownMenu();
+      // 关键优化：目录树并行异步加载，绝不阻塞正文读取
+      loadTree(targetRepo.ID);
       loadRecentCreated(targetRepo.ID);
     }
 

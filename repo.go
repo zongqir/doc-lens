@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -108,25 +110,30 @@ type FileContentResponse struct {
 	Writable    bool   `json:"writable"`
 }
 
+type CachedTree struct {
+	Root      *TreeNode
+	JSONBytes []byte
+	ETag      string
+	ModTime   time.Time
+}
+
 type RepoManager struct {
-	repos      []RepoConfig
-	treeCache  map[string]*TreeNode
-	cacheMu    sync.RWMutex
-	cacheTimes map[string]time.Time
+	repos     []RepoConfig
+	treeCache map[string]*CachedTree
+	cacheMu   sync.RWMutex
 }
 
 func NewRepoManager(repos []RepoConfig) *RepoManager {
 	rm := &RepoManager{
-		repos:      repos,
-		treeCache:  make(map[string]*TreeNode),
-		cacheTimes: make(map[string]time.Time),
+		repos:     repos,
+		treeCache: make(map[string]*CachedTree),
 	}
 
 	// 启动后台静默异步预热所有仓库树，确保用户访问时永远 0ms 命中
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		for _, r := range repos {
-			_, _ = rm.GetTree(r.ID, true)
+			_, _ = rm.GetCachedTree(r.ID, true)
 		}
 	}()
 
@@ -241,11 +248,10 @@ func (rm *RepoManager) SafeResolve(repo *RepoConfig, relPath string) (string, er
 func (rm *RepoManager) InvalidateCache(repoID string) {
 	rm.cacheMu.Lock()
 	delete(rm.treeCache, repoID)
-	delete(rm.cacheTimes, repoID)
 	rm.cacheMu.Unlock()
 }
 
-func (rm *RepoManager) GetTree(repoID string, forceRefresh bool) (*TreeNode, error) {
+func (rm *RepoManager) GetCachedTree(repoID string, forceRefresh bool) (*CachedTree, error) {
 	repo, err := rm.GetRepoByID(repoID)
 	if err != nil {
 		return nil, err
@@ -253,14 +259,13 @@ func (rm *RepoManager) GetTree(repoID string, forceRefresh bool) (*TreeNode, err
 
 	rm.cacheMu.RLock()
 	cached, ok := rm.treeCache[repoID]
-	cachedTime := rm.cacheTimes[repoID]
 	rm.cacheMu.RUnlock()
 
-	// 缓存 15 分钟有效；强制刷新时增加 10 秒防抖，防止攻击者高频刷新击穿磁盘 I/O
-	if ok && !forceRefresh && time.Since(cachedTime) < 15*time.Minute {
+	// 内存缓存持久有效（2 小时超长保鲜）；强制刷新时增加 5 秒防抖，防止高频刷新击穿磁盘 I/O
+	if ok && !forceRefresh && time.Since(cached.ModTime) < 2*time.Hour {
 		return cached, nil
 	}
-	if ok && forceRefresh && time.Since(cachedTime) < 10*time.Second {
+	if ok && forceRefresh && time.Since(cached.ModTime) < 5*time.Second {
 		return cached, nil
 	}
 
@@ -275,16 +280,44 @@ func (rm *RepoManager) GetTree(repoID string, forceRefresh bool) (*TreeNode, err
 
 	rootNode, err := rm.scanDirectory(repo.Path, "", 0, 10, ignoreMap)
 	if err != nil {
+		if ok {
+			return cached, nil
+		}
 		return nil, err
 	}
 	rootNode.Name = repo.Name
 
+	jsonBytes, err := json.Marshal(rootNode)
+	if err != nil {
+		if ok {
+			return cached, nil
+		}
+		return nil, err
+	}
+
+	h := sha256.Sum256(jsonBytes)
+	etag := fmt.Sprintf(`"w_%x_%d"`, h[:8], time.Now().Unix())
+
+	newCached := &CachedTree{
+		Root:      rootNode,
+		JSONBytes: jsonBytes,
+		ETag:      etag,
+		ModTime:   time.Now(),
+	}
+
 	rm.cacheMu.Lock()
-	rm.treeCache[repoID] = rootNode
-	rm.cacheTimes[repoID] = time.Now()
+	rm.treeCache[repoID] = newCached
 	rm.cacheMu.Unlock()
 
-	return rootNode, nil
+	return newCached, nil
+}
+
+func (rm *RepoManager) GetTree(repoID string, forceRefresh bool) (*TreeNode, error) {
+	cached, err := rm.GetCachedTree(repoID, forceRefresh)
+	if err != nil {
+		return nil, err
+	}
+	return cached.Root, nil
 }
 
 func (rm *RepoManager) scanDirectory(realRoot, relPath string, currentDepth, maxDepth int, ignoreMap map[string]bool) (*TreeNode, error) {

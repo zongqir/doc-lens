@@ -151,12 +151,46 @@ func (a *App) routes() http.Handler {
 }
 
 type gzipResponseWriter struct {
-	io.Writer
 	http.ResponseWriter
+	gz          *gzip.Writer
+	wroteHeader bool
+	statusCode  int
 }
 
-func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
+func (w *gzipResponseWriter) WriteHeader(code int) {
+	if w.wroteHeader {
+		return
+	}
+	w.statusCode = code
+	w.wroteHeader = true
+	// 304 Not Modified 与 204 No Content 禁止包含 Content-Encoding 及 body
+	if code == http.StatusNotModified || code == http.StatusNoContent {
+		w.Header().Del("Content-Encoding")
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	w.Header().Set("Content-Encoding", "gzip")
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	if w.statusCode == http.StatusNotModified || w.statusCode == http.StatusNoContent {
+		return 0, nil
+	}
+	if w.gz == nil {
+		w.gz = gzip.NewWriter(w.ResponseWriter)
+	}
+	return w.gz.Write(b)
+}
+
+func (w *gzipResponseWriter) Close() error {
+	if w.gz != nil {
+		return w.gz.Close()
+	}
+	return nil
 }
 
 func (a *App) gzipMiddleware(next http.Handler) http.Handler {
@@ -165,10 +199,8 @@ func (a *App) gzipMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		w.Header().Set("Content-Encoding", "gzip")
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		gzw := &gzipResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		defer gzw.Close()
 		next.ServeHTTP(gzw, r)
 	})
 }
@@ -285,6 +317,7 @@ func (a *App) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleRepos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "private, max-age=300, stale-while-revalidate=3600")
 	_ = json.NewEncoder(w).Encode(a.cfg.Repositories)
 }
 
@@ -295,14 +328,27 @@ func (a *App) handleTree(w http.ResponseWriter, r *http.Request) {
 	}
 	refresh := r.URL.Query().Get("refresh") == "true"
 
-	tree, err := a.rm.GetTree(repoID, refresh)
+	cached, err := a.rm.GetCachedTree(repoID, refresh)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
+	w.Header().Set("ETag", cached.ETag)
+	if refresh {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	} else {
+		w.Header().Set("Cache-Control", "private, max-age=120, stale-while-revalidate=600")
+	}
+
+	// 304 条件协商快速返回，0 毫秒零字节穿透
+	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, cached.ETag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(tree)
+	_, _ = w.Write(cached.JSONBytes)
 }
 
 func (a *App) handleRecent(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +370,7 @@ func (a *App) handleRecent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "private, max-age=60, stale-while-revalidate=300")
 	_ = json.NewEncoder(w).Encode(recentFiles)
 }
 
