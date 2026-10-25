@@ -52,7 +52,10 @@
     activeTaskId: null,
     taskLogTimer: null,
     filterFavoritesOnly: false,
-    activeSidebarTab: 'tree'
+    activeSidebarTab: 'tree',
+    searchModalMode: 'title',
+    searchModalResults: [],
+    searchModalSelectedIndex: -1
   };
 
   const mermaidStore = new Map();
@@ -60,6 +63,7 @@
   let mermaidObserver = null;
   let scrollSpyObserver = null;
   let searchDebounceTimer = null;
+  let modalSearchDebounceTimer = null;
 
   function getStoredTheme() {
     try {
@@ -128,6 +132,15 @@
     el.searchInput = document.getElementById('searchInput');
     el.clearSearchBtn = document.getElementById('clearSearchBtn');
     el.quickSearchBtn = document.getElementById('quickSearchBtn');
+
+    el.searchModal = document.getElementById('searchModal');
+    el.modalSearchInput = document.getElementById('modalSearchInput');
+    el.modalSearchClearBtn = document.getElementById('modalSearchClearBtn');
+    el.searchTabTitle = document.getElementById('searchTabTitle');
+    el.searchTabContent = document.getElementById('searchTabContent');
+    el.modalSearchScope = document.getElementById('modalSearchScope');
+    el.modalSearchResults = document.getElementById('modalSearchResults');
+    el.modalSearchCount = document.getElementById('modalSearchCount');
     el.fileTree = document.getElementById('fileTree');
     el.treeFileCount = document.getElementById('treeFileCount');
     el.treeFileCountBadge = document.getElementById('treeFileCountBadge');
@@ -215,9 +228,30 @@
     if (el.clearSearchBtn) el.clearSearchBtn.addEventListener('click', clearSearch);
     if (el.quickSearchBtn) {
       el.quickSearchBtn.addEventListener('click', () => {
-        el.searchInput.focus();
-        el.searchInput.select();
+        openQuickSearchModal();
       });
+    }
+
+    if (el.modalSearchInput) {
+      el.modalSearchInput.addEventListener('input', onModalSearchInput);
+      el.modalSearchInput.addEventListener('keydown', onModalSearchKeydown);
+    }
+    if (el.modalSearchClearBtn) {
+      el.modalSearchClearBtn.addEventListener('click', clearModalSearch);
+    }
+    if (el.searchTabTitle) {
+      el.searchTabTitle.addEventListener('click', () => switchSearchMode('title'));
+    }
+    if (el.searchTabContent) {
+      el.searchTabContent.addEventListener('click', () => switchSearchMode('content'));
+    }
+    if (el.modalSearchScope) {
+      el.modalSearchScope.addEventListener('change', () => triggerModalSearch(true));
+    }
+    if (el.modalSearchResults) {
+      el.modalSearchResults.addEventListener('touchmove', () => {
+        if (el.modalSearchInput) el.modalSearchInput.blur();
+      }, { passive: true });
     }
 
     const mindmapFitBtn = document.getElementById('mindmapFitBtn');
@@ -463,11 +497,7 @@
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        if (el.sidebar && !el.sidebar.classList.contains('open') && window.innerWidth <= 900) {
-          toggleMobileSidebar();
-        }
-        el.searchInput.focus();
-        el.searchInput.select();
+        openQuickSearchModal();
       }
     });
   }
@@ -1458,6 +1488,277 @@
     } else {
       renderFileTree(filtered, el.fileTree, true, q);
       updateTreeFileStats(filtered);
+    }
+  }
+
+  // =========================================================================
+  // 全局极速搜索模块 (Command Palette & Full-Text Search)
+  // =========================================================================
+  function openQuickSearchModal(initialQuery = '') {
+    if (!el.searchModal) return;
+    openModal(el.searchModal);
+
+    if (!state.searchModalMode) state.searchModalMode = 'title';
+    updateSearchModeUI();
+
+    if (el.modalSearchScope && state.currentRepo) {
+      if (!el.modalSearchScope.value) {
+        el.modalSearchScope.options[0].textContent = `当前: ${state.currentRepo.Name}`;
+      }
+    }
+
+    if (initialQuery && el.modalSearchInput) {
+      el.modalSearchInput.value = initialQuery;
+    }
+
+    setTimeout(() => {
+      if (el.modalSearchInput) {
+        el.modalSearchInput.focus();
+        el.modalSearchInput.select();
+      }
+    }, 60);
+
+    const q = el.modalSearchInput ? el.modalSearchInput.value.trim() : '';
+    if (q) {
+      triggerModalSearch(true);
+    } else if (!state.searchModalResults || state.searchModalResults.length === 0) {
+      renderSearchEmptyState();
+    }
+  }
+
+  function closeQuickSearchModal() {
+    if (el.searchModal) closeModal(el.searchModal);
+  }
+
+  function switchSearchMode(mode) {
+    if (state.searchModalMode === mode) return;
+    state.searchModalMode = mode;
+    updateSearchModeUI();
+    triggerModalSearch(true);
+  }
+
+  function updateSearchModeUI() {
+    const isTitle = state.searchModalMode === 'title';
+    if (el.searchTabTitle) el.searchTabTitle.classList.toggle('active', isTitle);
+    if (el.searchTabContent) el.searchTabContent.classList.toggle('active', !isTitle);
+
+    if (el.modalSearchInput) {
+      el.modalSearchInput.placeholder = isTitle
+        ? '搜索文档标题、文件名或相对路径 (按 Tab 键切换正文)...'
+        : '输入关键词在全文正文中检索细节 (按 Tab 键切换标题)...';
+    }
+  }
+
+  function onModalSearchInput(e) {
+    const q = e.target.value.trim();
+    if (el.modalSearchClearBtn) {
+      el.modalSearchClearBtn.style.display = q ? 'flex' : 'none';
+    }
+    clearTimeout(modalSearchDebounceTimer);
+    modalSearchDebounceTimer = setTimeout(() => {
+      triggerModalSearch();
+    }, 180);
+  }
+
+  function clearModalSearch() {
+    if (el.modalSearchInput) {
+      el.modalSearchInput.value = '';
+      el.modalSearchInput.focus();
+    }
+    if (el.modalSearchClearBtn) {
+      el.modalSearchClearBtn.style.display = 'none';
+    }
+    state.searchModalResults = [];
+    state.searchModalSelectedIndex = -1;
+    renderSearchEmptyState();
+  }
+
+  async function triggerModalSearch(immediate = false) {
+    const q = el.modalSearchInput ? el.modalSearchInput.value.trim() : '';
+    if (!q) {
+      state.searchModalResults = [];
+      state.searchModalSelectedIndex = -1;
+      renderSearchEmptyState();
+      return;
+    }
+
+    renderSearchLoadingState();
+
+    const scopeVal = el.modalSearchScope ? el.modalSearchScope.value : '';
+    const repoParam = scopeVal === 'all' ? 'all' : (state.currentRepo ? state.currentRepo.ID : '');
+    const mode = state.searchModalMode || 'title';
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&repo=${encodeURIComponent(repoParam)}&mode=${encodeURIComponent(mode)}&limit=35`);
+      if (!res.ok) throw new Error('搜索失败');
+      const data = await res.json();
+      state.searchModalResults = Array.isArray(data) ? data : [];
+      state.searchModalSelectedIndex = state.searchModalResults.length > 0 ? 0 : -1;
+      renderSearchResults(state.searchModalResults, q);
+    } catch (err) {
+      if (el.modalSearchResults) {
+        el.modalSearchResults.innerHTML = `
+          <div class="search-empty-state">
+            <div class="search-empty-text" style="color:var(--danger-color);">检索请求异常</div>
+            <div class="search-empty-sub">${escapeHtml(err.message || '网络连接超时')}</div>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderSearchEmptyState() {
+    if (!el.modalSearchResults) return;
+    if (el.modalSearchCount) el.modalSearchCount.style.display = 'none';
+    el.modalSearchResults.innerHTML = `
+      <div class="search-empty-state">
+        <div class="search-empty-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+        <div class="search-empty-text">输入关键词即可秒级检索</div>
+        <div class="search-empty-sub">支持快速直达文档，或切换「搜正文全文」跨文件透视内容细节</div>
+      </div>
+    `;
+  }
+
+  function renderSearchLoadingState() {
+    if (!el.modalSearchResults) return;
+    if (el.modalSearchCount) el.modalSearchCount.style.display = 'none';
+    el.modalSearchResults.innerHTML = `
+      <div class="search-loading-state">
+        <div class="mindmap-spinner" style="margin-bottom:12px;"></div>
+        <div class="search-empty-text" style="font-weight:normal;color:var(--text-secondary);">正在检索知识库...</div>
+      </div>
+    `;
+  }
+
+  function renderSearchResults(items, query) {
+    if (!el.modalSearchResults) return;
+
+    if (!items || items.length === 0) {
+      if (el.modalSearchCount) el.modalSearchCount.style.display = 'none';
+      const isTitle = state.searchModalMode === 'title';
+      el.modalSearchResults.innerHTML = `
+        <div class="search-empty-state">
+          <div class="search-empty-text">未找到相关${isTitle ? '文档或路径' : '正文内容'}</div>
+          <div class="search-empty-sub">
+            尝试更换关键词${isTitle ? '，或点击上方「搜正文全文」深入文章内部检索' : '，或切换至「跨全部知识库」扩大范围'}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if (el.modalSearchCount) {
+      el.modalSearchCount.textContent = `找到 ${items.length} 个结果`;
+      el.modalSearchCount.style.display = 'block';
+    }
+
+    const safeQ = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const qRegex = new RegExp(`(${safeQ})`, 'gi');
+
+    const html = items.map((item, idx) => {
+      const isSelected = idx === state.searchModalSelectedIndex;
+      const highlightedTitle = escapeHtml(item.title).replace(qRegex, '<mark class="search-highlight">$1</mark>');
+      const highlightedPath = escapeHtml(item.path).replace(qRegex, '<mark class="search-highlight">$1</mark>');
+      
+      let snippetHtml = '';
+      if (item.snippet) {
+        const highlightedSnippet = escapeHtml(item.snippet).replace(qRegex, '<mark class="search-highlight">$1</mark>');
+        const lineBadge = item.line_number ? `<span style="opacity:0.7;margin-right:6px;font-size:11px;">L${item.line_number}:</span>` : '';
+        snippetHtml = `<div class="search-item-snippet">${lineBadge}${highlightedSnippet}</div>`;
+      }
+
+      const ext = (item.ext || '').toLowerCase();
+      let iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+      if (ext === '.md' || ext === '.markdown') {
+        iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>';
+      } else if (['.go', '.py', '.js', '.ts', '.sh', '.json', '.sql'].includes(ext)) {
+        iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>';
+      }
+
+      return `
+        <div class="search-result-item ${isSelected ? 'selected' : ''}" data-index="${idx}">
+          <div class="search-item-header">
+            <div class="search-item-title-wrap">
+              <span class="search-item-icon">${iconSvg}</span>
+              <span>${highlightedTitle}</span>
+            </div>
+            ${item.repo_name ? `<span class="search-item-repo-badge">${escapeHtml(item.repo_name)}</span>` : ''}
+          </div>
+          <div class="search-item-path">${highlightedPath}</div>
+          ${snippetHtml}
+        </div>
+      `;
+    }).join('');
+
+    el.modalSearchResults.innerHTML = html;
+
+    // 绑定点击与 hover
+    el.modalSearchResults.querySelectorAll('.search-result-item').forEach(itemEl => {
+      const idx = parseInt(itemEl.dataset.index, 10);
+      itemEl.addEventListener('click', () => {
+        selectSearchResult(state.searchModalResults[idx]);
+      });
+      itemEl.addEventListener('mouseenter', () => {
+        state.searchModalSelectedIndex = idx;
+        updateSearchItemSelection();
+      });
+    });
+  }
+
+  function updateSearchItemSelection() {
+    if (!el.modalSearchResults) return;
+    const items = el.modalSearchResults.querySelectorAll('.search-result-item');
+    items.forEach((itemEl, idx) => {
+      const isSel = idx === state.searchModalSelectedIndex;
+      itemEl.classList.toggle('selected', isSel);
+      if (isSel) {
+        itemEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+  }
+
+  function selectSearchResult(item) {
+    if (!item || !item.full_route) return;
+    closeAllModals();
+    closeMobileSidebar();
+    routeTo(item.full_route);
+  }
+
+  function onModalSearchKeydown(e) {
+    const results = state.searchModalResults || [];
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      switchSearchMode(state.searchModalMode === 'title' ? 'content' : 'title');
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (results.length > 0) {
+        state.searchModalSelectedIndex = (state.searchModalSelectedIndex + 1) % results.length;
+        updateSearchItemSelection();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (results.length > 0) {
+        state.searchModalSelectedIndex = (state.searchModalSelectedIndex - 1 + results.length) % results.length;
+        updateSearchItemSelection();
+      }
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (results.length > 0 && state.searchModalSelectedIndex >= 0) {
+        selectSearchResult(results[state.searchModalSelectedIndex]);
+      }
+      return;
     }
   }
 
