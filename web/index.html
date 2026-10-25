@@ -44,42 +44,54 @@
         <kbd class="kbd-badge">⌘K</kbd>
       </div>
 
-      <button class="btn btn-icon-only theme-toggle-btn" id="themeBtn" aria-label="切换深浅主题" title="切换深浅主题">
-        <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
-      </button>
-
+      <!-- 统一外观偏好 (主题 + 字体 + 字号) -->
       <div class="font-dropdown-container">
-        <button class="btn btn-icon-only font-toggle-btn" id="fontSettingBtn" aria-label="排版与字体风格" title="排版与字体风格">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+        <button class="btn btn-icon-only font-toggle-btn" id="fontSettingBtn" aria-label="主题与阅读排版" title="主题与排版设置">
+          <span id="themeIcon" style="display:inline-flex;align-items:center;justify-content:center;"></span>
         </button>
         <div class="font-settings-popover" id="fontPopover" style="display:none;">
           <div class="popover-header">
-            <span>阅读排版设置</span>
+            <span>主题与排版偏好</span>
           </div>
+
+          <!-- 外观主题选择 -->
+          <div class="popover-label">外观主题</div>
+          <div class="theme-option-grid">
+            <button type="button" class="theme-opt-btn" data-theme="light">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+              <span>浅色</span>
+            </button>
+            <button type="button" class="theme-opt-btn" data-theme="dark">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              <span>深色</span>
+            </button>
+          </div>
+
           <div class="popover-label">正文字体风格</div>
           <div class="font-option-grid">
-            <button class="font-opt-btn active" data-font="system">
+            <button type="button" class="font-opt-btn active" data-font="system">
               <span class="font-opt-name">系统原生</span>
               <span class="font-opt-desc">苹方 / 微软雅黑</span>
             </button>
-            <button class="font-opt-btn" data-font="puhuiti">
+            <button type="button" class="font-opt-btn" data-font="puhuiti">
               <span class="font-opt-name font-name-puhuiti">阿里普惠</span>
               <span class="font-opt-desc">挺拔清爽 / 现代工业</span>
             </button>
-            <button class="font-opt-btn" data-font="wenkai">
+            <button type="button" class="font-opt-btn" data-font="wenkai">
               <span class="font-opt-name font-name-wenkai">霞鹜文楷</span>
               <span class="font-opt-desc">沉浸书卷 / 屏幕优化</span>
             </button>
-            <button class="font-opt-btn" data-font="serif">
+            <button type="button" class="font-opt-btn" data-font="serif">
               <span class="font-opt-name font-name-serif">思源宋体</span>
               <span class="font-opt-desc">严肃典雅 / 研报出版</span>
             </button>
           </div>
+
           <div class="popover-label">阅读字号微调</div>
           <div class="font-size-stepper">
-            <button class="stepper-btn" id="fontSmallerBtn" title="缩小字号">A-</button>
+            <button type="button" class="stepper-btn" id="fontSmallerBtn" title="缩小字号">A-</button>
             <span class="stepper-val" id="fontSizeLabel">15.5px</span>
-            <button class="stepper-btn" id="fontBiggerBtn" title="放大字号">A+</button>
+            <button type="button" class="stepper-btn" id="fontBiggerBtn" title="放大字号">A+</button>
           </div>
         </div>
       </div>

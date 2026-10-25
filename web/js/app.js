@@ -164,7 +164,7 @@
     el.clearDraftContextBtn = document.getElementById('clearDraftContextBtn');
 
     // 事件绑定
-    el.themeBtn.addEventListener('click', toggleTheme);
+    if (el.themeBtn) el.themeBtn.addEventListener('click', toggleTheme);
     el.menuBtn.addEventListener('click', toggleMobileSidebar);
     el.sidebarOverlay.addEventListener('click', closeMobileSidebar);
     if (el.closeSidebarBtn) el.closeSidebarBtn.addEventListener('click', closeMobileSidebar);
@@ -373,9 +373,17 @@
       localStorage.setItem('doc_lens_theme', theme);
     } catch (e) {}
 
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeIcon) {
+      themeIcon.innerHTML = theme === 'dark' ? SVG_ICONS.moon : SVG_ICONS.sun;
+    }
     if (el.themeBtn) {
       el.themeBtn.innerHTML = theme === 'dark' ? SVG_ICONS.sun : SVG_ICONS.moon;
     }
+
+    document.querySelectorAll('.theme-opt-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
+    });
   }
 
   function toggleTheme() {
@@ -413,6 +421,11 @@
     const popover = document.getElementById('fontPopover');
     if (!fontBtn || !popover) return;
 
+    // 同步外观主题按钮的初始激活状态
+    popover.querySelectorAll('.theme-opt-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-theme') === state.theme);
+    });
+
     fontBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isVisible = popover.style.display !== 'none';
@@ -428,6 +441,22 @@
       if (!popover.contains(e.target) && e.target !== fontBtn && !fontBtn.contains(e.target)) {
         popover.style.display = 'none';
       }
+    });
+
+    popover.querySelectorAll('.theme-opt-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetTheme = btn.getAttribute('data-theme');
+        if (targetTheme && targetTheme !== state.theme) {
+          applyTheme(targetTheme);
+          if (window.mermaid) {
+            initMermaid();
+            document.querySelectorAll('.mermaid-wrapper').forEach(wrapper => {
+              wrapper.removeAttribute('data-rendered');
+              renderSingleMermaidChart(wrapper);
+            });
+          }
+        }
+      });
     });
 
     popover.querySelectorAll('.font-opt-btn').forEach(btn => {
