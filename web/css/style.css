@@ -3806,18 +3806,24 @@ body.modal-open {
   user-select: none;
 }
 
-/* 悬浮操作气泡按钮（聚焦 / 定位正文） */
+/* 悬浮操作气泡按钮（居中悬浮在节点上方） */
 .mindmap-focus-pill {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 100;
   pointer-events: auto;
-  transition: opacity 0.15s ease;
-  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.15));
+  transition: opacity 0.15s ease, transform 0.08s ease;
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 3px 5px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  user-select: none;
 }
 
 .mindmap-pill-action {
@@ -3827,52 +3833,75 @@ body.modal-open {
   padding: 3px 9px;
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.4;
-  color: #fff !important;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  line-height: 1.3;
   border-radius: 14px;
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
   user-select: none;
+  border: 1px solid transparent;
 }
 
 .mindmap-pill-focus {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #2563eb !important;
+  border-color: rgba(59, 130, 246, 0.25);
 }
 
 .mindmap-pill-focus:hover {
-  background: linear-gradient(135deg, #1d4ed8, #2563eb);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.55);
-  transform: translateY(-1px) scale(1.03);
+  background-color: #2563eb;
+  color: #fff !important;
+  border-color: #2563eb;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
 }
 
 .mindmap-pill-locate {
-  background: linear-gradient(135deg, #059669, #10b981);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 .mindmap-pill-locate:hover {
-  background: linear-gradient(135deg, #047857, #059669);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.55);
-  transform: translateY(-1px) scale(1.03);
+  background-color: #059669;
+  color: #fff !important;
+  border-color: #059669;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
 }
 
 .mindmap-pill-action svg {
-  stroke-width: 2.5;
+  stroke-width: 2.2;
+}
+
+.markmap-dark .mindmap-focus-pill {
+  background-color: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
 }
 
 .markmap-dark .mindmap-pill-focus {
-  background: linear-gradient(135deg, #1e40af, #3b82f6);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #60a5fa !important;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.markmap-dark .mindmap-pill-focus:hover {
+  background-color: #3b82f6;
+  color: #fff !important;
+  border-color: #3b82f6;
 }
 
 .markmap-dark .mindmap-pill-locate {
-  background: linear-gradient(135deg, #065f46, #10b981);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  border-color: rgba(255, 255, 255, 0.18);
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399 !important;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.markmap-dark .mindmap-pill-locate:hover {
+  background-color: #10b981;
+  color: #fff !important;
+  border-color: #10b981;
 }
 
 /* 导图跳转正文高亮脉冲动画 */

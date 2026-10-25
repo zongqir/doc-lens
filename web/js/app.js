@@ -745,6 +745,8 @@
   }
 
   function openModal(modalEl) {
+    if (!modalEl) return;
+    modalEl.style.display = '';
     modalEl.classList.add('open');
     document.body.classList.add('modal-open');
   }
@@ -1495,6 +1497,8 @@
   // 全局极速搜索模块 (Command Palette & Full-Text Search)
   // =========================================================================
   function openQuickSearchModal(initialQuery = '') {
+    if (!el.searchModal) el.searchModal = document.getElementById('searchModal');
+    if (!el.modalSearchInput) el.modalSearchInput = document.getElementById('modalSearchInput');
     if (!el.searchModal) return;
     openModal(el.searchModal);
 
@@ -3373,14 +3377,32 @@
       focusBtn.style.display = hasChildren ? 'inline-flex' : 'none';
     }
 
-    const rect = nodeGroup.getBoundingClientRect();
+    // 获取文字标签的精确边界（foreignObject）
+    const fo = nodeGroup.querySelector('foreignObject');
+    const targetRect = fo ? fo.getBoundingClientRect() : nodeGroup.getBoundingClientRect();
     const bodyRect = body.getBoundingClientRect();
 
-    const x = rect.right - bodyRect.left + 8;
-    const y = rect.top - bodyRect.top + (rect.height / 2) - 13;
+    // 先设为 flex 方便测量准确宽高
+    pill.style.display = 'flex';
+    const pillWidth = pill.offsetWidth || 116;
+    const pillHeight = pill.offsetHeight || 28;
+
+    // 水平居中对齐于节点文字
+    let x = (targetRect.left + targetRect.right) / 2 - bodyRect.left - (pillWidth / 2);
+    // 垂直悬浮于节点正上方（间隔 6px）
+    let y = targetRect.top - bodyRect.top - pillHeight - 6;
+
+    // 顶部安全防护：若节点过于靠顶，则自动翻转至节点下方展示
+    if (y < 6) {
+      y = targetRect.bottom - bodyRect.top + 6;
+    }
+    // 左右边缘安全防护
+    if (x < 10) x = 10;
+    if (x + pillWidth > bodyRect.width - 10) {
+      x = bodyRect.width - pillWidth - 10;
+    }
 
     pill.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-    pill.style.display = 'flex';
   }
 
   // 从思维导图节点穿透跳转并高亮文章正文对应章节
