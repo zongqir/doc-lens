@@ -460,7 +460,7 @@
     </div>
   </div>
 
-  <!-- 手机端全屏 Mermaid 架构图弹窗 (Lightbox) -->
+  <!-- 全屏 Mermaid 架构图弹窗 (Lightbox) -->
   <div class="modal-overlay" id="mermaidModal">
     <div class="modal-card modal-mermaid-card">
       <div class="modal-header">
@@ -468,9 +468,28 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
           <span>架构拓扑图全屏查看</span>
         </span>
-        <button class="btn btn-icon-only close-modal-btn">✕</button>
+        <div class="mermaid-modal-actions">
+          <div class="mermaid-zoom-controls">
+            <button type="button" class="btn btn-icon-only" id="mermaidZoomOutBtn" title="缩小 (-)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="mermaid-zoom-label" id="mermaidZoomLabel" title="点击复位 100%">100%</span>
+            <button type="button" class="btn btn-icon-only" id="mermaidZoomInBtn" title="放大 (+)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button type="button" class="btn btn-sm" id="mermaidFitBtn" title="居中自适应视野">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+              <span>适配</span>
+            </button>
+          </div>
+          <button class="btn btn-icon-only close-modal-btn">✕</button>
+        </div>
       </div>
-      <div class="modal-body modal-mermaid-body" id="mermaidModalBody"></div>
+      <div class="modal-body modal-mermaid-body" id="mermaidModalBody">
+        <div class="mermaid-viewport" id="mermaidViewport">
+          <div class="mermaid-canvas" id="mermaidCanvas"></div>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -3438,25 +3438,97 @@ body.modal-open {
   line-height: 1.5;
 }
 
-/* 全屏 Mermaid 查看器 */
+/* 全屏 Mermaid 查看器 (支持平移拖拽与平滑缩放) */
 .modal-mermaid-card {
-  max-width: 95vw;
-  width: 95vw;
-  height: 90vh;
+  max-width: 96vw;
+  width: 96vw;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-mermaid-body {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+  background-color: var(--bg-surface);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
 }
 
-.modal-mermaid-body svg {
-  max-width: 100%;
-  max-height: 100%;
+.mermaid-viewport {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  background-color: transparent;
+  /* 柔和点阵网格，凸显画布空间感与专业感 */
+  background-image: radial-gradient(var(--border-subtle) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.mermaid-viewport.grabbing {
+  cursor: grabbing !important;
+}
+
+.mermaid-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.mermaid-canvas svg {
+  display: block;
+  user-select: none;
+}
+
+.mermaid-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mermaid-zoom-controls {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-surface-hover);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+.mermaid-zoom-controls .btn-icon-only {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+}
+
+.mermaid-zoom-controls .btn-icon-only:hover {
+  background: var(--bg-surface-active);
+  color: var(--text-primary);
+}
+
+.mermaid-zoom-label {
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 5px;
+  min-width: 42px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mermaid-zoom-label:hover {
+  color: var(--accent-primary, #3b82f6);
 }
 
 /* 全屏思维导图弹窗 (Mindmap Lightbox) */
@@ -4174,7 +4246,8 @@ body.modal-open {
     display: inline !important;
   }
 
-  .modal-mindmap-card {
+  .modal-mindmap-card,
+  .modal-mermaid-card {
     width: 100vw !important;
     max-width: 100vw !important;
     height: 100vh !important;

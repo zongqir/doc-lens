@@ -86,6 +86,7 @@
     initFontPreferences();
     initMarkdownParser();
     initMermaid();
+    initMermaidLightboxEvents();
     bindGlobalKeybindings();
 
     initSidebarTabs();
@@ -3740,6 +3741,250 @@
     wrappers.forEach(w => mermaidObserver.observe(w));
   }
 
+  // ==========================================================================
+  // 全屏 Mermaid 架构图高清视窗 (自由缩放与平移拖拽控制器)
+  // ==========================================================================
+  const mermaidZoomState = {
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    minScale: 0.15,
+    maxScale: 6.0,
+    svgWidth: 0,
+    svgHeight: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    startTranslateX: 0,
+    startTranslateY: 0
+  };
+
+  function applyMermaidTransform(smooth = false) {
+    const canvas = document.getElementById('mermaidCanvas');
+    const label = document.getElementById('mermaidZoomLabel');
+    if (!canvas) return;
+
+    if (smooth) {
+      canvas.style.transition = 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)';
+    } else {
+      canvas.style.transition = 'none';
+    }
+
+    canvas.style.transform = `translate3d(${mermaidZoomState.translateX}px, ${mermaidZoomState.translateY}px, 0) scale(${mermaidZoomState.scale})`;
+
+    if (label) {
+      label.textContent = `${Math.round(mermaidZoomState.scale * 100)}%`;
+    }
+  }
+
+  function fitMermaidDiagram(isInitial = false) {
+    const viewport = document.getElementById('mermaidViewport');
+    if (!viewport || !mermaidZoomState.svgWidth || !mermaidZoomState.svgHeight) return;
+
+    const vW = viewport.clientWidth;
+    const vH = viewport.clientHeight;
+    if (vW <= 0 || vH <= 0) return;
+
+    const padding = 36;
+    const availableW = Math.max(vW - padding * 2, 100);
+    const availableH = Math.max(vH - padding * 2, 100);
+
+    const scaleW = availableW / mermaidZoomState.svgWidth;
+    const scaleH = availableH / mermaidZoomState.svgHeight;
+    let targetScale = Math.min(scaleW, scaleH);
+
+    if (isInitial) {
+      // 彻底解决全屏后图表依然很小的问题：
+      // 如果图表内容较为精炼，将其放大至舒适易读的黄金视觉尺寸 (1.2x ~ 2.0x)，绝不让全屏显得空旷冷清！
+      if (targetScale < 1.0) {
+        targetScale = Math.max(targetScale, 0.4);
+      } else {
+        targetScale = Math.min(targetScale * 1.25, 2.0);
+      }
+    }
+
+    mermaidZoomState.scale = Math.max(mermaidZoomState.minScale, Math.min(mermaidZoomState.maxScale, targetScale));
+    mermaidZoomState.translateX = (vW - mermaidZoomState.svgWidth * mermaidZoomState.scale) / 2;
+    mermaidZoomState.translateY = (vH - mermaidZoomState.svgHeight * mermaidZoomState.scale) / 2;
+
+    applyMermaidTransform(true);
+  }
+
+  function zoomMermaid(factor, clientX = null, clientY = null) {
+    const viewport = document.getElementById('mermaidViewport');
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const originX = clientX !== null ? clientX - rect.left : rect.width / 2;
+    const originY = clientY !== null ? clientY - rect.top : rect.height / 2;
+
+    const oldScale = mermaidZoomState.scale;
+    const newScale = Math.max(mermaidZoomState.minScale, Math.min(mermaidZoomState.maxScale, oldScale * factor));
+    if (newScale === oldScale) return;
+
+    const ratio = newScale / oldScale;
+    mermaidZoomState.translateX = originX - (originX - mermaidZoomState.translateX) * ratio;
+    mermaidZoomState.translateY = originY - (originY - mermaidZoomState.translateY) * ratio;
+    mermaidZoomState.scale = newScale;
+
+    applyMermaidTransform(clientX === null);
+  }
+
+  function openMermaidLightbox(rawSvgString) {
+    const modal = document.getElementById('mermaidModal');
+    const canvas = document.getElementById('mermaidCanvas');
+    const viewport = document.getElementById('mermaidViewport');
+    if (!modal || !canvas || !viewport) return;
+
+    canvas.innerHTML = rawSvgString;
+    const svg = canvas.querySelector('svg');
+    if (!svg) return;
+
+    // 解析并提取真实无损尺寸
+    let vbW = 600, vbH = 400;
+    const vbAttr = svg.getAttribute('viewBox');
+    if (vbAttr) {
+      const parts = vbAttr.trim().split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        vbW = parts[2];
+        vbH = parts[3];
+      }
+    } else {
+      const b = svg.getBoundingClientRect();
+      vbW = b.width || 600;
+      vbH = b.height || 400;
+    }
+
+    mermaidZoomState.svgWidth = vbW;
+    mermaidZoomState.svgHeight = vbH;
+
+    // 移除限制宽度的内联样式，使 SVG 能够按真实高分屏无损矢量放大
+    svg.style.maxWidth = 'none';
+    svg.style.maxHeight = 'none';
+    svg.style.width = `${vbW}px`;
+    svg.style.height = `${vbH}px`;
+    svg.setAttribute('width', vbW);
+    svg.setAttribute('height', vbH);
+
+    openModal(modal);
+
+    // 待浮层打开展开后，计算并应用最佳可视缩放与居中
+    setTimeout(() => {
+      fitMermaidDiagram(true);
+    }, 60);
+  }
+
+  function initMermaidLightboxEvents() {
+    const viewport = document.getElementById('mermaidViewport');
+    const zoomInBtn = document.getElementById('mermaidZoomInBtn');
+    const zoomOutBtn = document.getElementById('mermaidZoomOutBtn');
+    const fitBtn = document.getElementById('mermaidFitBtn');
+    const zoomLabel = document.getElementById('mermaidZoomLabel');
+
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener('click', () => zoomMermaid(1.25));
+    }
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener('click', () => zoomMermaid(0.8));
+    }
+    if (fitBtn) {
+      fitBtn.addEventListener('click', () => fitMermaidDiagram(false));
+    }
+    if (zoomLabel) {
+      zoomLabel.addEventListener('click', () => {
+        zoomMermaid(1.0 / mermaidZoomState.scale);
+      });
+    }
+
+    if (!viewport) return;
+
+    // 鼠标滚轮缩放
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 0.87;
+      zoomMermaid(factor, e.clientX, e.clientY);
+    }, { passive: false });
+
+    // 鼠标拖拽平移
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      mermaidZoomState.isDragging = true;
+      mermaidZoomState.startX = e.clientX;
+      mermaidZoomState.startY = e.clientY;
+      mermaidZoomState.startTranslateX = mermaidZoomState.translateX;
+      mermaidZoomState.startTranslateY = mermaidZoomState.translateY;
+      viewport.classList.add('grabbing');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!mermaidZoomState.isDragging) return;
+      mermaidZoomState.translateX = mermaidZoomState.startTranslateX + (e.clientX - mermaidZoomState.startX);
+      mermaidZoomState.translateY = mermaidZoomState.startTranslateY + (e.clientY - mermaidZoomState.startY);
+      applyMermaidTransform(false);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (mermaidZoomState.isDragging) {
+        mermaidZoomState.isDragging = false;
+        viewport.classList.remove('grabbing');
+      }
+    });
+
+    // 双击居中适配
+    viewport.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.btn')) return;
+      fitMermaidDiagram(false);
+    });
+
+    // 触控单指平移与双指捏合缩放
+    let touchStartDist = 0;
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        mermaidZoomState.isDragging = true;
+        mermaidZoomState.startX = e.touches[0].clientX;
+        mermaidZoomState.startY = e.touches[0].clientY;
+        mermaidZoomState.startTranslateX = mermaidZoomState.translateX;
+        mermaidZoomState.startTranslateY = mermaidZoomState.translateY;
+      } else if (e.touches.length === 2) {
+        mermaidZoomState.isDragging = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchStartDist = Math.hypot(dx, dy);
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && mermaidZoomState.isDragging) {
+        mermaidZoomState.translateX = mermaidZoomState.startTranslateX + (e.touches[0].clientX - mermaidZoomState.startX);
+        mermaidZoomState.translateY = mermaidZoomState.startTranslateY + (e.touches[0].clientY - mermaidZoomState.startY);
+        applyMermaidTransform(false);
+      } else if (e.touches.length === 2 && touchStartDist > 0) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDist = Math.hypot(dx, dy);
+        const factor = currentDist / touchStartDist;
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        zoomMermaid(factor, midX, midY);
+        touchStartDist = currentDist;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        mermaidZoomState.isDragging = false;
+        touchStartDist = 0;
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      const modal = document.getElementById('mermaidModal');
+      if (modal && modal.classList.contains('open')) {
+        fitMermaidDiagram(false);
+      }
+    });
+  }
+
   async function renderSingleMermaidChart(wrapper) {
     if (wrapper.getAttribute('data-rendered') === 'true') return;
     const chartKey = wrapper.getAttribute('data-chart-key');
@@ -3765,11 +4010,7 @@
       const expandBtn = wrapper.querySelector('.mermaid-tool-btn');
       if (expandBtn) {
         expandBtn.addEventListener('click', () => {
-          const modalBody = document.getElementById('mermaidModalBody');
-          if (modalBody) {
-            modalBody.innerHTML = svg;
-            openModal(document.getElementById('mermaidModal'));
-          }
+          openMermaidLightbox(svg);
         });
       }
     } catch (e) {
