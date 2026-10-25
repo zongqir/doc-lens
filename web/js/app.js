@@ -22,19 +22,19 @@
   };
 
   const ALERT_ICONS = {
-    note: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
-    tip: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>',
-    important: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="12 8 8 12 12 16 16 12 12 8"></polygon></svg>',
-    warning: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-    caution: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>'
+    note: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+    tip: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path></svg>',
+    important: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+    warning: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+    caution: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
   };
 
-  const ALERT_TITLES = {
-    note: '注释 / NOTE',
-    tip: '提示 / TIP',
-    important: '重点 / IMPORTANT',
-    warning: '警告 / WARNING',
-    caution: '注意 / CAUTION'
+  const ALERT_CONFIG = {
+    note: { label: '说明', tag: 'NOTE' },
+    tip: { label: '提示', tag: 'TIP' },
+    important: { label: '重点', tag: 'IMPORTANT' },
+    warning: { label: '注意', tag: 'WARNING' },
+    caution: { label: '警告', tag: 'CAUTION' }
   };
 
   const state = {
@@ -3173,9 +3173,18 @@
       }
       const t = type.toLowerCase();
       const icon = ALERT_ICONS[t] || ALERT_ICONS.note;
-      const titleLabel = ALERT_TITLES[t] || t.toUpperCase();
+      const conf = ALERT_CONFIG[t] || { label: t.toUpperCase(), tag: t.toUpperCase() };
       const contentHtml = mdParser ? mdParser.render(combined) : combined;
-      return `\n<div class="markdown-alert markdown-alert-${t}"><div class="markdown-alert-title">${icon}<span>${titleLabel}</span></div>${contentHtml}</div>\n`;
+      return `\n<div class="markdown-alert markdown-alert-${t}">
+  <div class="markdown-alert-header">
+    <div class="markdown-alert-icon-box">${icon}</div>
+    <div class="markdown-alert-title">
+      <span class="markdown-alert-title-text">${conf.label}</span>
+      <span class="markdown-alert-type-badge">${conf.tag}</span>
+    </div>
+  </div>
+  <div class="markdown-alert-content">${contentHtml}</div>
+</div>\n`;
     });
   }
 
