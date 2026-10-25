@@ -3103,12 +3103,11 @@
     if (!currentMarkmapInstance || mindmapDrillStack.length === 0) return;
     hideFocusPill();
 
-    const isDocRoot = mindmapDrillStack.length === 1;
     const currentLevel = mindmapDrillStack[mindmapDrillStack.length - 1];
     const treeToRender = cloneMindmapTree(currentLevel.rawNode);
 
-    // 第一层主干根节点：清空文字只保留一个核心圆圈支点（文章本身已知，无需冗余文字）
-    if (isDocRoot && treeToRender.children && treeToRender.children.length > 0) {
+    // 第一级主干根节点：清空文字只保留一个核心支点小圆点（无论是全文视图还是下钻聚焦后，当前视野第一级均仅作为支点小圆点，避免重复文字霸占宽度）
+    if (treeToRender.children && treeToRender.children.length > 0) {
       treeToRender.content = '';
     }
 
@@ -3116,11 +3115,6 @@
       treeToRender.payload.fold = 0;
     }
     setTreeFoldDepth(treeToRender, 0, currentMindmapExpandDepth);
-
-    const svgEl = document.getElementById('mindmapSvg');
-    if (svgEl) {
-      svgEl.classList.toggle('mindmap-at-doc-root', isDocRoot);
-    }
 
     await currentMarkmapInstance.setData(treeToRender);
     updateMindmapBreadcrumbs();

@@ -3741,13 +3741,13 @@ body.modal-open {
   min-width: 0;
 }
 
-/* 根节点无冗余文字，呈现为一个极简核心圆圈支点 */
-.mindmap-at-doc-root .markmap-node[data-depth="1"] > foreignObject,
-.mindmap-at-doc-root .markmap-node[data-depth="1"] > line {
+/* 当前视野的第 1 级根节点（无论是全文还是下钻聚焦单分支）均作为极简核心支点小圆点展示 */
+#mindmapSvg .markmap-node[data-depth="1"] > foreignObject,
+#mindmapSvg .markmap-node[data-depth="1"] > line {
   display: none !important;
 }
 
-.mindmap-at-doc-root .markmap-node[data-depth="1"] > circle {
+#mindmapSvg .markmap-node[data-depth="1"] > circle {
   r: 8px !important;
   stroke-width: 3.5px !important;
   stroke: var(--accent-primary, #3b82f6) !important;
@@ -3757,7 +3757,7 @@ body.modal-open {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.mindmap-at-doc-root .markmap-node[data-depth="1"]:hover > circle {
+#mindmapSvg .markmap-node[data-depth="1"]:hover > circle {
   r: 10px !important;
   fill: var(--accent-primary, #3b82f6) !important;
   stroke: var(--bg-surface) !important;
