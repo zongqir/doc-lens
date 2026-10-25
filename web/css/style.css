@@ -1975,7 +1975,7 @@ body.modal-open {
 .markdown-body blockquote:not(.markdown-alert) {
   margin: 20px 0;
   padding: 14px 18px;
-  color: var(--text-primary);
+  color: #334155; /* 字体淡雅深灰，告别死黑硬冷感 */
   font-style: normal;
   border: none !important;
   border-radius: 8px;
@@ -1986,13 +1986,36 @@ body.modal-open {
 
 [data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) {
   background-color: rgba(134, 239, 172, 0.08);
-  color: #f1f5f9;
+  color: #cbd5e1; /* 深色下柔和浅灰白，告别刺眼眩光 */
   border: none !important;
 }
 
+/* 引用块内部标题与加粗字体柔和化 */
+.markdown-body blockquote:not(.markdown-alert) h1,
+.markdown-body blockquote:not(.markdown-alert) h2,
+.markdown-body blockquote:not(.markdown-alert) h3,
+.markdown-body blockquote:not(.markdown-alert) h4 {
+  color: #1e293b;
+  font-size: 1.15em;
+  margin: 4px 0 8px 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) h1,
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) h2,
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) h3,
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) h4 {
+  color: #e2e8f0;
+}
+
 .markdown-body blockquote:not(.markdown-alert) strong {
-  color: var(--text-primary);
+  color: #1e293b;
   font-weight: 600;
+}
+
+[data-theme="dark"] .markdown-body blockquote:not(.markdown-alert) strong {
+  color: #e2e8f0;
 }
 
 .markdown-body blockquote:not(.markdown-alert) p {
@@ -2030,9 +2053,25 @@ body.modal-open {
   padding: 14px 18px;
   border-radius: 8px;
   border: none !important;
-  color: var(--text-primary);
+  color: #334155; /* 字体淡雅深灰，温润耐看 */
   line-height: 1.7;
   font-size: 14.5px;
+}
+
+.markdown-alert h1,
+.markdown-alert h2,
+.markdown-alert h3,
+.markdown-alert h4 {
+  color: #1e293b;
+  font-size: 1.15em;
+  margin: 4px 0 8px 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.markdown-alert strong {
+  color: #1e293b;
+  font-weight: 600;
 }
 
 .markdown-alert p {
@@ -2051,8 +2090,8 @@ body.modal-open {
   font-size: 12.5px;
   padding: 2px 5px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.04);
+  color: #1e293b;
   font-family: var(--font-mono);
 }
 
@@ -2081,13 +2120,23 @@ body.modal-open {
   background-color: rgb(254, 242, 242);
 }
 
-/* 深色模式精调 (完全无边框微透底) */
+/* 深色模式精调 (完全无边框微透底，柔和浅灰白文字) */
 [data-theme="dark"] .markdown-alert {
   border: none !important;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .markdown-alert h1,
+[data-theme="dark"] .markdown-alert h2,
+[data-theme="dark"] .markdown-alert h3,
+[data-theme="dark"] .markdown-alert h4,
+[data-theme="dark"] .markdown-alert strong {
+  color: #e2e8f0;
 }
 
 [data-theme="dark"] .markdown-alert code {
   background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
 }
 
 [data-theme="dark"] .markdown-alert-note {
