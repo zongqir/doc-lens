@@ -4071,6 +4071,177 @@
     });
   }
 
+  // ==========================================================================
+  // Mermaid 宽容渲染与语法自愈器 (Fault-Tolerant & Self-Healing Pipeline)
+  // 解决 LLM 或手写图表中节点未加引号包含括号/特殊字符导致语法崩溃等常见痛点
+  // ==========================================================================
+  function healMermaidLineOnePass(line) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('%%')) return line;
+
+    // 复合与单括号形状定义（按开启符长度降序，先匹配复合再匹配单字符）
+    const shapes = [
+      { open: '([', close: '])' },
+      { open: '[(', close: ')]' },
+      { open: '[[', close: ']]' },
+      { open: '((', close: '))' },
+      { open: '{{', close: '}}' },
+      { open: '[/', close: '/]' },
+      { open: '[\\', close: '\\]' },
+      { open: '[/', close: '\\]' },
+      { open: '[\\', close: '/]' },
+      { open: '[', close: ']' },
+      { open: '{', close: '}' },
+      { open: '(', close: ')' },
+    ];
+
+    let i = 0;
+    let out = '';
+
+    while (i < line.length) {
+      // 1. 连线标签 |...| 容错包裹
+      if (line[i] === '|') {
+        const nextPipe = line.indexOf('|', i + 1);
+        if (nextPipe > i + 1) {
+          const label = line.substring(i + 1, nextPipe);
+          const trimmedLabel = label.trim();
+          if ((trimmedLabel.startsWith('"') && trimmedLabel.endsWith('"')) ||
+              (trimmedLabel.startsWith("'") && trimmedLabel.endsWith("'"))) {
+            out += line.substring(i, nextPipe + 1);
+          } else if (/[()[\]{}<>,:*&~#]/.test(label)) {
+            const safe = label.replace(/"/g, '#quot;');
+            out += `|"${safe}"|`;
+          } else {
+            out += line.substring(i, nextPipe + 1);
+          }
+          i = nextPipe + 1;
+          continue;
+        }
+      }
+
+      // 2. 已存在的双引号字符串，原样保留跳过
+      if (line[i] === '"') {
+        let quoteEnd = i + 1;
+        while (quoteEnd < line.length) {
+          if (line[quoteEnd] === '\\') {
+            quoteEnd += 2;
+          } else if (line[quoteEnd] === '"') {
+            quoteEnd++;
+            break;
+          } else {
+            quoteEnd++;
+          }
+        }
+        out += line.substring(i, quoteEnd);
+        i = quoteEnd;
+        continue;
+      }
+
+      // 3. 匹配节点形状
+      let matchedShape = null;
+      for (const shape of shapes) {
+        if (line.startsWith(shape.open, i)) {
+          if (shape.open === '(') {
+            // 圆括号必须前面有非空白字符（如节点ID），避免与连线或普通数学式混淆
+            if (i > 0 && /\s/.test(line[i - 1])) {
+              continue;
+            }
+          }
+          matchedShape = shape;
+          break;
+        }
+      }
+
+      if (matchedShape) {
+        const openLen = matchedShape.open.length;
+        const closeStr = matchedShape.close;
+        const openStr = matchedShape.open;
+        let j = i + openLen;
+        let closeIndex = -1;
+        let inQuote = false;
+        let depth = 0;
+
+        while (j < line.length) {
+          if (line[j] === '"') {
+            inQuote = !inQuote;
+          } else if (!inQuote) {
+            if (line.startsWith(openStr, j)) {
+              depth++;
+              j += openLen - 1;
+            } else if (line.startsWith(closeStr, j)) {
+              if (depth > 0) {
+                depth--;
+                j += closeStr.length - 1;
+              } else {
+                closeIndex = j;
+                break;
+              }
+            }
+          }
+          j++;
+        }
+
+        if (closeIndex !== -1) {
+          const rawContent = line.substring(i + openLen, closeIndex);
+          const trimmedContent = rawContent.trim();
+          let newContent = rawContent;
+
+          // 若未包裹双引号，且含有破坏 Mermaid 词法解析的敏感符号（如括号、冒号、星号、斜杠、尖括号等）
+          if (!trimmedContent.startsWith('"') || !trimmedContent.endsWith('"')) {
+            if (/[()[\]{}<>:*&~#/]/.test(rawContent)) {
+              const safe = rawContent.replace(/"/g, '#quot;');
+              newContent = `"${safe}"`;
+            }
+          }
+
+          out += matchedShape.open + newContent + matchedShape.close;
+          i = closeIndex + closeStr.length;
+          continue;
+        }
+      }
+
+      out += line[i];
+      i++;
+    }
+
+    return out;
+  }
+
+  function autoHealMermaidSyntax(code) {
+    if (!code || typeof code !== 'string') return code;
+    let healed = code;
+
+    // 1. 去除首尾代码块围栏
+    healed = healed.replace(/^```(?:mermaid)?\r?\n?/i, '').replace(/\r?\n?```$/i, '').trim();
+
+    // 2. 连线纠错（中文长破折号或全角减号连线转为半角连线）
+    healed = healed.replace(/[\u2014\u2015\u2500\uFF0D]{2,}>/g, '-->');
+    healed = healed.replace(/[\u2014\u2015\u2500\uFF0D]{2,}/g, '---');
+
+    const lines = healed.split('\n');
+    const healedLines = lines.map(healMermaidLineOnePass);
+    healed = healedLines.join('\n');
+
+    // 3. 补全缺失的图表类型声明（例如直接以 A --> B 起手）
+    const firstNonEmpty = healedLines.map(l => l.trim()).find(l => l && !l.startsWith('%%'));
+    if (firstNonEmpty) {
+      const knownDiagramTypes = [
+        'flowchart', 'graph', 'sequencediagram', 'classdiagram', 'statediagram',
+        'statediagram-v2', 'erdiagram', 'journey', 'gantt', 'pie', 'gitgraph',
+        'mindmap', 'quadrantchart', 'requirementdiagram', 'c4context', 'c4container',
+        'c4component', 'c4dynamic', 'c4deployment', 'timeline', 'zenuml', 'sankey-beta', 'block-beta'
+      ];
+      const firstWord = firstNonEmpty.split(/[\s\n(]/)[0].toLowerCase();
+      if (!knownDiagramTypes.includes(firstWord)) {
+        if (healed.includes('-->') || healed.includes('---')) {
+          healed = 'flowchart TD\n' + healed;
+        }
+      }
+    }
+
+    return healed;
+  }
+
   async function renderSingleMermaidChart(wrapper) {
     if (wrapper.getAttribute('data-rendered') === 'true') return;
     const chartKey = wrapper.getAttribute('data-chart-key');
@@ -4078,41 +4249,75 @@
     if (!rawCode) return;
 
     const uniqueSvgId = `svg-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    let finalSvg = null;
+    let isHealed = false;
+    let renderError = null;
+
     try {
       await ensureMermaidLoaded();
       await new Promise(r => setTimeout(r, 16));
-      const { svg } = await window.mermaid.render(uniqueSvgId, rawCode);
-      wrapper.innerHTML = `
-        <div class="mermaid-toolbar">
-          <button class="mermaid-tool-btn" title="全屏高清查看">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-            <span>全屏</span>
-          </button>
-        </div>
-        ${svg}
-      `;
-      wrapper.setAttribute('data-rendered', 'true');
-
-      const expandBtn = wrapper.querySelector('.mermaid-tool-btn');
-      if (expandBtn) {
-        expandBtn.addEventListener('click', () => {
-          openMermaidLightbox(svg);
-        });
-      }
-    } catch (e) {
-      console.warn('Mermaid render error:', e);
+      // 阶段一：首选原样标准渲染（Fast Path，零额外开销）
+      const res = await window.mermaid.render(uniqueSvgId, rawCode);
+      finalSvg = res.svg;
+    } catch (primaryErr) {
+      renderError = primaryErr;
       // 清除 Mermaid 可能在 DOM 中残留的未捕获错误节点（如 #d + uniqueSvgId）
       try {
         const strays = document.querySelectorAll(`[id*="${uniqueSvgId}"]`);
         strays.forEach(n => { if (n !== wrapper && !wrapper.contains(n)) n.remove(); });
       } catch (_) {}
 
+      // 阶段二：宽容渲染自愈尝试（Self-Healing Recovery Path）
+      const healedCode = autoHealMermaidSyntax(rawCode);
+      if (healedCode && healedCode !== rawCode) {
+        const retrySvgId = `svg-heal-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        try {
+          const retryRes = await window.mermaid.render(retrySvgId, healedCode);
+          finalSvg = retryRes.svg;
+          isHealed = true;
+          console.info('Mermaid tolerant render recovered successfully from syntax errors.');
+        } catch (retryErr) {
+          renderError = retryErr;
+          try {
+            const strays = document.querySelectorAll(`[id*="${retrySvgId}"]`);
+            strays.forEach(n => { if (n !== wrapper && !wrapper.contains(n)) n.remove(); });
+          } catch (_) {}
+          console.warn('Mermaid self-healing retry also failed:', retryErr);
+        }
+      } else {
+        console.warn('Mermaid render error (cannot heal):', primaryErr);
+      }
+    }
+
+    if (finalSvg) {
+      wrapper.innerHTML = `
+        <div class="mermaid-toolbar">
+          ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含括号等非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
+          <button class="mermaid-tool-btn" title="全屏高清查看">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+            <span>全屏</span>
+          </button>
+        </div>
+        ${finalSvg}
+      `;
+      wrapper.setAttribute('data-rendered', 'true');
+
+      const expandBtn = wrapper.querySelector('.mermaid-tool-btn');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+          openMermaidLightbox(finalSvg);
+        });
+      }
+    } else {
+      // 降级兜底显示
+      const errMsg = renderError ? (renderError.message || String(renderError)) : '未知解析错误';
       wrapper.innerHTML = `
         <div style="width:100%;font-size:12px;color:var(--text-secondary);background:var(--bg-surface-hover);padding:14px;border-radius:var(--radius-md);border:1px solid var(--border-default);">
           <div style="font-weight:600;margin-bottom:6px;color:#f59e0b;display:flex;align-items:center;gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-            <span>架构图存在语法错误，已降级源码显示：</span>
+            <span>架构图存在严重语法错误，已降级源码显示：</span>
           </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-family:var(--font-mono);">${escapeHtml(errMsg.split('\n')[0])}</div>
           <pre style="margin:0;background:transparent;border:none;padding:0;font-size:11.5px;color:var(--text-muted);overflow-x:auto;">${escapeHtml(rawCode)}</pre>
         </div>
       `;
