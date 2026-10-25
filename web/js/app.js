@@ -41,7 +41,8 @@
     tasks: [],
     activeTaskId: null,
     taskLogTimer: null,
-    filterFavoritesOnly: false
+    filterFavoritesOnly: false,
+    activeSidebarTab: 'tree'
   };
 
   const mermaidStore = new Map();
@@ -68,6 +69,7 @@
     initMermaid();
     bindGlobalKeybindings();
 
+    initSidebarTabs();
     renderRecentReads();
     renderFavorites();
 
@@ -493,6 +495,59 @@
     el.sidebar.classList.remove('open');
     el.sidebarOverlay.classList.remove('open');
     document.body.classList.remove('modal-open');
+  }
+
+  function initSidebarTabs() {
+    const tabsContainer = document.getElementById('sidebarTabs');
+    if (!tabsContainer) return;
+
+    const btns = tabsContainer.querySelectorAll('.sidebar-tab-btn');
+    btns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tab = btn.dataset.tab;
+        if (tab) switchSidebarTab(tab);
+      });
+    });
+
+    const savedTab = localStorage.getItem('doc_lens_sidebar_tab') || 'tree';
+    switchSidebarTab(savedTab, false);
+  }
+
+  function switchSidebarTab(tabName, persist = true) {
+    if (!['tree', 'favorites', 'recent'].includes(tabName)) {
+      tabName = 'tree';
+    }
+    state.activeSidebarTab = tabName;
+    if (persist) {
+      try {
+        localStorage.setItem('doc_lens_sidebar_tab', tabName);
+      } catch (e) {}
+    }
+
+    const tabsContainer = document.getElementById('sidebarTabs');
+    if (tabsContainer) {
+      const btns = tabsContainer.querySelectorAll('.sidebar-tab-btn');
+      btns.forEach(btn => {
+        const isMatch = btn.dataset.tab === tabName;
+        btn.classList.toggle('active', isMatch);
+        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+      });
+    }
+
+    const scrollContainer = document.querySelector('.sidebar-scrollable-content');
+    if (scrollContainer) {
+      scrollContainer.dataset.activeTab = tabName;
+    }
+
+    if (tabName === 'favorites') {
+      renderFavorites();
+    } else if (tabName === 'recent') {
+      renderRecentReads();
+      if (state.currentRepo) {
+        loadRecentCreated(state.currentRepo.ID);
+      }
+    }
   }
 
   function openModal(modalEl) {
@@ -928,7 +983,7 @@
         if (i === segments.length - 1) {
           row.classList.add('active');
           try {
-            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            row.scrollIntoView({ block: window.innerWidth <= 900 ? 'center' : 'nearest', behavior: 'smooth' });
           } catch (e) {}
 
           // 如果目标本身就是目录，确保展开显示内部文件并记住展开态
@@ -990,6 +1045,9 @@
   function onSearchInput(e) {
     const q = e.target.value.trim();
     if (el.clearSearchBtn) el.clearSearchBtn.style.display = q ? 'flex' : 'none';
+    if (q && state.activeSidebarTab !== 'tree') {
+      switchSidebarTab('tree');
+    }
 
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
@@ -1263,11 +1321,16 @@
   function renderFavorites() {
     const listEl = document.getElementById('favoritesList');
     const badgeEl = document.getElementById('favoritesCountBadge');
+    const tabFavBadge = document.getElementById('tabFavBadge');
     const secEl = document.getElementById('sectionFavorites');
     const favs = getFavorites();
 
     if (badgeEl) {
       badgeEl.textContent = `${favs.length} 项`;
+    }
+    if (tabFavBadge) {
+      tabFavBadge.textContent = favs.length;
+      tabFavBadge.style.display = favs.length > 0 ? 'inline-flex' : 'none';
     }
 
     if (!listEl) return;

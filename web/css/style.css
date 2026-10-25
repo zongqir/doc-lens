@@ -609,8 +609,11 @@ body.modal-open {
 }
 
 .sidebar-scrollable-content[data-active-tab="tree"] #sectionFileTree .sidebar-section-header {
-  background: transparent !important;
-  padding: 4px 6px 8px !important;
+  position: sticky;
+  top: -8px;
+  z-index: 10;
+  background: var(--bg-surface) !important;
+  padding: 6px 6px 8px !important;
   border-bottom: 1px dashed var(--border-subtle) !important;
 }
 
@@ -638,8 +641,11 @@ body.modal-open {
 }
 
 .sidebar-scrollable-content[data-active-tab="favorites"] #sectionFavorites .sidebar-section-header {
-  background: transparent !important;
-  padding: 4px 6px 8px !important;
+  position: sticky;
+  top: -8px;
+  z-index: 10;
+  background: var(--bg-surface) !important;
+  padding: 6px 6px 8px !important;
   border-bottom: 1px dashed var(--border-subtle) !important;
 }
 
@@ -665,8 +671,11 @@ body.modal-open {
 }
 
 .sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section-header {
-  background: transparent !important;
-  padding: 4px 6px 8px !important;
+  position: sticky;
+  top: -8px;
+  z-index: 10;
+  background: var(--bg-surface) !important;
+  padding: 6px 6px 8px !important;
   border-bottom: 1px dashed var(--border-subtle) !important;
 }
 
