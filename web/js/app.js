@@ -41,8 +41,7 @@
     tasks: [],
     activeTaskId: null,
     taskLogTimer: null,
-    filterFavoritesOnly: false,
-    activeSidebarTab: 'tree'
+    filterFavoritesOnly: false
   };
 
   const mermaidStore = new Map();
@@ -69,9 +68,20 @@
     initMermaid();
     bindGlobalKeybindings();
 
-    initSidebarTabs();
     renderRecentReads();
     renderFavorites();
+
+    if (window.innerWidth <= 900) {
+      // 移动端默认专心聚焦目录树，折叠其他专区以腾出全部垂直滑动空间
+      const favSec = document.getElementById('sectionFavorites');
+      if (favSec) favSec.classList.add('collapsed');
+      const recSec = document.getElementById('sectionRecentReads');
+      if (recSec) recSec.classList.add('collapsed');
+      const newSec = document.getElementById('sectionRecentCreated');
+      if (newSec) newSec.classList.add('collapsed');
+      const treeSec = document.getElementById('sectionFileTree');
+      if (treeSec) treeSec.classList.remove('collapsed');
+    }
 
     window.addEventListener('popstate', () => {
       routeTo(window.location.pathname, false);
@@ -204,14 +214,39 @@
       });
     }
 
-    // 侧边栏专区折叠/展开与独立工具操作
+    // 侧边栏专区折叠/展开：移动端支持独占聚焦（展开当前并收缩其他，再次点击缩回）
+    function toggleSidebarSection(secId) {
+      const sec = document.getElementById(secId);
+      if (!sec) return;
+      const willExpand = sec.classList.contains('collapsed');
+
+      if (window.innerWidth <= 900) {
+        if (willExpand) {
+          // 移动端独占：展开当前目标专区，同时收回其他专区
+          ['sectionFavorites', 'sectionFileTree', 'sectionRecentReads', 'sectionRecentCreated'].forEach(id => {
+            const elSec = document.getElementById(id);
+            if (elSec) {
+              if (id === secId) {
+                elSec.classList.remove('collapsed');
+              } else {
+                elSec.classList.add('collapsed');
+              }
+            }
+          });
+        } else {
+          // 再次点击已展开的专区：直接收缩缩回去
+          sec.classList.add('collapsed');
+        }
+      } else {
+        sec.classList.toggle('collapsed');
+      }
+    }
+
     if (el.headerFavorites) {
       el.headerFavorites.addEventListener('click', () => {
         const sec = document.getElementById('sectionFavorites');
-        if (sec) {
-          sec.dataset.userToggled = 'true';
-          sec.classList.toggle('collapsed');
-        }
+        if (sec) sec.dataset.userToggled = 'true';
+        toggleSidebarSection('sectionFavorites');
       });
     }
 
@@ -219,10 +254,8 @@
       el.headerRecentReads.addEventListener('click', (e) => {
         if (e.target.closest('#clearRecentReadsBtn')) return;
         const sec = document.getElementById('sectionRecentReads');
-        if (sec) {
-          sec.dataset.userToggled = 'true';
-          sec.classList.toggle('collapsed');
-        }
+        if (sec) sec.dataset.userToggled = 'true';
+        toggleSidebarSection('sectionRecentReads');
       });
     }
     if (el.clearRecentReadsBtn) {
@@ -235,8 +268,7 @@
     if (el.headerRecentCreated) {
       el.headerRecentCreated.addEventListener('click', (e) => {
         if (e.target.closest('#refreshRecentCreatedBtn')) return;
-        const sec = document.getElementById('sectionRecentCreated');
-        if (sec) sec.classList.toggle('collapsed');
+        toggleSidebarSection('sectionRecentCreated');
       });
     }
     if (el.refreshRecentCreatedBtn) {
@@ -249,8 +281,7 @@
     if (el.headerFileTree) {
       el.headerFileTree.addEventListener('click', (e) => {
         if (e.target.closest('#collapseAllBtn') || e.target.closest('#refreshTreeBtn') || e.target.closest('#filterFavBtn')) return;
-        const sec = document.getElementById('sectionFileTree');
-        if (sec) sec.classList.toggle('collapsed');
+        toggleSidebarSection('sectionFileTree');
       });
     }
 
@@ -495,59 +526,6 @@
     el.sidebar.classList.remove('open');
     el.sidebarOverlay.classList.remove('open');
     document.body.classList.remove('modal-open');
-  }
-
-  function initSidebarTabs() {
-    const tabsContainer = document.getElementById('sidebarTabs');
-    if (!tabsContainer) return;
-
-    const btns = tabsContainer.querySelectorAll('.sidebar-tab-btn');
-    btns.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const tab = btn.dataset.tab;
-        if (tab) switchSidebarTab(tab);
-      });
-    });
-
-    const savedTab = localStorage.getItem('doc_lens_sidebar_tab') || 'tree';
-    switchSidebarTab(savedTab, false);
-  }
-
-  function switchSidebarTab(tabName, persist = true) {
-    if (!['tree', 'favorites', 'recent'].includes(tabName)) {
-      tabName = 'tree';
-    }
-    state.activeSidebarTab = tabName;
-    if (persist) {
-      try {
-        localStorage.setItem('doc_lens_sidebar_tab', tabName);
-      } catch (e) {}
-    }
-
-    const tabsContainer = document.getElementById('sidebarTabs');
-    if (tabsContainer) {
-      const btns = tabsContainer.querySelectorAll('.sidebar-tab-btn');
-      btns.forEach(btn => {
-        const isMatch = btn.dataset.tab === tabName;
-        btn.classList.toggle('active', isMatch);
-        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-      });
-    }
-
-    const scrollContainer = document.querySelector('.sidebar-scrollable-content');
-    if (scrollContainer) {
-      scrollContainer.dataset.activeTab = tabName;
-    }
-
-    if (tabName === 'favorites') {
-      renderFavorites();
-    } else if (tabName === 'recent') {
-      renderRecentReads();
-      if (state.currentRepo) {
-        loadRecentCreated(state.currentRepo.ID);
-      }
-    }
   }
 
   function openModal(modalEl) {
@@ -1045,8 +1023,11 @@
   function onSearchInput(e) {
     const q = e.target.value.trim();
     if (el.clearSearchBtn) el.clearSearchBtn.style.display = q ? 'flex' : 'none';
-    if (q && state.activeSidebarTab !== 'tree') {
-      switchSidebarTab('tree');
+    if (q) {
+      const treeSec = document.getElementById('sectionFileTree');
+      if (treeSec && treeSec.classList.contains('collapsed')) {
+        treeSec.classList.remove('collapsed');
+      }
     }
 
     clearTimeout(searchDebounceTimer);
@@ -1321,16 +1302,11 @@
   function renderFavorites() {
     const listEl = document.getElementById('favoritesList');
     const badgeEl = document.getElementById('favoritesCountBadge');
-    const tabFavBadge = document.getElementById('tabFavBadge');
     const secEl = document.getElementById('sectionFavorites');
     const favs = getFavorites();
 
     if (badgeEl) {
       badgeEl.textContent = `${favs.length} 项`;
-    }
-    if (tabFavBadge) {
-      tabFavBadge.textContent = favs.length;
-      tabFavBadge.style.display = favs.length > 0 ? 'inline-flex' : 'none';
     }
 
     if (!listEl) return;
