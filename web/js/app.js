@@ -29,6 +29,14 @@
     caution: '<svg class="alert-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>'
   };
 
+  const ALERT_TITLES = {
+    note: '注释 / NOTE',
+    tip: '提示 / TIP',
+    important: '重点 / IMPORTANT',
+    warning: '警告 / WARNING',
+    caution: '注意 / CAUTION'
+  };
+
   const state = {
     authenticated: false,
     repos: [],
@@ -141,6 +149,7 @@
     el.articleMeta = document.getElementById('articleMeta');
     el.articleActions = document.getElementById('articleActions');
     el.articleBody = document.getElementById('articleBody');
+    el.docPagination = document.getElementById('docPagination');
 
     el.tocList = document.getElementById('tocList');
     el.mobileTocList = document.getElementById('mobileTocList');
@@ -947,6 +956,7 @@
         renderFileTree(state.treeData, el.fileTree);
         updateTreeFileStats(state.treeData);
       }
+      renderDocPagination();
     };
 
     // 1. 内存层命中：0ms 秒开
@@ -1898,6 +1908,7 @@
     if (el.articleActions) el.articleActions.innerHTML = '';
     if (el.tocList) el.tocList.innerHTML = '<div class="section-empty-hint">目录解析中...</div>';
     if (el.mobileTocList) el.mobileTocList.innerHTML = '<div class="section-empty-hint">目录解析中...</div>';
+    if (el.docPagination) el.docPagination.style.display = 'none';
 
     updateBreadcrumbs({
       rel_path: path.replace(targetRepo?.RoutePrefix || '', '').replace(/^\/+/, ''),
@@ -2072,6 +2083,151 @@
     } else {
       renderCodeDoc(doc.content, doc.path);
     }
+
+    renderDocPagination();
+  }
+
+  function cleanDocTitle(name) {
+    if (!name) return '';
+    return name.replace(/\.(md|markdown|mdown)$/i, '');
+  }
+
+  function getFlattenedDocList(rootNode, routePrefix) {
+    const docs = [];
+    if (!rootNode) return docs;
+    const cleanPrefix = '/' + (routePrefix || '').replace(/^\/+|\/+$/g, '');
+
+    function walk(node) {
+      if (!node) return;
+      if (!node.is_dir) {
+        const cleanPath = (node.path || '').replace(/^\/+/, '');
+        const fullRoute = cleanPrefix ? `${cleanPrefix}/${cleanPath}` : `/${cleanPath}`;
+        docs.push({
+          name: node.name,
+          path: node.path,
+          fullRoute: fullRoute,
+          ext: node.ext || ''
+        });
+        return;
+      }
+      if (node.children && Array.isArray(node.children)) {
+        node.children.forEach(walk);
+      }
+    }
+
+    if (rootNode.children && Array.isArray(rootNode.children)) {
+      rootNode.children.forEach(walk);
+    } else if (!rootNode.is_dir) {
+      walk(rootNode);
+    }
+    return docs;
+  }
+
+  function renderDocPagination() {
+    if (!el.docPagination) return;
+    if (!state.currentDoc || !state.currentRepo || state.currentPath === '/' || state.currentPath === '/' + (state.currentRepo.RoutePrefix || '').replace(/^\/+|\/+$/g, '')) {
+      el.docPagination.style.display = 'none';
+      el.docPagination.innerHTML = '';
+      return;
+    }
+
+    const repoId = state.currentRepo.ID;
+    let tree = state.treeData;
+    if (!tree && state.repoTreeCache && state.repoTreeCache.has(repoId)) {
+      tree = state.repoTreeCache.get(repoId);
+    }
+    if (!tree) {
+      el.docPagination.style.display = 'none';
+      return;
+    }
+
+    const docs = getFlattenedDocList(tree, state.currentRepo.RoutePrefix);
+    if (!docs || docs.length <= 1) {
+      el.docPagination.style.display = 'none';
+      el.docPagination.innerHTML = '';
+      return;
+    }
+
+    const currPath = state.currentPath;
+    const currIdx = docs.findIndex(d => {
+      if (currPath && d.fullRoute === currPath) return true;
+      if (state.currentDoc) {
+        if (state.currentDoc.rel_path && d.path === state.currentDoc.rel_path) return true;
+        if (state.currentDoc.path && (d.path === state.currentDoc.path || '/' + d.path === state.currentDoc.path)) return true;
+      }
+      return false;
+    });
+
+    if (currIdx === -1) {
+      el.docPagination.style.display = 'none';
+      el.docPagination.innerHTML = '';
+      return;
+    }
+
+    const prevDoc = currIdx > 0 ? docs[currIdx - 1] : null;
+    const nextDoc = currIdx < docs.length - 1 ? docs[currIdx + 1] : null;
+
+    if (!prevDoc && !nextDoc) {
+      el.docPagination.style.display = 'none';
+      el.docPagination.innerHTML = '';
+      return;
+    }
+
+    let html = '';
+    if (prevDoc) {
+      html += `
+        <div class="doc-pagination-card-wrapper doc-pagination-prev-wrapper">
+          <a href="${prevDoc.fullRoute}" class="doc-pagination-card doc-pagination-prev" title="上一篇: ${escapeHtml(prevDoc.name)}">
+            <span class="doc-pagination-arrow">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+            </span>
+            <div class="doc-pagination-info">
+              <span class="doc-pagination-label">上一篇</span>
+              <span class="doc-pagination-title">${escapeHtml(cleanDocTitle(prevDoc.name))}</span>
+            </div>
+          </a>
+        </div>
+      `;
+    } else {
+      html += `<div class="doc-pagination-spacer"></div>`;
+    }
+
+    if (nextDoc) {
+      html += `
+        <div class="doc-pagination-card-wrapper doc-pagination-next-wrapper">
+          <a href="${nextDoc.fullRoute}" class="doc-pagination-card doc-pagination-next" title="下一篇: ${escapeHtml(nextDoc.name)}">
+            <div class="doc-pagination-info">
+              <span class="doc-pagination-label">下一篇</span>
+              <span class="doc-pagination-title">${escapeHtml(cleanDocTitle(nextDoc.name))}</span>
+            </div>
+            <span class="doc-pagination-arrow">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </span>
+          </a>
+        </div>
+      `;
+    }
+
+    el.docPagination.innerHTML = html;
+    el.docPagination.style.display = 'grid';
+
+    el.docPagination.querySelectorAll('.doc-pagination-card').forEach(card => {
+      const targetRoute = card.getAttribute('href');
+      card.addEventListener('pointerenter', () => {
+        prefetchDocument(targetRoute);
+      }, { once: true });
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        routeTo(targetRoute, true);
+        if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
   }
 
   function updateBreadcrumbs(doc) {
@@ -2215,6 +2371,7 @@
 
   function renderWelcomeDashboard() {
     if (el.articleHeader) el.articleHeader.style.display = 'none';
+    if (el.docPagination) el.docPagination.style.display = 'none';
     if (!state.repos || state.repos.length === 0) return;
 
     const currentRepo = state.currentRepo || state.repos[0];
@@ -2609,16 +2766,21 @@
   }
 
   function preprocessGithubAlertsFast(text) {
-    return text.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n((?:>.*(?:\n|$))*)/gmi, (match, type, content) => {
-      const cleanContent = content.replace(/^>\s?/gm, '');
+    return text.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][^\S\r\n]*(.*)(?:\r?\n((?:>.*(?:\r?\n|$))*)|$)?/gmi, (match, type, inlineText, content) => {
+      let combined = (inlineText || '').trim();
+      if (content) {
+        const cleanContent = content.replace(/^>\s?/gm, '');
+        combined = combined ? (combined + '\n' + cleanContent) : cleanContent;
+      }
       const t = type.toLowerCase();
       const icon = ALERT_ICONS[t] || ALERT_ICONS.note;
-      const contentHtml = mdParser ? mdParser.render(cleanContent) : cleanContent;
-      return `\n<div class="markdown-alert markdown-alert-${t}"><div class="markdown-alert-title">${icon}<span>${t.toUpperCase()}</span></div>${contentHtml}</div>\n`;
+      const titleLabel = ALERT_TITLES[t] || t.toUpperCase();
+      const contentHtml = mdParser ? mdParser.render(combined) : combined;
+      return `\n<div class="markdown-alert markdown-alert-${t}"><div class="markdown-alert-title">${icon}<span>${titleLabel}</span></div>${contentHtml}</div>\n`;
     });
   }
 
-  function enhanceCodeBlocksAsync() {
+  function enhanceCodeBlocksAsync(defaultCollapsed = true) {
     const pres = Array.from(el.articleBody.querySelectorAll('pre:not([data-enhanced="true"])'));
     if (pres.length === 0) return;
 
@@ -2632,12 +2794,21 @@
         if (match) lang = match[1].toUpperCase();
       }
 
+      const rawText = (code || pre).textContent || '';
+      const lineCount = rawText ? rawText.replace(/\n$/, '').split('\n').length : 1;
+
       const wrapper = document.createElement('div');
       wrapper.className = 'code-block-wrapper';
+      if (defaultCollapsed) {
+        wrapper.classList.add('is-collapsed');
+      }
       pre.parentNode.insertBefore(wrapper, pre);
 
       const headerBar = document.createElement('div');
       headerBar.className = 'code-header-bar';
+      headerBar.setAttribute('role', 'button');
+      headerBar.setAttribute('tabindex', '0');
+      headerBar.setAttribute('title', '点击展开或折叠代码块');
       headerBar.innerHTML = `
         <div class="code-header-left">
           <div class="mac-traffic-lights">
@@ -2646,15 +2817,60 @@
             <span class="mac-dot green"></span>
           </div>
           <span class="code-lang-tag">${lang}</span>
+          <span class="code-lines-badge">${lineCount} 行</span>
         </div>
-        <button class="code-copy-btn">
-          ${SVG_ICONS.copy}
-          <span>复制</span>
-        </button>
+        <div class="code-header-actions">
+          <button class="code-toggle-btn" type="button" aria-expanded="${!defaultCollapsed}" title="${defaultCollapsed ? '展开代码' : '收起代码'}">
+            <svg class="code-toggle-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+            <span class="code-toggle-text">${defaultCollapsed ? '展开' : '收起'}</span>
+          </button>
+          <button class="code-copy-btn" type="button" title="复制代码">
+            ${SVG_ICONS.copy}
+            <span>复制</span>
+          </button>
+        </div>
       `;
 
+      const toggleBtn = headerBar.querySelector('.code-toggle-btn');
+      const toggleText = headerBar.querySelector('.code-toggle-text');
       const copyBtn = headerBar.querySelector('.code-copy-btn');
-      copyBtn.addEventListener('click', () => {
+
+      function toggleCollapse() {
+        const isCollapsed = wrapper.classList.toggle('is-collapsed');
+        if (isCollapsed) {
+          toggleBtn.setAttribute('aria-expanded', 'false');
+          toggleBtn.title = '展开代码';
+          toggleText.textContent = '展开';
+        } else {
+          toggleBtn.setAttribute('aria-expanded', 'true');
+          toggleBtn.title = '收起代码';
+          toggleText.textContent = '收起';
+          if (window.Prism && code && !code.dataset.highlighted) {
+            try {
+              Prism.highlightElement(code);
+              code.dataset.highlighted = 'true';
+            } catch (e) {}
+          }
+        }
+      }
+
+      headerBar.addEventListener('click', (e) => {
+        if (e.target.closest('.code-copy-btn')) return;
+        toggleCollapse();
+      });
+
+      headerBar.addEventListener('keydown', (e) => {
+        if (e.target.closest('.code-copy-btn')) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleCollapse();
+        }
+      });
+
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         navigator.clipboard.writeText((code || pre).innerText);
         copyBtn.innerHTML = `${SVG_ICONS.check} <span style="color:#10b981;">已复制</span>`;
         setTimeout(() => {
@@ -2672,9 +2888,10 @@
       while (idx < pres.length && performance.now() < deadline) {
         const pre = pres[idx];
         const code = pre.querySelector('code');
-        if (window.Prism && code) {
+        if (window.Prism && code && !code.dataset.highlighted) {
           try {
             Prism.highlightElement(code);
+            code.dataset.highlighted = 'true';
           } catch (e) {}
         }
         idx++;
@@ -2884,7 +3101,7 @@
     el.articleBody.innerHTML = `
       <pre style="max-height:80vh;"><code class="language-${ext}">${escapeHtml(content)}</code></pre>
     `;
-    enhanceCodeBlocksAsync();
+    enhanceCodeBlocksAsync(false);
   }
 
   function openAiTaskModal(options = {}) {

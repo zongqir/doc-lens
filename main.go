@@ -11,6 +11,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -38,6 +39,12 @@ func main() {
 
 	rm := NewRepoManager(cfg.Repositories)
 	tm := NewTaskManager(cfg, rm)
+
+	_ = os.MkdirAll(cfg.StateDir, 0755)
+	logFile, err := os.OpenFile(filepath.Join(cfg.StateDir, "access.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err == nil {
+		log.SetOutput(io.MultiWriter(os.Stderr, logFile))
+	}
 
 	app := &App{
 		cfg:     cfg,
@@ -147,7 +154,16 @@ func (a *App) routes() http.Handler {
 		_, _ = io.Copy(w, indexFile)
 	})
 
-	return a.gzipMiddleware(a.corsAndSecurityMiddleware(a.apiRateLimitMiddleware(mux)))
+	return a.loggerMiddleware(a.gzipMiddleware(a.corsAndSecurityMiddleware(a.apiRateLimitMiddleware(mux))))
+}
+
+func (a *App) loggerMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(start)
+		log.Printf("[REQ] %s %s from %s took %v", r.Method, r.URL.Path, r.RemoteAddr, duration)
+	})
 }
 
 type gzipResponseWriter struct {
