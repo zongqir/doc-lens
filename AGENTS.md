@@ -54,3 +54,10 @@ systemctl --user is-active doc-lens
 1. **拒绝盲搜**：遇到样式或文案修改，直接定位 `web/css/style.css` 或 `web/js/app.js`，禁止全盘地毯式 grep。
 2. **保持轻量**：前端坚持纯原生（No Node/Webpack/Vite 依赖），保持毫秒级加载。
 3. **改完即闭环**：修改前端代码后，必须完成「编译 -> 重启服务 -> 校验端口」，让用户刷新页面即可见到效果，不要只改文件不部署。
+
+---
+
+## 4. 远程备份与版本控制 (Git)
+- **远程仓库**：`git@gitee.com:zongqir-os/doc-lens.git`（分支 `main`）
+- **编译产物**：已配置 `.gitignore` 排除 `bin/` 二进制。
+- **提交与推送**：功能修改闭环后，执行 `git add . && git commit -m "..." && git push origin main` 备份。
