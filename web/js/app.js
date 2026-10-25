@@ -1007,7 +1007,7 @@
     restoreSidebarScroll(repoID);
   }
 
-  const TREE_STORAGE_PREFIX = 'doc_lens_tree_v2_';
+  const TREE_STORAGE_PREFIX = 'doc_lens_tree_v3_';
 
   function getStoredTree(repoID) {
     try {
@@ -1062,24 +1062,17 @@
       }
     };
 
-    // 1. 内存层命中：0ms 秒开
-    if (!forceRefresh && state.repoTreeCache.has(repoID)) {
-      applyTreeData(state.repoTreeCache.get(repoID));
-      return;
-    }
-
-    // 2. 本地 SessionStorage 命中：0ms 瞬间秒出
+    // 1. 本地/内存层命中：0ms 瞬间秒出（优先即刻渲染缓存，绝不阻塞用户）
     let hasLocalRendered = false;
-    let localTs = 0;
     if (!forceRefresh) {
-      const local = getStoredTree(repoID);
-      if (local && local.data) {
-        applyTreeData(local.data);
+      if (state.repoTreeCache.has(repoID)) {
+        applyTreeData(state.repoTreeCache.get(repoID));
         hasLocalRendered = true;
-        localTs = local.ts;
-        // 如果本地缓存小于 5 分钟，完全无需发起网络请求
-        if (Date.now() - localTs < 5 * 60 * 1000) {
-          return;
+      } else {
+        const local = getStoredTree(repoID);
+        if (local && local.data) {
+          applyTreeData(local.data);
+          hasLocalRendered = true;
         }
       }
     }
@@ -2967,6 +2960,49 @@
     return chapters;
   }
 
+  async function fetchRecentDocsForDashboard(repoID, cleanPrefix) {
+    try {
+      const res = await fetch(`/api/recent?repo=${encodeURIComponent(repoID)}&limit=12`);
+      if (!res.ok) return;
+      const files = await res.json();
+      if (!files || files.length === 0) return;
+      const grid = document.getElementById('welcomeRecentGrid');
+      if (!grid) return;
+      const filterInput = document.getElementById('recentFilterInput');
+      if (filterInput && filterInput.value.trim()) return;
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      let html = '';
+      files.forEach(f => {
+        const timeAgo = formatTimeAgo(f.mod_time * 1000);
+        const isVeryRecent = (nowSec - f.mod_time) < 86400 * 2;
+        const cleanName = f.name.replace(/\.(md|markdown|mdown|html)$/i, '');
+        const dirPath = f.path.split('/').slice(0, -1).join('/') || '/';
+        html += `
+          <a href="${escapeHtml(f.full_route)}" class="welcome-recent-card" data-name="${escapeHtml(cleanName.toLowerCase())}" data-path="${escapeHtml(f.full_route)}">
+            <div class="recent-card-top">
+              <span class="recent-card-icon">${SVG_ICONS.markdown}</span>
+              <span class="recent-card-time ${isVeryRecent ? 'is-new' : ''}">
+                ${isVeryRecent ? '⚡ ' : ''}${timeAgo}
+              </span>
+            </div>
+            <div class="recent-card-title" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</div>
+            <div class="recent-card-path" title="${escapeHtml(dirPath)}">📂 ${escapeHtml(dirPath)}</div>
+          </a>
+        `;
+      });
+      grid.innerHTML = html;
+
+      grid.querySelectorAll('.welcome-recent-card').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          const p = item.getAttribute('data-path');
+          if (p) routeTo(p);
+        });
+      });
+    } catch (e) {}
+  }
+
   function renderWelcomeDashboard() {
     if (el.articleHeader) el.articleHeader.style.display = 'none';
     if (el.docPagination) el.docPagination.style.display = 'none';
@@ -3271,6 +3307,9 @@
         if (p) routeTo(p);
       });
     });
+
+    // 异步通过 /api/recent 再次校准最新落盘文章，确保毫秒级与磁盘保持 100% 同步
+    fetchRecentDocsForDashboard(currentRepo.ID, cleanPrefix);
 
     // 绑定事件：即时过滤最近生成与更新文章
     const recentFilterInput = document.getElementById('recentFilterInput');
