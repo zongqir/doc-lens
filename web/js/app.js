@@ -976,17 +976,35 @@
       el.fileTree.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">加载目录索引...</div>';
     }
 
-    // 3. 网络请求（若已有本地渲染，则为后台静默 stale-while-revalidate）
-    try {
+    // 3. 网络请求（若已有本地渲染，则为后台静默 stale-while-revalidate，复用正在进行的 in-flight Promise）
+    if (!state.inFlightTrees) state.inFlightTrees = new Map();
+    if (!forceRefresh && state.inFlightTrees.has(repoID)) {
+      try {
+        const freshTree = await state.inFlightTrees.get(repoID);
+        if (freshTree) applyTreeData(freshTree);
+      } catch (e) {}
+      return;
+    }
+
+    const treePromise = (async () => {
       const res = await fetch(`/api/tree?repo=${encodeURIComponent(repoID)}&refresh=${forceRefresh}`);
       if (res.status === 304 && hasLocalRendered) {
         saveStoredTree(repoID, state.treeData);
-        return;
+        return state.treeData;
       }
       if (!res.ok) throw new Error('Failed to load tree');
       const freshTree = await res.json();
       saveStoredTree(repoID, freshTree);
-      applyTreeData(freshTree);
+      return freshTree;
+    })().finally(() => {
+      state.inFlightTrees.delete(repoID);
+    });
+
+    state.inFlightTrees.set(repoID, treePromise);
+
+    try {
+      const freshTree = await treePromise;
+      if (freshTree) applyTreeData(freshTree);
     } catch (e) {
       if (!hasLocalRendered) {
         el.fileTree.innerHTML = `<div style="padding:16px;color:#ef4444;font-size:12px;">加载失败: ${e.message}</div>`;
@@ -1818,11 +1836,38 @@
     }
   }
 
+  if (!state.inFlightDocs) state.inFlightDocs = new Map();
+  if (!state.inFlightTrees) state.inFlightTrees = new Map();
+
   function invalidateDocCache(path) {
     if (state.docCache) state.docCache.delete(path);
+    if (state.inFlightDocs) state.inFlightDocs.delete(path);
     try {
       sessionStorage.removeItem(DOC_STORAGE_PREFIX + path);
     } catch (e) {}
+  }
+
+  function fetchDocument(fullRoute) {
+    if (!state.inFlightDocs) state.inFlightDocs = new Map();
+    if (state.inFlightDocs.has(fullRoute)) {
+      return state.inFlightDocs.get(fullRoute);
+    }
+    const p = fetch(`/api/content?path=${encodeURIComponent(fullRoute)}`)
+      .then(async res => {
+        if (res.status === 304) {
+          return null;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || '文件不存在或读取失败');
+        }
+        return res.json();
+      })
+      .finally(() => {
+        state.inFlightDocs.delete(fullRoute);
+      });
+    state.inFlightDocs.set(fullRoute, p);
+    return p;
   }
 
   function prefetchDocument(fullRoute) {
@@ -1830,8 +1875,9 @@
     if (state.docCache && state.docCache.has(fullRoute)) return;
     const stored = getStoredDoc(fullRoute);
     if (stored) return;
-    fetch(`/api/content?path=${encodeURIComponent(fullRoute)}`, { priority: 'low' })
-      .then(r => r.ok ? r.json() : null)
+    if (state.inFlightDocs && state.inFlightDocs.has(fullRoute)) return;
+
+    fetchDocument(fullRoute)
       .then(doc => {
         if (doc) {
           if (!state.docCache) state.docCache = new Map();
@@ -1952,20 +1998,15 @@
       renderDocumentSkeleton(decodedPath, targetRepo);
     }
 
-    // 4. 网络拉取（若已有本地渲染，则为后台静默 stale-while-revalidate）
+    // 4. 网络拉取（若已有本地渲染，则为后台静默 stale-while-revalidate，复用正在进行的 in-flight Promise）
     try {
-      const res = await fetch(`/api/content?path=${encodeURIComponent(decodedPath)}`);
-      if (res.status === 304 && hasLocalDoc) {
+      const doc = await fetchDocument(decodedPath);
+      if (doc) {
+        saveStoredDoc(decodedPath, doc);
+        applyDocData(doc);
+      } else if (hasLocalDoc) {
         saveStoredDoc(decodedPath, state.currentDoc);
-        return;
       }
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '文件不存在或读取失败');
-      }
-      const doc = await res.json();
-      saveStoredDoc(decodedPath, doc);
-      applyDocData(doc);
     } catch (err) {
       if (!hasLocalDoc) {
         if (targetRepo) {
