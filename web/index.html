@@ -423,23 +423,16 @@
           </div>
 
           <!-- 第五步：具体要求与补充说明 -->
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom:14px;">
             <label class="form-label" id="draftPromptLabel">需求与具体要求</label>
-            <textarea class="text-input textarea-input" id="draftPrompt" rows="5" placeholder="请输入具体要求或问题（例如：结合朝韩历史与粮食账本，深入剖析平壤政权韧性的核心支柱与生存实相...）" required></textarea>
+            <textarea class="text-input textarea-input" id="draftPrompt" rows="4" placeholder="请输入具体要求或问题（例如：结合朝韩历史与粮食账本，深入剖析平壤政权韧性的核心支柱与生存实相...）" required></textarea>
           </div>
 
-          <div class="callout-tip">
-            <div class="callout-icon">💡</div>
-            <div class="callout-text">
-              自动在所选领域根目录下执行，并严格遵循本仓库 <code>AGENTS.md</code> 规范。任务完成后可直接点击跳转阅读。
-            </div>
+          <!-- 紧随输入框的确定与取消操作 -->
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;padding-top:4px;">
+            <button type="button" class="btn close-modal-btn" style="padding:7px 18px;">取消</button>
+            <button type="submit" class="btn btn-primary" id="submitDraftBtn" style="font-weight:600;padding:7px 24px;font-size:13.5px;">确定</button>
           </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn close-modal-btn">取消</button>
-          <button type="submit" class="btn btn-primary" id="submitDraftBtn" style="font-weight:600;padding:7px 20px;">
-            ✓ 确定发起任务
-          </button>
         </div>
       </form>
     </div>
