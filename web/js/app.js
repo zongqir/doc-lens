@@ -18,7 +18,9 @@
     link: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>',
     star: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
     starFilled: '<svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
-    chevronRight: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>'
+    chevronRight: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+    chevronDown: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>',
+    properties: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>'
   };
 
   const ALERT_ICONS = {
@@ -213,6 +215,19 @@
         el.searchInput.select();
       });
     }
+
+    const mindmapFitBtn = document.getElementById('mindmapFitBtn');
+    if (mindmapFitBtn) {
+      mindmapFitBtn.addEventListener('click', () => {
+        if (currentMarkmapInstance) currentMarkmapInstance.fit();
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      if (currentMarkmapInstance && document.getElementById('mindmapModal')?.classList.contains('open')) {
+        currentMarkmapInstance.fit();
+      }
+    });
 
     const brandTitle = document.querySelector('.brand-title');
     if (brandTitle) {
@@ -420,11 +435,6 @@
     document.querySelectorAll('.theme-opt-btn').forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-theme') === theme);
     });
-  }
-
-  function toggleTheme() {
-    const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
-    applyTheme(nextTheme);
 
     if (window.mermaid) {
       initMermaid();
@@ -433,6 +443,13 @@
         renderSingleMermaidChart(wrapper);
       });
     }
+
+    updateMindmapTheme();
+  }
+
+  function toggleTheme() {
+    const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
   }
 
   // 字体与排版喜好管理
@@ -484,13 +501,6 @@
         const targetTheme = btn.getAttribute('data-theme');
         if (targetTheme && targetTheme !== state.theme) {
           applyTheme(targetTheme);
-          if (window.mermaid) {
-            initMermaid();
-            document.querySelectorAll('.mermaid-wrapper').forEach(wrapper => {
-              wrapper.removeAttribute('data-rendered');
-              renderSingleMermaidChart(wrapper);
-            });
-          }
         }
       });
     });
@@ -2814,8 +2824,11 @@
   function renderMarkdownDoc(rawMarkdown) {
     mermaidStore.clear();
 
-    const preprocessed = preprocessGithubAlertsFast(rawMarkdown);
-    let html = mdParser ? mdParser.render(preprocessed) : '<pre>' + escapeHtml(rawMarkdown) + '</pre>';
+    const { frontmatter, rawYaml, body } = parseYamlFrontmatter(rawMarkdown);
+    const propertiesHtml = buildPropertiesCardHtml(frontmatter, rawYaml);
+
+    const preprocessed = preprocessGithubAlertsFast(body);
+    let html = mdParser ? mdParser.render(preprocessed) : '<pre>' + escapeHtml(body) + '</pre>';
 
     let mermaidCounter = 0;
     html = html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi, (match, code) => {
@@ -2834,8 +2847,9 @@
       `;
     });
 
-    el.articleBody.innerHTML = `<div class="markdown-body">${html}</div>`;
+    el.articleBody.innerHTML = `<div class="markdown-body">${propertiesHtml}${html}</div>`;
 
+    bindPropertiesCardEvents();
     resolveMarkdownImages();
     interceptMarkdownLinks();
     enhanceCodeBlocksAsync();
@@ -3162,6 +3176,172 @@
         }
       });
     });
+  // 1. 轻量解析 Markdown 顶部的 YAML Frontmatter（纯原生，零外部依赖，毫秒级解析）
+  function parseYamlFrontmatter(markdown) {
+    if (!markdown || typeof markdown !== 'string' || !markdown.startsWith('---')) {
+      return { frontmatter: null, rawYaml: '', body: markdown || '' };
+    }
+
+    const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+    if (!match) {
+      return { frontmatter: null, rawYaml: '', body: markdown };
+    }
+
+    const rawYaml = match[1];
+    const body = markdown.slice(match[0].length);
+    const data = {};
+    const lines = rawYaml.split(/\r?\n/);
+    let currentKey = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+
+      // 多行列表项匹配: "  - item" 或 "- item"
+      const listMatch = line.match(/^\s*-\s+(.*)$/);
+      if (listMatch && currentKey && Array.isArray(data[currentKey])) {
+        let val = listMatch[1].trim().replace(/^['"](.*)['"]$/, '$1');
+        data[currentKey].push(val);
+        continue;
+      }
+
+      // 键值对匹配: "key: value" 或 "key:"
+      const kvMatch = line.match(/^([a-zA-Z0-9_\u4e00-\u9fa5-]+)\s*:\s*(.*)$/);
+      if (kvMatch) {
+        const key = kvMatch[1].trim();
+        let rawVal = kvMatch[2].trim();
+        currentKey = key;
+
+        if (!rawVal) {
+          data[key] = [];
+        } else if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+          const inner = rawVal.slice(1, -1);
+          const items = inner.split(',').map(s => s.trim().replace(/^['"](.*)['"]$/, '$1')).filter(Boolean);
+          data[key] = items;
+        } else {
+          let val = rawVal.replace(/^['"](.*)['"]$/, '$1');
+          data[key] = val;
+        }
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return { frontmatter: null, rawYaml, body };
+    }
+
+    return { frontmatter: data, rawYaml, body };
+  }
+
+  // 2. 构建属性折叠卡片 HTML（遵循 Notion/Obsidian 极简低对比风格，默认轻量折叠）
+  function buildPropertiesCardHtml(fm, rawYaml) {
+    if (!fm) return '';
+    const keys = Object.keys(fm);
+    if (keys.length === 0) return '';
+
+    // 生成折叠状态下的一行预览信息（提取 tags、date 或 author）
+    const previewItems = [];
+    if (fm.tags && Array.isArray(fm.tags) && fm.tags.length > 0) {
+      const previewTags = fm.tags.slice(0, 3).map(t => `<span class="prop-preview-tag">${escapeHtml(String(t))}</span>`).join('');
+      previewItems.push(`<span class="prop-preview-tags">${previewTags}${fm.tags.length > 3 ? '<span class="prop-preview-more">...</span>' : ''}</span>`);
+    } else if (fm.tag) {
+      previewItems.push(`<span class="prop-preview-tag">${escapeHtml(String(fm.tag))}</span>`);
+    }
+
+    if (fm.author) {
+      previewItems.push(`<span class="prop-preview-meta">👤 ${escapeHtml(String(fm.author))}</span>`);
+    }
+    if (fm.date) {
+      previewItems.push(`<span class="prop-preview-meta">📅 ${escapeHtml(String(fm.date))}</span>`);
+    }
+
+    // 生成展开后的属性行
+    let rowsHtml = '';
+    for (const key of keys) {
+      const val = fm[key];
+      let valHtml = '';
+
+      if (Array.isArray(val)) {
+        if (val.length === 0) {
+          valHtml = '<span class="prop-empty">-</span>';
+        } else {
+          valHtml = '<div class="prop-tags-list">' + val.map(item => {
+            return `<span class="prop-pill-tag">${escapeHtml(String(item))}</span>`;
+          }).join('') + '</div>';
+        }
+      } else if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
+        valHtml = `<a href="${escapeHtml(val)}" target="_blank" rel="noopener noreferrer" class="prop-link">${escapeHtml(val)}</a>`;
+      } else {
+        valHtml = `<span class="prop-value-text">${escapeHtml(String(val))}</span>`;
+      }
+
+      rowsHtml += `
+        <tr class="prop-row">
+          <td class="prop-key">${escapeHtml(key)}</td>
+          <td class="prop-value">${valHtml}</td>
+        </tr>
+      `;
+    }
+
+    const previewHtml = previewItems.length > 0
+      ? `<div class="doc-properties-preview">${previewItems.join('')}</div>`
+      : '';
+
+    return `
+      <div class="doc-properties-card is-collapsed" id="docPropertiesCard">
+        <div class="doc-properties-header" id="docPropertiesHeader" title="点击展开或折叠文档元数据">
+          <div class="doc-properties-title">
+            <span class="doc-properties-icon">${SVG_ICONS.properties}</span>
+            <span>文档属性</span>
+            <span class="doc-properties-count">${keys.length}</span>
+          </div>
+          ${previewHtml}
+          <div class="doc-properties-toggle-btn">
+            <span class="toggle-text">展开</span>
+            <span class="toggle-chevron">${SVG_ICONS.chevronDown}</span>
+          </div>
+        </div>
+        <div class="doc-properties-body" id="docPropertiesBody">
+          <table class="doc-properties-table">
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <div class="doc-properties-footer">
+            <button type="button" class="prop-raw-toggle-btn" id="propRawToggleBtn">查看原始 YAML</button>
+            <div class="prop-raw-yaml-wrapper" id="propRawYamlWrapper" style="display:none;">
+              <pre class="prop-raw-yaml-code"><code>${escapeHtml(rawYaml)}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 3. 绑定属性折叠卡片交互
+  function bindPropertiesCardEvents() {
+    const card = document.getElementById('docPropertiesCard');
+    const header = document.getElementById('docPropertiesHeader');
+    if (!card || !header) return;
+
+    header.addEventListener('click', () => {
+      const isCollapsed = card.classList.toggle('is-collapsed');
+      const toggleText = card.querySelector('.toggle-text');
+      if (toggleText) {
+        toggleText.textContent = isCollapsed ? '展开' : '收起';
+      }
+    });
+
+    const rawBtn = document.getElementById('propRawToggleBtn');
+    const rawWrapper = document.getElementById('propRawYamlWrapper');
+    if (rawBtn && rawWrapper) {
+      rawBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = rawWrapper.style.display === 'none';
+        rawWrapper.style.display = isHidden ? 'block' : 'none';
+        rawBtn.textContent = isHidden ? '隐藏原始 YAML' : '查看原始 YAML';
+      });
+    }
   }
 
   function preprocessGithubAlertsFast(text) {

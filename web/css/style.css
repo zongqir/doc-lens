@@ -2173,6 +2173,283 @@ body.modal-open {
   background-color: rgba(248, 113, 113, 0.1);
 }
 
+/* ==========================================================================
+   文档元数据属性卡片 (YAML Frontmatter Properties)
+   Notion / Obsidian 现代风格：默认轻量折叠、无边框圆角、淡雅低对比
+   ========================================================================== */
+.doc-properties-card {
+  margin: 12px 0 20px 0;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.025);
+  border: none !important;
+  font-size: 13px;
+  overflow: hidden;
+  transition: background-color 0.15s ease;
+}
+
+[data-theme="dark"] .doc-properties-card {
+  background-color: rgba(255, 255, 255, 0.035);
+}
+
+.doc-properties-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.doc-properties-header:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .doc-properties-header:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.doc-properties-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .doc-properties-title {
+  color: #94a3b8;
+}
+
+.doc-properties-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #64748b;
+}
+
+[data-theme="dark"] .doc-properties-icon {
+  color: #94a3b8;
+}
+
+.doc-properties-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #64748b;
+}
+
+[data-theme="dark"] .doc-properties-count {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
+.doc-properties-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.doc-properties-card:not(.is-collapsed) .doc-properties-preview {
+  opacity: 0.5;
+}
+
+.prop-preview-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #475569;
+  font-size: 11px;
+}
+
+[data-theme="dark"] .prop-preview-tag {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+
+.prop-preview-more {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-left: -4px;
+}
+
+.prop-preview-meta {
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+[data-theme="dark"] .prop-preview-meta {
+  color: #94a3b8;
+}
+
+.doc-properties-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .doc-properties-toggle-btn {
+  color: #94a3b8;
+}
+
+.toggle-chevron {
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.doc-properties-card:not(.is-collapsed) .toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.doc-properties-body {
+  padding: 4px 14px 12px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .doc-properties-body {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.doc-properties-card.is-collapsed .doc-properties-body {
+  display: none;
+}
+
+.doc-properties-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+
+.doc-properties-table tr {
+  border: none !important;
+  background: transparent !important;
+}
+
+.doc-properties-table td {
+  padding: 5px 0;
+  border: none !important;
+  vertical-align: top;
+}
+
+.prop-key {
+  width: 100px;
+  color: #64748b;
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+[data-theme="dark"] .prop-key {
+  color: #94a3b8;
+}
+
+.prop-value {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+[data-theme="dark"] .prop-value {
+  color: #cbd5e1;
+}
+
+.prop-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prop-pill-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #475569;
+  font-size: 11.5px;
+  border: none;
+}
+
+[data-theme="dark"] .prop-pill-tag {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+.prop-link {
+  color: var(--accent-primary, #0284c7);
+  text-decoration: none;
+}
+
+.prop-link:hover {
+  text-decoration: underline;
+}
+
+.doc-properties-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .doc-properties-footer {
+  border-top: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.prop-raw-toggle-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 0;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.prop-raw-toggle-btn:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .prop-raw-toggle-btn {
+  color: #94a3b8;
+}
+
+.prop-raw-yaml-wrapper {
+  margin-top: 8px;
+}
+
+.prop-raw-yaml-code {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.03);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+  overflow-x: auto;
+  border: none !important;
+}
+
+[data-theme="dark"] .prop-raw-yaml-code {
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+}
+
 /* Markdown 嵌入图片高质感渲染与点击查看 */
 .markdown-body img {
   max-width: 100%;
@@ -2547,10 +2824,10 @@ body.modal-open {
   background-color: var(--bg-surface-hover);
 }
 
-/* Mermaid 容器与微工具条 */
+/* Mermaid 容器与微工具条 (极简现代高质感) */
 .mermaid-wrapper {
-  margin: 24px 0;
-  padding: 24px;
+  margin: 28px 0;
+  padding: 28px 24px 20px 24px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -2561,11 +2838,47 @@ body.modal-open {
   box-shadow: var(--shadow-xs);
   position: relative;
   -webkit-overflow-scrolling: touch;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.mermaid-wrapper:hover {
+  border-color: var(--border-focus, #3b82f6);
+  box-shadow: var(--shadow-sm);
 }
 
 .mermaid-wrapper svg {
   max-width: 100%;
   height: auto;
+  font-family: var(--font-sans) !important;
+}
+
+/* 现代圆角节点与高质感连线 */
+.mermaid-wrapper svg .node rect,
+.mermaid-wrapper svg .node polygon,
+.mermaid-wrapper svg .node circle,
+.mermaid-wrapper svg .node path {
+  rx: 8px !important;
+  ry: 8px !important;
+  stroke-width: 1.5px !important;
+  transition: all 0.2s ease;
+}
+
+.mermaid-wrapper svg .edgePath path.path {
+  stroke-width: 1.75px !important;
+}
+
+.mermaid-wrapper svg .edgeLabel {
+  background-color: var(--bg-surface) !important;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11.5px !important;
+}
+
+.mermaid-wrapper svg .cluster rect {
+  rx: 12px !important;
+  ry: 12px !important;
+  stroke-width: 1.25px !important;
+  stroke-dasharray: 4 4;
 }
 
 .mermaid-toolbar {
@@ -2581,16 +2894,19 @@ body.modal-open {
   border: 1px solid var(--border-default);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 3px 6px;
+  padding: 4px 8px;
   border-radius: var(--radius-xs);
-  font-size: 11px;
+  font-size: 11.5px;
   display: flex;
   align-items: center;
   gap: 4px;
+  transition: all var(--transition-fast);
 }
 
 .mermaid-tool-btn:hover {
+  background: var(--bg-surface-active);
   color: var(--text-primary);
+  border-color: var(--border-focus, #3b82f6);
 }
 
 /* ==========================================================================
@@ -3143,6 +3459,163 @@ body.modal-open {
   max-height: 100%;
 }
 
+/* 全屏思维导图弹窗 (Mindmap Lightbox) */
+.modal-mindmap-card {
+  max-width: 96vw;
+  width: 96vw;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-mindmap-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+  background-color: var(--bg-surface);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  display: flex;
+}
+
+#mindmapSvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+  background-color: transparent;
+  transition: opacity 0.2s ease;
+}
+
+.mindmap-toolbar-mount {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 20;
+}
+
+.mindmap-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mindmap-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  z-index: 10;
+}
+
+.mindmap-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--accent-primary, #3b82f6);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Markmap 文本与节点深度定制 */
+.markmap {
+  --markmap-font: 450 14px/1.5 var(--font-sans, -apple-system, sans-serif);
+  --markmap-text-color: var(--text-primary);
+  --markmap-circle-open-bg: var(--bg-surface);
+  --markmap-code-bg: var(--bg-surface-hover);
+  --markmap-code-color: var(--text-primary);
+}
+
+[data-theme="dark"] .markmap,
+.markmap-dark .markmap {
+  --markmap-text-color: #f1f5f9;
+  --markmap-code-bg: #1e293b;
+  --markmap-code-color: #e2e8f0;
+  --markmap-circle-open-bg: #0f172a;
+}
+
+/* Markmap 内置 Toolbar 样式 */
+.mm-toolbar {
+  display: flex;
+  user-select: none;
+  align-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm, 6px);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  gap: 2px;
+  backdrop-filter: blur(8px);
+}
+
+.mm-toolbar:hover {
+  border-color: var(--border-focus, #3b82f6);
+}
+
+.mm-toolbar-item {
+  min-width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs, 4px);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.mm-toolbar-item:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.mm-toolbar-item.active {
+  background-color: var(--bg-surface-active);
+  color: var(--accent-primary, #3b82f6);
+}
+
+.mm-toolbar-item svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+}
+
+.markmap-dark .mm-toolbar {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+.markmap-dark .mm-toolbar-item:hover {
+  background-color: #334155;
+  color: #f8fafc;
+}
+
+/* 按钮微调与手机端自适应 */
+.btn-mindmap {
+  color: var(--text-primary);
+}
+
+.btn-mindmap:hover {
+  border-color: var(--accent-primary, #3b82f6);
+  color: var(--accent-primary, #3b82f6);
+}
+
+.btn-text-short {
+  display: none;
+}
+
 /* 登录门禁卡片 */
 .modal-login-card {
   max-width: 380px;
@@ -3691,6 +4164,22 @@ body.modal-open {
     flex-shrink: 0 !important;
     width: 14px !important;
     height: 14px !important;
+  }
+
+  .article-actions .btn .btn-text-full {
+    display: none !important;
+  }
+
+  .article-actions .btn .btn-text-short {
+    display: inline !important;
+  }
+
+  .modal-mindmap-card {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
   }
 
   /* 手机端新主页适配 */
