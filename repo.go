@@ -117,9 +117,18 @@ type CachedTree struct {
 	ModTime   time.Time
 }
 
+type CachedDoc struct {
+	Resp      *FileContentResponse
+	JSONBytes []byte
+	ModTime   int64
+	Size      int64
+	ETag      string
+}
+
 type RepoManager struct {
 	repos     []RepoConfig
 	treeCache map[string]*CachedTree
+	docCache  map[string]*CachedDoc
 	cacheMu   sync.RWMutex
 }
 
@@ -127,6 +136,7 @@ func NewRepoManager(repos []RepoConfig) *RepoManager {
 	rm := &RepoManager{
 		repos:     repos,
 		treeCache: make(map[string]*CachedTree),
+		docCache:  make(map[string]*CachedDoc),
 	}
 
 	// 启动后台静默异步预热所有仓库树，确保用户访问时永远 0ms 命中
@@ -248,6 +258,12 @@ func (rm *RepoManager) SafeResolve(repo *RepoConfig, relPath string) (string, er
 func (rm *RepoManager) InvalidateCache(repoID string) {
 	rm.cacheMu.Lock()
 	delete(rm.treeCache, repoID)
+	prefix := repoID + ":"
+	for k := range rm.docCache {
+		if strings.HasPrefix(k, prefix) {
+			delete(rm.docCache, k)
+		}
+	}
 	rm.cacheMu.Unlock()
 }
 
@@ -483,7 +499,7 @@ func (rm *RepoManager) GetRecentFiles(repoID string, limit int) ([]RecentFileInf
 	return results, nil
 }
 
-func (rm *RepoManager) ReadFile(repo *RepoConfig, relPath string) (*FileContentResponse, error) {
+func (rm *RepoManager) GetCachedFile(repo *RepoConfig, relPath string) (*CachedDoc, error) {
 	absPath, err := rm.SafeResolve(repo, relPath)
 	if err != nil {
 		return nil, err
@@ -501,6 +517,18 @@ func (rm *RepoManager) ReadFile(repo *RepoConfig, relPath string) (*FileContentR
 		return nil, errors.New("file is too large to preview (>10MB)")
 	}
 
+	cacheKey := repo.ID + ":" + filepath.ToSlash(relPath)
+	modTime := info.ModTime().Unix()
+	size := info.Size()
+
+	rm.cacheMu.RLock()
+	cached, ok := rm.docCache[cacheKey]
+	rm.cacheMu.RUnlock()
+
+	if ok && cached.ModTime == modTime && cached.Size == size {
+		return cached, nil
+	}
+
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -514,19 +542,55 @@ func (rm *RepoManager) ReadFile(repo *RepoConfig, relPath string) (*FileContentR
 
 	lines := strings.Count(string(data), "\n") + 1
 
-	return &FileContentResponse{
+	resp := &FileContentResponse{
 		Path:        filepath.ToSlash(filepath.Join(repo.RoutePrefix, relPath)),
 		RelPath:     filepath.ToSlash(relPath),
 		RepoID:      repo.ID,
 		RepoName:    repo.Name,
 		Type:        fileType,
 		Content:     string(data),
-		Size:        info.Size(),
+		Size:        size,
 		Lines:       lines,
-		ModTime:     info.ModTime().Unix(),
+		ModTime:     modTime,
 		RoutePrefix: repo.RoutePrefix,
 		Writable:    repo.Writable,
-	}, nil
+	}
+
+	jsonBytes, err := json.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	etag := fmt.Sprintf(`"doc_%x_%x"`, modTime, size)
+	newCached := &CachedDoc{
+		Resp:      resp,
+		JSONBytes: jsonBytes,
+		ModTime:   modTime,
+		Size:      size,
+		ETag:      etag,
+	}
+
+	rm.cacheMu.Lock()
+	if len(rm.docCache) > 500 {
+		for k := range rm.docCache {
+			delete(rm.docCache, k)
+			if len(rm.docCache) <= 300 {
+				break
+			}
+		}
+	}
+	rm.docCache[cacheKey] = newCached
+	rm.cacheMu.Unlock()
+
+	return newCached, nil
+}
+
+func (rm *RepoManager) ReadFile(repo *RepoConfig, relPath string) (*FileContentResponse, error) {
+	cached, err := rm.GetCachedFile(repo, relPath)
+	if err != nil {
+		return nil, err
+	}
+	return cached.Resp, nil
 }
 
 func detectFileType(ext string) string {

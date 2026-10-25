@@ -1158,6 +1158,10 @@
 
       wrapper.appendChild(item);
 
+      item.addEventListener('pointerenter', () => {
+        prefetchDocument(fullRoute);
+      }, { once: true });
+
       item.addEventListener('click', (e) => {
         e.preventDefault();
         routeTo(fullRoute, true);
@@ -1777,6 +1781,98 @@
     return new Date(ms).toLocaleDateString([], { month: 'numeric', day: 'numeric' });
   }
 
+  const DOC_STORAGE_PREFIX = 'doc_lens_doc_v2_';
+
+  function getStoredDoc(path) {
+    try {
+      const raw = sessionStorage.getItem(DOC_STORAGE_PREFIX + path);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.data && parsed.ts) {
+        return parsed;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function saveStoredDoc(path, doc) {
+    try {
+      sessionStorage.setItem(DOC_STORAGE_PREFIX + path, JSON.stringify({
+        ts: Date.now(),
+        data: doc
+      }));
+    } catch (e) {
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(DOC_STORAGE_PREFIX) && k !== (DOC_STORAGE_PREFIX + path)) {
+            sessionStorage.removeItem(k);
+            break;
+          }
+        }
+        sessionStorage.setItem(DOC_STORAGE_PREFIX + path, JSON.stringify({
+          ts: Date.now(),
+          data: doc
+        }));
+      } catch (err) {}
+    }
+  }
+
+  function invalidateDocCache(path) {
+    if (state.docCache) state.docCache.delete(path);
+    try {
+      sessionStorage.removeItem(DOC_STORAGE_PREFIX + path);
+    } catch (e) {}
+  }
+
+  function prefetchDocument(fullRoute) {
+    if (!fullRoute) return;
+    if (state.docCache && state.docCache.has(fullRoute)) return;
+    const stored = getStoredDoc(fullRoute);
+    if (stored) return;
+    fetch(`/api/content?path=${encodeURIComponent(fullRoute)}`, { priority: 'low' })
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => {
+        if (doc) {
+          if (!state.docCache) state.docCache = new Map();
+          state.docCache.set(fullRoute, doc);
+          saveStoredDoc(fullRoute, doc);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function renderDocumentSkeleton(path, targetRepo) {
+    if (el.articleHeader) el.articleHeader.style.display = 'block';
+    if (el.articlePath) el.articlePath.textContent = path;
+    if (el.articleTypePill) el.articleTypePill.style.display = 'none';
+    if (el.articleMeta) {
+      el.articleMeta.innerHTML = `<span class="article-meta-item">⏳ 读取中...</span>`;
+    }
+    if (el.articleActions) el.articleActions.innerHTML = '';
+    if (el.tocList) el.tocList.innerHTML = '<div class="section-empty-hint">目录解析中...</div>';
+    if (el.mobileTocList) el.mobileTocList.innerHTML = '<div class="section-empty-hint">目录解析中...</div>';
+
+    updateBreadcrumbs({
+      rel_path: path.replace(targetRepo?.RoutePrefix || '', '').replace(/^\/+/, ''),
+      repo_name: targetRepo?.Name || '知识库',
+      repo_prefix: targetRepo?.RoutePrefix || ''
+    });
+
+    if (el.articleBody) {
+      el.articleBody.innerHTML = `
+        <div class="article-skeleton">
+          <div class="article-skeleton-title"></div>
+          <div class="article-skeleton-line short"></div>
+          <div class="article-skeleton-line"></div>
+          <div class="article-skeleton-line medium"></div>
+          <div class="article-skeleton-line"></div>
+          <div class="article-skeleton-card"></div>
+        </div>
+      `;
+    }
+  }
+
   async function routeTo(urlPath, pushState = true) {
     const decodedPath = decodeURIComponent(urlPath).replace(/\/+$/, '') || '/';
     if (pushState) {
@@ -1819,34 +1915,64 @@
     restoreSidebarScroll(targetRepo?.ID);
 
     if (!state.docCache) state.docCache = new Map();
-    if (state.docCache.has(decodedPath)) {
-      const doc = state.docCache.get(decodedPath);
-      state.currentDoc = doc;
-      renderDocument(doc);
-      recordRecentRead(doc);
-      return;
-    }
 
-    try {
-      const res = await fetch(`/api/content?path=${encodeURIComponent(decodedPath)}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '文件不存在或读取失败');
-      }
-      const doc = await res.json();
+    const applyDocData = (doc) => {
+      state.currentDoc = doc;
       state.docCache.set(decodedPath, doc);
       if (state.docCache.size > 50) {
         const firstKey = state.docCache.keys().next().value;
         state.docCache.delete(firstKey);
       }
-      state.currentDoc = doc;
       renderDocument(doc);
       recordRecentRead(doc);
-    } catch (err) {
-      if (targetRepo) {
-        try { localStorage.removeItem('doc_lens_last_active_' + targetRepo.ID); } catch (e) {}
+    };
+
+    // 1. 内存层命中：0ms 秒开
+    if (state.docCache.has(decodedPath)) {
+      applyDocData(state.docCache.get(decodedPath));
+      return;
+    }
+
+    // 2. 本地 SessionStorage 命中：0ms 瞬间秒出
+    let hasLocalDoc = false;
+    let localDocTs = 0;
+    const local = getStoredDoc(decodedPath);
+    if (local && local.data) {
+      applyDocData(local.data);
+      hasLocalDoc = true;
+      localDocTs = local.ts;
+      // 5 分钟内读过的文章，无需重复发起网络请求
+      if (Date.now() - localDocTs < 5 * 60 * 1000) {
+        return;
       }
-      renderErrorDocument(decodedPath, err.message);
+    }
+
+    // 3. 若无本地缓存，立刻渲染轻量骨架屏，杜绝界面冻结停滞卡顿感
+    if (!hasLocalDoc) {
+      renderDocumentSkeleton(decodedPath, targetRepo);
+    }
+
+    // 4. 网络拉取（若已有本地渲染，则为后台静默 stale-while-revalidate）
+    try {
+      const res = await fetch(`/api/content?path=${encodeURIComponent(decodedPath)}`);
+      if (res.status === 304 && hasLocalDoc) {
+        saveStoredDoc(decodedPath, state.currentDoc);
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '文件不存在或读取失败');
+      }
+      const doc = await res.json();
+      saveStoredDoc(decodedPath, doc);
+      applyDocData(doc);
+    } catch (err) {
+      if (!hasLocalDoc) {
+        if (targetRepo) {
+          try { localStorage.removeItem('doc_lens_last_active_' + targetRepo.ID); } catch (e) {}
+        }
+        renderErrorDocument(decodedPath, err.message);
+      }
     }
   }
 
@@ -2556,6 +2682,7 @@
     const uniqueSvgId = `svg-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     try {
       await ensureMermaidLoaded();
+      await new Promise(r => setTimeout(r, 16));
       const { svg } = await window.mermaid.render(uniqueSvgId, rawCode);
       wrapper.innerHTML = `
         <div class="mermaid-toolbar">
@@ -2895,7 +3022,7 @@
           const targetUrl = jumpBtn.getAttribute('data-jump-file');
           if (targetUrl) {
             closeAllModals();
-            if (state.docCache) state.docCache.delete(targetUrl);
+            invalidateDocCache(targetUrl);
             routeTo(targetUrl, true);
           }
         });
@@ -2938,7 +3065,7 @@
         `;
         document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
           closeAllModals();
-          if (state.docCache) state.docCache.delete(task.output_file);
+          invalidateDocCache(task.output_file);
           routeTo(task.output_file, true);
         });
       } else {
@@ -2978,7 +3105,7 @@
             `;
             document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
               closeAllModals();
-              if (state.docCache) state.docCache.delete(task.output_file);
+              invalidateDocCache(task.output_file);
               routeTo(task.output_file, true);
             });
           }

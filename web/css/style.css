@@ -3440,3 +3440,49 @@ body.modal-open {
     width: 275px;
   }
 }
+
+/* ==========================================================================
+   文章加载骨架屏 (Skeleton Loading Pulse)
+   ========================================================================== */
+.article-skeleton {
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+.article-skeleton-title {
+  height: 32px;
+  width: 60%;
+  background-color: var(--bg-surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+.article-skeleton-line {
+  height: 16px;
+  background-color: var(--bg-surface-hover);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+
+.article-skeleton-line.short {
+  width: 40%;
+}
+
+.article-skeleton-line.medium {
+  width: 75%;
+}
+
+.article-skeleton-card {
+  height: 140px;
+  background-color: var(--bg-surface-hover);
+  border-radius: var(--radius-md);
+  margin-top: 12px;
+}
+
+@keyframes skeletonPulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}

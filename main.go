@@ -398,14 +398,23 @@ func (a *App) handleContent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	contentResp, err := a.rm.ReadFile(repo, relPath)
+	cachedDoc, err := a.rm.GetCachedFile(repo, relPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusNotFound)
 		return
 	}
 
+	w.Header().Set("ETag", cachedDoc.ETag)
+	w.Header().Set("Cache-Control", "private, max-age=180, stale-while-revalidate=1800")
+
+	// 304 条件协商快速返回
+	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, cachedDoc.ETag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(contentResp)
+	_, _ = w.Write(cachedDoc.JSONBytes)
 }
 
 var allowedRawExtensions = map[string]bool{
