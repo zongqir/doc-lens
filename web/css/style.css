@@ -3631,6 +3631,168 @@ body.modal-open {
   box-shadow: var(--shadow-xs) !important;
 }
 
+/* 面包屑下钻聚焦导航栏 (类似幕布聚焦导航条) */
+.mindmap-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background-color: var(--bg-surface-hover);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 12.5px;
+  min-height: 38px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.mindmap-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  height: 26px !important;
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.mindmap-back-btn:hover {
+  background-color: var(--accent-subtle, rgba(59, 130, 246, 0.1)) !important;
+  border-color: var(--accent-primary, #3b82f6) !important;
+  color: var(--accent-primary, #3b82f6) !important;
+}
+
+.mindmap-breadcrumbs-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crumb-link {
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  color: var(--accent-primary, #3b82f6);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.crumb-link:hover {
+  background-color: var(--bg-surface);
+  text-decoration: underline;
+}
+
+.crumb-item.active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.crumb-separator {
+  color: var(--text-muted);
+  font-size: 11px;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.crumb-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: var(--accent-primary, #3b82f6);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  margin-left: 2px;
+  line-height: 1.3;
+}
+
+.mindmap-drill-tip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.mindmap-drill-tip svg {
+  color: var(--accent-primary, #3b82f6);
+  flex-shrink: 0;
+}
+
+/* 悬浮聚焦下钻气泡按钮 */
+.mindmap-focus-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  pointer-events: auto;
+  transition: opacity 0.15s ease;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.15));
+}
+
+.mindmap-pill-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff !important;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.mindmap-pill-action:hover {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.55);
+  transform: translateY(-1px) scale(1.03);
+}
+
+.mindmap-pill-action svg {
+  stroke-width: 2.5;
+}
+
+.markmap-dark .mindmap-pill-action {
+  background: linear-gradient(135deg, #1e40af, #3b82f6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .mindmap-loading {
   position: absolute;
   top: 50%;
@@ -4428,6 +4590,26 @@ body.modal-open {
     padding: 2px 5px !important;
     font-size: 10.5px !important;
     height: 24px !important;
+  }
+
+  .mindmap-drill-tip {
+    display: none !important;
+  }
+
+  .mindmap-nav-bar {
+    padding: 4px 10px !important;
+    min-height: 34px !important;
+    gap: 6px !important;
+  }
+
+  .crumb-item {
+    max-width: 130px !important;
+    font-size: 11px !important;
+  }
+
+  .crumb-link {
+    font-size: 11px !important;
+    padding: 1px 4px !important;
   }
 
   /* 手机端新主页适配 */

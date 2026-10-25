@@ -224,6 +224,33 @@
       });
     }
 
+    const mindmapBackBtn = document.getElementById('mindmapBackBtn');
+    if (mindmapBackBtn) {
+      mindmapBackBtn.addEventListener('click', () => {
+        if (mindmapDrillStack && mindmapDrillStack.length > 1) {
+          mindmapDrillStack.pop();
+          hideFocusPill();
+          renderCurrentMindmapView();
+        }
+      });
+    }
+
+    const mindmapPill = document.getElementById('mindmapFocusPill');
+    if (mindmapPill) {
+      mindmapPill.addEventListener('mouseenter', () => {
+        clearTimeout(pillHideTimeout);
+      });
+      mindmapPill.addEventListener('mouseleave', () => {
+        pillHideTimeout = setTimeout(hideFocusPill, 200);
+      });
+      mindmapPill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentHoveredNodeDatum) {
+          drillIntoNode(currentHoveredNodeDatum);
+        }
+      });
+    }
+
     document.querySelectorAll('.depth-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const d = parseInt(btn.getAttribute('data-depth'));
@@ -676,6 +703,9 @@
 
   function closeModal(modalEl) {
     modalEl.classList.remove('open');
+    if (typeof hideFocusPill === 'function') {
+      hideFocusPill();
+    }
     if (!document.querySelector('.modal-overlay.open')) {
       document.body.classList.remove('modal-open');
     }
@@ -2964,11 +2994,22 @@
 
   let currentMindmapRawTree = null;
   let currentMindmapExpandDepth = 2;
+  let mindmapDrillStack = [];
+  let currentHoveredNodeDatum = null;
+  let pillHideTimeout = null;
+
+  function extractNodeTitle(node) {
+    if (!node) return '分支';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = node.content || '';
+    const text = (tmp.textContent || tmp.innerText || '').trim();
+    return text || '分支节点';
+  }
 
   function cloneMindmapTree(n) {
     if (!n) return null;
     return {
-      ...n,
+      content: n.content,
       payload: { ...(n.payload || {}) },
       children: (n.children || []).map(cloneMindmapTree)
     };
@@ -2987,8 +3028,126 @@
     }
   }
 
+  function hideFocusPill() {
+    const pill = document.getElementById('mindmapFocusPill');
+    if (pill) pill.style.display = 'none';
+    currentHoveredNodeDatum = null;
+  }
+
+  function showFocusPillForNode(nodeGroup, datum) {
+    const pill = document.getElementById('mindmapFocusPill');
+    const body = document.getElementById('mindmapModalBody');
+    if (!pill || !body || !nodeGroup || !datum) return;
+    if (!datum.children || datum.children.length === 0) {
+      hideFocusPill();
+      return;
+    }
+
+    currentHoveredNodeDatum = datum;
+    clearTimeout(pillHideTimeout);
+
+    const rect = nodeGroup.getBoundingClientRect();
+    const bodyRect = body.getBoundingClientRect();
+
+    const x = rect.right - bodyRect.left + 8;
+    const y = rect.top - bodyRect.top + (rect.height / 2) - 13;
+
+    pill.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    pill.style.display = 'flex';
+  }
+
+  function updateMindmapBreadcrumbs() {
+    const track = document.getElementById('mindmapBreadcrumbsTrack');
+    const backBtn = document.getElementById('mindmapBackBtn');
+    const tipEl = document.getElementById('mindmapDrillTip');
+    if (!track) return;
+
+    if (backBtn) {
+      backBtn.style.display = mindmapDrillStack.length > 1 ? 'inline-flex' : 'none';
+    }
+
+    let html = '';
+    mindmapDrillStack.forEach((item, index) => {
+      const isLast = index === mindmapDrillStack.length - 1;
+      const isRoot = index === 0;
+      const label = isRoot ? '🏠 全文' : escapeHtml(item.title);
+
+      if (index > 0) {
+        html += `<span class="crumb-separator">/</span>`;
+      }
+
+      if (isLast) {
+        html += `<span class="crumb-item active" title="${isRoot ? '文档全文大纲' : '当前聚焦分支'}">${label}${index > 0 ? ' <span class="crumb-tag">聚焦中</span>' : ''}</span>`;
+      } else {
+        html += `<button type="button" class="crumb-item crumb-link" data-crumb-index="${index}" title="返回至【${label}】">${label}</button>`;
+      }
+    });
+
+    track.innerHTML = html;
+
+    if (tipEl) {
+      if (mindmapDrillStack.length > 1) {
+        const current = mindmapDrillStack[mindmapDrillStack.length - 1];
+        tipEl.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>已下钻分支聚焦 · 仅呈现<strong>「${escapeHtml(current.title)}」</strong>及其子项</span>
+        `;
+      } else {
+        tipEl.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>提示：双击分支或悬停点击“聚焦”可下钻深入单分支</span>
+        `;
+      }
+    }
+
+    track.querySelectorAll('.crumb-link').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const idx = parseInt(btn.getAttribute('data-crumb-index'));
+        if (!isNaN(idx) && idx >= 0 && idx < mindmapDrillStack.length - 1) {
+          mindmapDrillStack = mindmapDrillStack.slice(0, idx + 1);
+          renderCurrentMindmapView();
+        }
+      });
+    });
+  }
+
+  async function renderCurrentMindmapView() {
+    if (!currentMarkmapInstance || mindmapDrillStack.length === 0) return;
+    hideFocusPill();
+
+    const currentLevel = mindmapDrillStack[mindmapDrillStack.length - 1];
+    const treeToRender = cloneMindmapTree(currentLevel.rawNode);
+    if (treeToRender.payload) {
+      treeToRender.payload.fold = 0;
+    }
+    setTreeFoldDepth(treeToRender, 0, currentMindmapExpandDepth);
+
+    await currentMarkmapInstance.setData(treeToRender);
+    updateMindmapBreadcrumbs();
+
+    setTimeout(() => {
+      if (currentMarkmapInstance) {
+        currentMarkmapInstance.fit();
+      }
+    }, 80);
+  }
+
+  function drillIntoNode(nodeDatum) {
+    if (!nodeDatum || !nodeDatum.children || nodeDatum.children.length === 0) return;
+    const title = extractNodeTitle(nodeDatum);
+    const cleanTree = cloneMindmapTree(nodeDatum);
+
+    mindmapDrillStack.push({
+      title: title,
+      rawNode: cleanTree
+    });
+
+    renderCurrentMindmapView();
+  }
+
   async function applyMindmapDepth(depth) {
-    if (!currentMarkmapInstance || !currentMindmapRawTree) return;
+    if (!currentMarkmapInstance || mindmapDrillStack.length === 0) return;
     currentMindmapExpandDepth = depth;
 
     document.querySelectorAll('.depth-btn').forEach(btn => {
@@ -2996,12 +3155,7 @@
       btn.classList.toggle('active', bDepth === depth);
     });
 
-    const treeCopy = cloneMindmapTree(currentMindmapRawTree);
-    setTreeFoldDepth(treeCopy, 0, depth);
-    await currentMarkmapInstance.setData(treeCopy);
-    setTimeout(() => {
-      if (currentMarkmapInstance) currentMarkmapInstance.fit();
-    }, 80);
+    renderCurrentMindmapView();
   }
 
   function updateMindmapTheme() {
@@ -3064,9 +3218,15 @@
       const isDark = state.theme === 'dark';
       modal.classList.toggle('markmap-dark', isDark);
 
-      // 保存全局树数据，并默认聚焦到第 2 层（章节大纲，避免全展开导致文字缩成蚂蚁看不清）
+      // 初始化下钻导航栈（第 0 层为整篇文档全文）
+      const docHeadingTitle = doc.title || cleanDocTitle(doc.name) || '全文';
+      mindmapDrillStack = [{
+        title: docHeadingTitle,
+        rawNode: cloneMindmapTree(root)
+      }];
       currentMindmapRawTree = root;
-      currentMindmapExpandDepth = 2;
+      currentMindmapExpandDepth = 2; // 默认展开到第 2 层（核心章节），避免全部展开看不清
+
       document.querySelectorAll('.depth-btn').forEach(btn => {
         btn.classList.toggle('active', parseInt(btn.getAttribute('data-depth')) === 2);
       });
@@ -3087,21 +3247,62 @@
       }, initialTree);
 
       currentMarkmapInstance = mm;
+      updateMindmapBreadcrumbs();
 
-      // 支点聚焦交互：点击节点文字时，自动展开/收起该支点并平滑居中聚焦！
+      // 鼠标悬停在分支节点上时，弹出聚焦下钻气泡按钮
+      svgEl.onmouseover = (e) => {
+        const nodeGroup = e.target.closest('g.markmap-node');
+        if (nodeGroup && nodeGroup.__data__) {
+          const datum = nodeGroup.__data__;
+          if (datum && datum.children && datum.children.length > 0) {
+            showFocusPillForNode(nodeGroup, datum);
+          }
+        }
+      };
+
+      svgEl.onmouseout = (e) => {
+        const toElement = e.relatedTarget;
+        if (!toElement || (!toElement.closest('g.markmap-node') && !toElement.closest('#mindmapFocusPill'))) {
+          pillHideTimeout = setTimeout(hideFocusPill, 250);
+        }
+      };
+
+      // 单击：平滑居中聚焦节点并显示操作气泡（点击圆点则折叠/展开）
       svgEl.onclick = (e) => {
         const nodeGroup = e.target.closest('g.markmap-node');
-        if (!nodeGroup) return;
-        // 如果点击的是末端圆点，Markmap 自带折叠切换；
-        // 如果点击的是文字标签部分，自动折叠/展开并居中平移聚焦
+        if (!nodeGroup) {
+          hideFocusPill();
+          return;
+        }
+        const datum = nodeGroup.__data__;
+        if (!datum) return;
+
         if (!e.target.closest('circle')) {
-          const datum = nodeGroup.__data__;
-          if (datum) {
-            if (datum.children && datum.children.length > 0) {
-              mm.toggleNode(datum);
-            }
-            mm.centerNode(datum);
+          if (datum.children && datum.children.length > 0) {
+            showFocusPillForNode(nodeGroup, datum);
           }
+          mm.centerNode(datum);
+        }
+      };
+
+      // 双击：类似幕布下钻深入此分支聚焦，同时阻止 D3 默认双击放大
+      svgEl.ondblclick = (e) => {
+        const nodeGroup = e.target.closest('g.markmap-node');
+        if (nodeGroup && nodeGroup.__data__) {
+          e.preventDefault();
+          e.stopPropagation();
+          const datum = nodeGroup.__data__;
+          if (datum && datum.children && datum.children.length > 0) {
+            drillIntoNode(datum);
+          }
+        }
+      };
+
+      // 视口平移/缩放时隐藏气泡，防止浮动错位
+      svgEl.onwheel = () => hideFocusPill();
+      svgEl.onmousedown = (e) => {
+        if (!e.target.closest('#mindmapFocusPill')) {
+          hideFocusPill();
         }
       };
 

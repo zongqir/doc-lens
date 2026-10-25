@@ -509,18 +509,31 @@
         </span>
         <div class="mindmap-header-tools">
           <div class="mindmap-depth-controls">
-            <span class="depth-ctrl-label">聚焦展开:</span>
-            <button type="button" class="btn btn-sm depth-btn" data-depth="1" title="仅查看根节点与一级主干">主干 (1层)</button>
+            <span class="depth-ctrl-label">展开深度:</span>
             <button type="button" class="btn btn-sm depth-btn active" data-depth="2" title="展开至二级核心章节">章节 (2层)</button>
             <button type="button" class="btn btn-sm depth-btn" data-depth="3" title="展开至三级内容细节">细节 (3层)</button>
-            <button type="button" class="btn btn-sm depth-btn" data-depth="99" title="展开整篇文章的所有子分支">全展</button>
-            <button type="button" class="btn btn-sm depth-btn" data-depth="0" title="全部折叠只保留根节点">收拢</button>
+            <button type="button" class="btn btn-sm depth-btn" data-depth="99" title="展开当前视角下的所有子分支">全部展开</button>
+            <button type="button" class="btn btn-sm depth-btn" data-depth="0" title="全部折叠只保留当前根节点">收拢</button>
           </div>
           <button type="button" class="btn btn-sm" id="mindmapFitBtn" title="居中自适应视野">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
             <span>适配</span>
           </button>
           <button type="button" class="btn btn-icon-only close-modal-btn">✕</button>
+        </div>
+      </div>
+      <!-- 面包屑下钻聚焦导航栏 (类似幕布聚焦) -->
+      <div class="mindmap-nav-bar" id="mindmapNavBar">
+        <button type="button" class="mindmap-back-btn" id="mindmapBackBtn" style="display:none;" title="返回上一层级">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <span>返回上级</span>
+        </button>
+        <div class="mindmap-breadcrumbs-track" id="mindmapBreadcrumbsTrack">
+          <!-- 面包屑路径将动态注入 -->
+        </div>
+        <div class="mindmap-drill-tip" id="mindmapDrillTip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>提示：双击节点或悬停点击“聚焦”可下钻深入单分支</span>
         </div>
       </div>
       <div class="modal-body modal-mindmap-body" id="mindmapModalBody">
@@ -530,10 +543,17 @@
         </div>
         <svg id="mindmapSvg"></svg>
         <div id="mindmapToolbarMount" class="mindmap-toolbar-mount"></div>
+        <!-- 悬浮下钻聚焦气泡按钮 -->
+        <div id="mindmapFocusPill" class="mindmap-focus-pill" style="display:none;">
+          <button type="button" class="mindmap-pill-action" id="mindmapPillFocusBtn" title="聚焦下钻深入此分支（幕布模式）">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
+            <span>聚焦此分支</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="/js/app.js?v=20261025_1840"></script>
+  <script src="/js/app.js?v=20261025_1900"></script>
 </body>
 </html>
