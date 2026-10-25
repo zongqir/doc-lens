@@ -8,8 +8,9 @@
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans", "MiSans", "OPPO Sans", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* 浅色主题 (Light Mode) */
-  --bg-app: #f8fafc;
+  /* 浅色主题 (Light Mode - 纯净纸质阅读流与主次分明层级) */
+  --bg-app: #ffffff;
+  --bg-sidebar: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-elevated: #ffffff;
   --bg-surface-hover: #f1f5f9;
@@ -21,7 +22,7 @@
   --border-strong: #cbd5e1;
   --border-focus: #3b82f6;
 
-  --text-primary: #0f172a;
+  --text-primary: #1e293b;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --text-accent: #2563eb;
@@ -57,38 +58,39 @@
 }
 
 [data-theme="dark"] {
-  /* 深色主题 (Dark Mode) */
-  --bg-app: #090d16;
-  --bg-surface: #0f172a;
-  --bg-surface-elevated: #1e293b;
-  --bg-surface-hover: #1e293b;
-  --bg-subtle: #131d33;
+  /* 深色主题 (Dark Mode - 纯粹中性碳素暗夜，消除冷蓝散焦疲劳，极度护眼) */
+  --bg-app: #0e0f12;
+  --bg-sidebar: #141519;
+  --bg-surface: #141519;
+  --bg-surface-elevated: #1a1c22;
+  --bg-surface-hover: #22252c;
+  --bg-subtle: #17181e;
   --bg-overlay: rgba(0, 0, 0, 0.75);
 
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.11);
-  --border-strong: rgba(255, 255, 255, 0.2);
-  --border-focus: #60a5fa;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-default: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-focus: #3b82f6;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-primary: #ededf0;
+  --text-secondary: #9ca3af;
   --text-muted: #64748b;
   --text-accent: #60a5fa;
 
   --accent-color: #3b82f6;
   --accent-hover: #60a5fa;
-  --accent-subtle: rgba(59, 130, 246, 0.16);
-  --accent-glow: rgba(59, 130, 246, 0.32);
+  --accent-subtle: rgba(59, 130, 246, 0.14);
+  --accent-glow: rgba(59, 130, 246, 0.28);
 
-  --code-bg: #0b1120;
-  --code-header-bg: #141e33;
-  --code-border: rgba(255, 255, 255, 0.1);
+  --code-bg: #111216;
+  --code-header-bg: #17181d;
+  --code-border: rgba(255, 255, 255, 0.08);
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.75);
-  --shadow-inner-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.85);
+  --shadow-inner-glow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
 }
 
 /* 全局基础重置与触控优化 */
@@ -158,7 +160,7 @@ body.modal-open {
 }
 
 [data-theme="dark"] .header {
-  background-color: rgba(15, 23, 42, 0.88);
+  background-color: rgba(20, 21, 25, 0.85);
 }
 
 .header-left, .header-right {
@@ -392,7 +394,7 @@ body.modal-open {
 /* 左侧文件树侧边栏 */
 .sidebar {
   width: var(--sidebar-width);
-  background-color: var(--bg-surface);
+  background-color: var(--bg-sidebar, var(--bg-surface));
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
@@ -3197,14 +3199,85 @@ body.modal-open {
   -webkit-overflow-scrolling: touch;
 }
 
+/* 覆盖并统一 Prism 代码块背景与字体颜色 */
+.markdown-body pre[class*="language-"] {
+  background-color: var(--code-bg) !important;
+  color: var(--text-primary) !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.markdown-body code[class*="language-"] {
+  color: inherit !important;
+  font-family: var(--font-mono) !important;
+  font-size: 13.5px !important;
+  text-shadow: none !important;
+}
+
+/* 浅色模式专属：清爽现代的 GitHub Light 语法高亮（告别黑色大补丁与对比度缺失） */
+:root:not([data-theme="dark"]) .markdown-body .token.comment,
+:root:not([data-theme="dark"]) .markdown-body .token.prolog,
+:root:not([data-theme="dark"]) .markdown-body .token.doctype,
+:root:not([data-theme="dark"]) .markdown-body .token.cdata {
+  color: #6e7781 !important;
+  font-style: italic;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.punctuation {
+  color: #24292f !important;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.property,
+:root:not([data-theme="dark"]) .markdown-body .token.tag,
+:root:not([data-theme="dark"]) .markdown-body .token.boolean,
+:root:not([data-theme="dark"]) .markdown-body .token.number,
+:root:not([data-theme="dark"]) .markdown-body .token.constant,
+:root:not([data-theme="dark"]) .markdown-body .token.symbol {
+  color: #0550ae !important;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.selector,
+:root:not([data-theme="dark"]) .markdown-body .token.attr-name,
+:root:not([data-theme="dark"]) .markdown-body .token.string,
+:root:not([data-theme="dark"]) .markdown-body .token.char,
+:root:not([data-theme="dark"]) .markdown-body .token.builtin {
+  color: #0a3069 !important;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.operator,
+:root:not([data-theme="dark"]) .markdown-body .token.entity,
+:root:not([data-theme="dark"]) .markdown-body .token.url {
+  color: #cf222e !important;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.atrule,
+:root:not([data-theme="dark"]) .markdown-body .token.attr-value,
+:root:not([data-theme="dark"]) .markdown-body .token.keyword {
+  color: #cf222e !important;
+  font-weight: 600;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.function,
+:root:not([data-theme="dark"]) .markdown-body .token.class-name {
+  color: #8250df !important;
+}
+:root:not([data-theme="dark"]) .markdown-body .token.regex,
+:root:not([data-theme="dark"]) .markdown-body .token.important,
+:root:not([data-theme="dark"]) .markdown-body .token.variable {
+  color: #953800 !important;
+}
+
+/* 行内代码：极简降噪排版（消除破坏段落阅读流的蓝色文字） */
 .markdown-body code:not(pre code) {
   padding: 2px 6px;
-  background-color: var(--bg-surface-hover);
-  border: 1px solid var(--border-default);
+  background-color: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: var(--radius-xs);
   font-family: var(--font-mono);
-  font-size: 88%;
-  color: var(--text-accent);
+  font-size: 87%;
+  color: #1e293b;
+  font-weight: 500;
+  vertical-align: 0.5px;
+}
+
+[data-theme="dark"] .markdown-body code:not(pre code) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.09);
+  color: #e2e8f0;
 }
 
 /* 响应式表格 (防顶爆全屏) */
@@ -4481,10 +4554,10 @@ body.modal-open {
 
 [data-theme="dark"] .markmap,
 .markmap-dark .markmap {
-  --markmap-text-color: #f1f5f9;
-  --markmap-code-bg: #1e293b;
-  --markmap-code-color: #e2e8f0;
-  --markmap-circle-open-bg: #0f172a;
+  --markmap-text-color: #ededf0;
+  --markmap-code-bg: #1e2025;
+  --markmap-code-color: #ededf0;
+  --markmap-circle-open-bg: #141519;
 }
 
 /* Markmap 内置 Toolbar 样式与商标彻底隐藏 */
@@ -4538,14 +4611,14 @@ body.modal-open {
 }
 
 .markmap-dark .mm-toolbar {
-  background-color: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
+  background-color: #1a1c22;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
 }
 
 .markmap-dark .mm-toolbar-item:hover {
-  background-color: #334155;
-  color: #f8fafc;
+  background-color: #262830;
+  color: #ededf0;
 }
 
 /* 按钮微调与手机端自适应 */

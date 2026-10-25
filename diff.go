@@ -24,11 +24,12 @@ type DocCommitItem struct {
 }
 
 type IncrementalSection struct {
-	Type       string `json:"type"` // "add_heading" | "del_heading" | "add_diagram" | "add_table" | "add_block"
-	Level      int    `json:"level,omitempty"`
-	Title      string `json:"title"`
-	Snippet    string `json:"snippet,omitempty"`
-	LineNumber int    `json:"line_number,omitempty"`
+	Type           string `json:"type"` // "add_heading" | "del_heading" | "add_diagram" | "add_table" | "add_block"
+	Level          int    `json:"level,omitempty"`
+	Title          string `json:"title"`
+	Snippet        string `json:"snippet,omitempty"`
+	LineNumber     int    `json:"line_number,omitempty"`
+	ContextHeading string `json:"context_heading,omitempty"`
 }
 
 type IncrementalDiffResponse struct {
