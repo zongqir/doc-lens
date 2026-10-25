@@ -879,7 +879,9 @@
       btn.className = `repo-menu-item ${isCur ? 'active' : ''}`;
       btn.innerHTML = `
         <div class="repo-item-main">
-          <span class="repo-item-icon">📁</span>
+          <span class="repo-item-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </span>
           <span class="repo-item-name">${escapeHtml(r.Name)}</span>
           <span class="repo-item-prefix">${escapeHtml(r.RoutePrefix || '')}</span>
         </div>
@@ -3001,7 +3003,7 @@
               </span>
             </div>
             <div class="recent-card-title" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</div>
-            <div class="recent-card-path" title="${escapeHtml(dirPath)}">📂 ${escapeHtml(dirPath)}</div>
+            <div class="recent-card-path" title="${escapeHtml(dirPath)}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;opacity:0.75;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>${escapeHtml(dirPath)}</div>
           </a>
         `;
       });
@@ -3086,7 +3088,7 @@
               </span>
             </div>
             <div class="recent-card-title" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
-            <div class="recent-card-path" title="${escapeHtml(d.dirPath)}">📂 ${escapeHtml(d.dirPath)}</div>
+            <div class="recent-card-path" title="${escapeHtml(d.dirPath)}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;opacity:0.75;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>${escapeHtml(d.dirPath)}</div>
           </a>
         `;
       });
@@ -3109,14 +3111,14 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               <span>上次阅读 · ${timeAgo}</span>
             </span>
-            <span class="last-read-repo-tag">🏷️ ${escapeHtml(currentRepo.Name)}</span>
+            <span class="last-read-repo-tag">${escapeHtml(currentRepo.Name)}</span>
           </div>
           <div class="last-read-body">
             <div class="last-read-title-row">
               <span class="last-read-doc-icon">${SVG_ICONS.markdown}</span>
               <a href="${escapeHtml(lastRead.path)}" class="last-read-title" id="lastReadLink">${escapeHtml(lastRead.name)}</a>
             </div>
-            <div class="last-read-path">📂 ${escapeHtml(dirPath)}</div>
+            <div class="last-read-path"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;opacity:0.75;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>${escapeHtml(dirPath)}</div>
           </div>
           <div class="last-read-actions">
             <button class="btn btn-primary" id="continueReadBtn">
@@ -4366,13 +4368,87 @@
     }
   }
 
+  /**
+   * fixBrokenEmphasis — CommonMark 定界符侧翼判定容错层
+   *
+   * 修正 AI 生成内容中常见的 emphasis 标记错误，使 markdown-it 能正确识别：
+   *   "* text*"  → "*text*"     (开启星号后的空格)
+   *   "*text *"  → "*text*"     (闭合星号前的空格)
+   *   "** text**" → "**text**"  (strong 版本同理)
+   *
+   * 安全排除：
+   *   - 行首 `* ` / `- ` / `1. ` 等列表项不动
+   *   - `---` / `***` / `___` 水平线不动
+   *   - ``` ` ``` 和 ``` `` ``` 行内代码内部不动
+   *   - ``` ``` ``` 围栏代码块整段跳过
+   */
+  function fixBrokenEmphasis(text) {
+    const lines = text.split('\n');
+    const result = [];
+    let inFencedBlock = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trimStart();
+
+      // 围栏代码块开关 (``` or ~~~)
+      if (/^(`{3,}|~{3,})/.test(trimmed)) {
+        inFencedBlock = !inFencedBlock;
+        result.push(line);
+        continue;
+      }
+      if (inFencedBlock) {
+        result.push(line);
+        continue;
+      }
+
+      // 水平线不动
+      if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(trimmed)) {
+        result.push(line);
+        continue;
+      }
+
+      // 对非代码块行，跳过行内代码段后修复 emphasis 空格
+      // 策略：按行内代码分割，只对非代码段做修复
+      const segments = line.split(/(`{1,2}[^`]+`{1,2})/);
+      const fixed = segments.map((seg, idx) => {
+        // 奇数索引是行内代码匹配，不动
+        if (idx % 2 === 1) return seg;
+
+        // 不处理列表行开头的 "* " (无前置非空字符)
+        // 修复 strong (**) 先于 em (*)
+        let s = seg;
+
+        // ** text** → **text**  (开启 ** 后的空格)
+        s = s.replace(/(\*{2}) +([\S])/g, '$1$2');
+        // **text ** → **text**  (闭合 ** 前的空格)
+        s = s.replace(/([\S]) +(\*{2})/g, '$1$2');
+
+        // * text* → *text*  (开启 * 后的空格，但排除行首列表项)
+        // 只修复 * 前面有非空白字符 或 * 在行首非列表位置的情况
+        s = s.replace(/(?<=\S)(\*) +([\S])/g, '$1$2');
+        // 行首 emphasis（非列表：列表项为 `* ` 后面通常不会再有闭合 `*`）
+        s = s.replace(/^(\*) +(?![ \t])/gm, '$1');
+
+        // *text * → *text*  (闭合 * 前的空格)
+        s = s.replace(/([\S]) +(\*)(?!\*)/g, '$1$2');
+
+        return s;
+      }).join('');
+
+      result.push(fixed);
+    }
+
+    return result.join('\n');
+  }
+
   function renderMarkdownDoc(rawMarkdown) {
     mermaidStore.clear();
 
     const { frontmatter, rawYaml, body } = parseYamlFrontmatter(rawMarkdown);
     const propertiesHtml = buildPropertiesCardHtml(frontmatter, rawYaml);
 
-    const preprocessed = preprocessGithubAlertsFast(body);
+    const preprocessed = fixBrokenEmphasis(preprocessGithubAlertsFast(body));
     let html = mdParser ? mdParser.render(preprocessed) : '<pre>' + escapeHtml(body) + '</pre>';
 
     let mermaidCounter = 0;
@@ -5986,7 +6062,7 @@
     if (chapters && chapters.length > 0) {
       chapters.forEach((ch, idx) => {
         createHomeTocNode(
-          `📁 ${ch.name} (${ch.docs.length}篇)`,
+          `${ch.name} (${ch.docs.length}篇)`,
           `#chapter-card-${idx}`,
           '2',
           '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>',
@@ -6017,7 +6093,7 @@
     if (repos && repos.length > 0) {
       repos.forEach(r => {
         const isCurrent = currentRepo && r.ID === currentRepo.ID;
-        const label = isCurrent ? `🏷️ ${r.Name} (当前空间)` : `📚 ${r.Name}`;
+        const label = isCurrent ? `${r.Name} (当前空间)` : r.Name;
         createHomeTocNode(
           label,
           '#homeSectionRepos',
