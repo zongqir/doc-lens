@@ -246,10 +246,25 @@
       mindmapPill.addEventListener('mouseleave', () => {
         pillHideTimeout = setTimeout(hideFocusPill, 200);
       });
-      mindmapPill.addEventListener('click', (e) => {
+    }
+
+    const mindmapPillFocusBtn = document.getElementById('mindmapPillFocusBtn');
+    if (mindmapPillFocusBtn) {
+      mindmapPillFocusBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (currentHoveredNodeDatum) {
           drillIntoNode(currentHoveredNodeDatum);
+        }
+      });
+    }
+
+    const mindmapPillLocateBtn = document.getElementById('mindmapPillLocateBtn');
+    if (mindmapPillLocateBtn) {
+      mindmapPillLocateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentHoveredNodeDatum) {
+          const title = extractNodeTitle(currentHoveredNodeDatum);
+          jumpToHeadingInDoc(title);
         }
       });
     }
@@ -3041,13 +3056,21 @@
     const pill = document.getElementById('mindmapFocusPill');
     const body = document.getElementById('mindmapModalBody');
     if (!pill || !body || !nodeGroup || !datum) return;
-    if (!datum.children || datum.children.length === 0) {
+
+    // 当前视野的第 1 级核心小圆点不显示操作气泡
+    if (datum.state && datum.state.depth === 1) {
       hideFocusPill();
       return;
     }
 
     currentHoveredNodeDatum = datum;
     clearTimeout(pillHideTimeout);
+
+    const hasChildren = datum.children && datum.children.length > 0;
+    const focusBtn = document.getElementById('mindmapPillFocusBtn');
+    if (focusBtn) {
+      focusBtn.style.display = hasChildren ? 'inline-flex' : 'none';
+    }
 
     const rect = nodeGroup.getBoundingClientRect();
     const bodyRect = body.getBoundingClientRect();
@@ -3057,6 +3080,46 @@
 
     pill.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     pill.style.display = 'flex';
+  }
+
+  // 从思维导图节点穿透跳转并高亮文章正文对应章节
+  function jumpToHeadingInDoc(titleOrText) {
+    if (!titleOrText || !el.articleBody) return false;
+    const rawClean = titleOrText.trim().replace(/^[\s#*_\-`>]+|[\s#*_\-`>]+$/g, '');
+    const cleanSearch = rawClean.toLowerCase();
+    if (!cleanSearch) return false;
+
+    // 1. 优先精准/模糊匹配正文标题 h1-h6
+    const headings = Array.from(el.articleBody.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    let target = headings.find(h => {
+      const text = h.textContent.trim().toLowerCase();
+      const strippedNumber = text.replace(/^[0-9一二三四五六七八九十\.\s、]+/, '').trim();
+      return text === cleanSearch || strippedNumber === cleanSearch || text.includes(cleanSearch) || cleanSearch.includes(text);
+    });
+
+    // 2. 若未匹配到标题，尝试在列表项或段落中查找
+    if (!target) {
+      const items = Array.from(el.articleBody.querySelectorAll('li, p, dt, b, strong'));
+      target = items.find(item => {
+        const text = item.textContent.trim().toLowerCase();
+        return text.includes(cleanSearch) || (cleanSearch.length > 4 && cleanSearch.includes(text));
+      });
+    }
+
+    if (target) {
+      const mindmapModal = document.getElementById('mindmapModal');
+      if (mindmapModal) closeModal(mindmapModal);
+
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('mindmap-jump-highlight');
+        setTimeout(() => {
+          target.classList.remove('mindmap-jump-highlight');
+        }, 2100);
+      }, 150);
+      return true;
+    }
+    return false;
   }
 
   function updateMindmapBreadcrumbs() {
@@ -3173,6 +3236,12 @@
 
     const loadingEl = document.getElementById('mindmapLoading');
     const svgEl = document.getElementById('mindmapSvg');
+    const emptyEl = document.getElementById('mindmapEmptyState');
+    const depthControls = document.querySelector('.mindmap-depth-controls');
+    const fitBtn = document.getElementById('mindmapFitBtn');
+    const breadcrumbsTrack = document.getElementById('mindmapBreadcrumbsTrack');
+
+    if (emptyEl) emptyEl.style.display = 'none';
     if (loadingEl) {
       loadingEl.innerHTML = `
         <div class="mindmap-spinner"></div>
@@ -3190,8 +3259,30 @@
       const transformer = new window.markmap.Transformer();
       const { root } = transformer.transform(doc.content);
 
+      // 纯段落无大纲或内容空文档防呆空态检测
+      const hasContent = root && (
+        (root.content && root.content.trim().length > 0) ||
+        (root.children && root.children.length > 0)
+      );
+
+      if (!hasContent || (!root.content.trim() && (!root.children || root.children.length === 0))) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (svgEl) svgEl.style.display = 'none';
+        if (depthControls) depthControls.style.display = 'none';
+        if (fitBtn) fitBtn.style.display = 'none';
+        if (breadcrumbsTrack) breadcrumbsTrack.innerHTML = '<span class="crumb-item active">暂无大纲</span>';
+        if (emptyEl) emptyEl.style.display = 'flex';
+        return;
+      }
+
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (depthControls) depthControls.style.display = 'flex';
+      if (fitBtn) fitBtn.style.display = 'inline-flex';
       if (loadingEl) loadingEl.style.display = 'none';
-      if (svgEl) svgEl.style.opacity = '1';
+      if (svgEl) {
+        svgEl.style.display = 'block';
+        svgEl.style.opacity = '1';
+      }
 
       if (currentMarkmapInstance) {
         try {
@@ -3225,8 +3316,6 @@
       }
       setTreeFoldDepth(initialTree, 0, 2);
 
-      svgEl.classList.add('mindmap-at-doc-root');
-
       const colors = getMarkmapPalette();
       const mm = window.markmap.Markmap.create(svgEl, {
         duration: 300,
@@ -3242,7 +3331,13 @@
       currentMarkmapInstance = mm;
       updateMindmapBreadcrumbs();
 
-      // 鼠标悬停在分支节点上时，弹出聚焦下钻气泡按钮（根节点圆圈不弹出）
+      // 安全保护：确保脑图内部所有的外链在新标签页打开，防止页面跳转丢失工作区
+      svgEl.querySelectorAll('a').forEach(a => {
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+      });
+
+      // 鼠标悬停在分支节点上时，弹出操作气泡按钮（聚焦下钻 / 定位正文）
       svgEl.onmouseover = (e) => {
         const nodeGroup = e.target.closest('g.markmap-node');
         if (nodeGroup && nodeGroup.__data__) {
@@ -3251,9 +3346,7 @@
             hideFocusPill();
             return;
           }
-          if (datum && datum.children && datum.children.length > 0) {
-            showFocusPillForNode(nodeGroup, datum);
-          }
+          showFocusPillForNode(nodeGroup, datum);
         }
       };
 
@@ -3275,7 +3368,7 @@
         if (!datum) return;
 
         if (!e.target.closest('circle')) {
-          if (datum.children && datum.children.length > 0 && !(datum.state && datum.state.depth === 1)) {
+          if (!(datum.state && datum.state.depth === 1)) {
             showFocusPillForNode(nodeGroup, datum);
           }
           mm.centerNode(datum);
