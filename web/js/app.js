@@ -2691,6 +2691,13 @@
             state.taskLogTimer = null;
           }
           loadTasks();
+          if (task.status === 'completed') {
+            const rId = task.repo_id || task.RepoID;
+            if (rId && state.currentRepo && state.currentRepo.ID === rId) {
+              loadTree(rId, true);
+              loadRecentCreated(rId);
+            }
+          }
         }
       }
     } catch (e) {}

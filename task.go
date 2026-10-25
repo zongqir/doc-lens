@@ -283,6 +283,9 @@ func (tm *TaskManager) executeTask(task *Task) {
 		task.Status = "completed"
 		task.ExitCode = 0
 		_, _ = logF.WriteString("\n[doc-lens] Task successfully finished.\n")
+		if tm.rm != nil && task.RepoID != "" {
+			tm.rm.InvalidateCache(task.RepoID)
+		}
 	}
 
 	tm.saveTasks()
