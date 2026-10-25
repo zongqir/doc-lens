@@ -6186,6 +6186,13 @@ body.modal-open {
     font-size: 11px !important;
     padding: 2px 6px !important;
   }
+  .diff-footer-tip {
+    display: none !important;
+  }
+  .diff-modal-footer {
+    padding: 6px 10px !important;
+    justify-content: flex-end !important;
+  }
 }
 
 
