@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DocLens - 技术知识库与代码投影引擎</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2.4.3">
+  <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=2.4.3">
+  <link rel="apple-touch-icon" href="/favicon.svg?v=2.4.3">
+  <link rel="stylesheet" href="/css/style.css?v=2.6.2">
+  <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
+  <script src="/js/markdown-it.min.js"></script>
+  <script src="/js/prism.min.js"></script>
+</head>
+<body>
+
+  <!-- 顶部导航栏 (Ultra Modern Glassmorphism Header) -->
+  <header class="header">
+    <div class="header-left">
+      <button class="btn btn-icon-only" id="menuBtn" aria-label="切换目录树" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <a href="/" class="brand-title">
+        <div class="brand-logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><path d="M11 8v6M8 11h6"></path></svg>
+        </div>
+        <span class="brand-name">DocLens</span>
+      </a>
+    </div>
+
+    <div class="header-center">
+      <nav class="header-breadcrumbs" id="headerBreadcrumbs" aria-label="文档层级面包屑">
+        <span class="breadcrumb-item breadcrumb-home">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          <span>知识库</span>
+        </span>
+      </nav>
+    </div>
+
+    <div class="header-right">
+      <div class="quick-search-trigger" id="quickSearchBtn" title="快速聚焦搜索 (Ctrl+K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span class="quick-search-text">搜索文件</span>
+        <kbd class="kbd-badge">⌘K</kbd>
+      </div>
+
+      <button class="btn btn-icon-only theme-toggle-btn" id="themeBtn" aria-label="切换深浅主题" title="切换深浅主题">
+        <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
+
+      <div class="font-dropdown-container">
+        <button class="btn btn-icon-only font-toggle-btn" id="fontSettingBtn" aria-label="排版与字体风格" title="排版与字体风格">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+        </button>
+        <div class="font-settings-popover" id="fontPopover" style="display:none;">
+          <div class="popover-header">
+            <span>阅读排版设置</span>
+          </div>
+          <div class="popover-label">正文字体风格</div>
+          <div class="font-option-grid">
+            <button class="font-opt-btn active" data-font="system">
+              <span class="font-opt-name">系统原生</span>
+              <span class="font-opt-desc">苹方 / 微软雅黑</span>
+            </button>
+            <button class="font-opt-btn" data-font="puhuiti">
+              <span class="font-opt-name font-name-puhuiti">阿里普惠</span>
+              <span class="font-opt-desc">挺拔清爽 / 现代工业</span>
+            </button>
+            <button class="font-opt-btn" data-font="wenkai">
+              <span class="font-opt-name font-name-wenkai">霞鹜文楷</span>
+              <span class="font-opt-desc">沉浸书卷 / 屏幕优化</span>
+            </button>
+            <button class="font-opt-btn" data-font="serif">
+              <span class="font-opt-name font-name-serif">思源宋体</span>
+              <span class="font-opt-desc">严肃典雅 / 研报出版</span>
+            </button>
+          </div>
+          <div class="popover-label">阅读字号微调</div>
+          <div class="font-size-stepper">
+            <button class="stepper-btn" id="fontSmallerBtn" title="缩小字号">A-</button>
+            <span class="stepper-val" id="fontSizeLabel">15.5px</span>
+            <button class="stepper-btn" id="fontBiggerBtn" title="放大字号">A+</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-ai-write" id="aiDraftBtn" title="发起 AI 创作或研报任务">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <span class="btn-text">AI 创作</span>
+      </button>
+
+      <button class="btn btn-primary btn-task-center" id="aiTaskBtn" title="查看后台持续运行的 AI 任务">
+        <div class="task-pulse-dot" id="taskRunningDot"></div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        <span class="btn-text">任务控制台</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主工作区 -->
+  <main class="main-layout">
+    <!-- 移动端侧边抽屉遮罩 -->
+    <div class="modal-overlay" id="sidebarOverlay" style="z-index:45;"></div>
+
+    <!-- 左侧文档资源管理器 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-mobile-title-bar">
+          <span style="font-weight:600;font-size:14px;">📚 知识库目录</span>
+          <button class="btn btn-icon-only" id="closeSidebarBtn" title="关闭目录">✕</button>
+        </div>
+
+        <div class="repo-selector-wrapper">
+          <div class="repo-select-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <select class="custom-select" id="repoSelect" aria-label="选择挂载仓库"></select>
+          <div class="select-chevron">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
+
+        <div class="search-box">
+          <div class="search-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="search-input" id="searchInput" placeholder="快速过滤路径 / 标题..." autocomplete="off" spellcheck="false">
+            <button class="clear-search-btn" id="clearSearchBtn" title="清空搜索" style="display:none;">✕</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="sidebar-scrollable-content">
+        <!-- 分区 1：我的收藏与书签 -->
+        <div class="sidebar-section" id="sectionFavorites">
+          <div class="sidebar-section-header" id="headerFavorites">
+            <div class="section-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              <span>我的收藏与书签</span>
+            </div>
+            <div class="section-actions">
+              <span class="tree-badge" id="favoritesCountBadge">0 项</span>
+              <span class="section-toggle-chevron" aria-label="切换面板展开">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+            </div>
+          </div>
+          <div class="sidebar-section-body" id="favoritesList">
+            <div class="section-empty-hint">暂无收藏与书签，可收藏单篇文档或给目录打书签</div>
+          </div>
+        </div>
+
+        <!-- 分区 2：知识库完整目录 (核心树区) -->
+        <div class="sidebar-section sidebar-tree-section" id="sectionFileTree">
+          <div class="sidebar-section-header" id="headerFileTree">
+            <div class="section-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <span>知识库目录</span>
+            </div>
+            <div class="section-actions">
+              <button class="tree-action-icon-btn" id="filterFavBtn" aria-label="仅看收藏" title="过滤：仅看已收藏文档">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              </button>
+              <button class="tree-action-icon-btn" id="collapseAllBtn" aria-label="全部折叠" title="折叠所有目录">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+              </button>
+              <button class="tree-action-icon-btn" id="refreshTreeBtn" aria-label="强制刷新索引" title="强制刷新索引">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              </button>
+              <span class="section-toggle-chevron" aria-label="切换面板展开">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+            </div>
+          </div>
+          <div class="sidebar-section-body" id="fileTreeSectionBody">
+            <div class="file-tree-container" id="fileTree" role="tree"></div>
+          </div>
+        </div>
+
+        <!-- 分区 3：最近浏览过的文章 -->
+        <div class="sidebar-section" id="sectionRecentReads">
+          <div class="sidebar-section-header" id="headerRecentReads">
+            <div class="section-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <span>最近浏览过的文章</span>
+            </div>
+            <div class="section-actions">
+              <button class="tree-action-icon-btn" id="clearRecentReadsBtn" aria-label="清空当前仓库浏览记录" title="清空浏览记录">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              </button>
+              <span class="section-toggle-chevron" aria-label="切换面板展开">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+            </div>
+          </div>
+          <div class="sidebar-section-body" id="recentReadsList">
+            <div class="section-empty-hint">暂无最近阅读记录</div>
+          </div>
+        </div>
+
+        <!-- 分区 4：最新生成 / 变更研报 -->
+        <div class="sidebar-section collapsed" id="sectionRecentCreated">
+          <div class="sidebar-section-header" id="headerRecentCreated">
+            <div class="section-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              <span>最新生成 / 变更研报</span>
+            </div>
+            <div class="section-actions">
+              <button class="tree-action-icon-btn" id="refreshRecentCreatedBtn" aria-label="刷新最新研报" title="刷新最新研报">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              </button>
+              <span class="section-toggle-chevron" aria-label="切换面板展开">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+            </div>
+          </div>
+          <div class="sidebar-section-body" id="recentCreatedList">
+            <div class="section-empty-hint">正在读取最新文章...</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中间正文阅读区 -->
+    <section class="content-area" id="contentArea">
+      <article class="article-container">
+        <div class="article-header" id="articleHeader" style="display:none;">
+          <div class="article-path-bar" style="display:none !important;">
+            <div class="article-path" id="articlePath"></div>
+            <div class="article-type-pill" id="articleTypePill" style="display:none !important;"></div>
+          </div>
+          <div class="article-meta-row">
+            <div class="article-meta" id="articleMeta"></div>
+            <div class="article-actions" id="articleActions"></div>
+          </div>
+        </div>
+        <div id="articleBody">
+          <!-- 默认沉浸式仪表盘卡片 -->
+          <div class="welcome-card" id="welcomeDashboard">
+            <div class="welcome-badge">DocLens Central</div>
+            <h1 class="welcome-title">现代化知识库与代码投影</h1>
+            <p class="welcome-desc">
+              从左侧目录树选择技术文档、研报或源码文件开启阅读。支持 Mermaid 矢量架构图无缝缩放、GitHub 级排版格式与离线后台 AI 创作。
+            </p>
+            <div class="welcome-repo-grid" id="welcomeRepoGrid"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 右侧大纲导航 (Desktop Floating TOC) -->
+    <nav class="toc-sidebar" id="tocSidebar">
+      <div class="toc-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        <span>本页导航</span>
+      </div>
+      <div class="toc-container">
+        <div class="toc-track">
+          <ul class="toc-list" id="tocList"></ul>
+        </div>
+      </div>
+    </nav>
+  </main>
+
+  <!-- 手机端浮动大纲悬浮球 (FAB) -->
+  <button class="fab-toc-btn" id="fabTocBtn" aria-label="查看大纲" title="文章大纲导轨">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+  </button>
+
+  <!-- 手机端大纲抽屉 (Bottom Sheet) -->
+  <div class="modal-overlay" id="mobileTocModal">
+    <div class="modal-card bottom-sheet-card">
+      <div class="drag-handle"></div>
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line></svg>
+          <span>本页导航</span>
+        </span>
+        <button class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+      <div class="modal-body" style="padding-top:4px;">
+        <ul id="mobileTocList" class="mobile-toc-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 访问认证模态框 -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-card modal-login-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <div class="auth-lock-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </div>
+          <span>身份权限认证</span>
+        </span>
+      </div>
+      <form id="loginForm">
+        <div class="modal-body">
+          <p class="login-prompt-text">
+            请输入系统授权密码。登录后将签发 180 天长效安全凭据，后续直接秒开无需频繁输入。
+          </p>
+          <div class="form-group">
+            <input type="password" id="loginPass" class="text-input" placeholder="输入访问密钥..." required autofocus>
+          </div>
+          <div id="loginError" class="form-error-msg"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary" style="width:100%;height:40px;">认证并开启空间</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- AI 任务控制中心模态框 (Terminal Grade - Mobile Tab Responsive) -->
+  <div class="modal-overlay" id="taskCenterModal">
+    <div class="modal-card modal-terminal-card">
+      <div class="modal-header">
+        <div class="terminal-header-left">
+          <div class="terminal-traffic-dots">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <span class="terminal-title">AI 任务控制台</span>
+        </div>
+        <button class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+
+      <!-- 手机端专用 Tab 切换条 -->
+      <div class="terminal-mobile-tabs" id="terminalTabs">
+        <button class="terminal-tab active" data-tab="list">任务历史</button>
+        <button class="terminal-tab" data-tab="log">执行终端</button>
+      </div>
+
+      <div class="terminal-layout-body">
+        <div class="terminal-sidebar" id="terminalSidebar">
+          <div class="terminal-list-header">
+            <span>任务历史列表</span>
+            <button class="btn-refresh-task" id="refreshTasksBtn" title="刷新任务列表">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
+          </div>
+          <div class="terminal-task-list" id="taskList"></div>
+        </div>
+        <div class="terminal-main-view" id="terminalMainView">
+          <div class="terminal-toolbar">
+            <div class="terminal-meta-info" id="activeTaskMeta">
+              <span class="terminal-meta-label">未选择任务</span>
+            </div>
+            <div class="terminal-actions" id="activeTaskActions"></div>
+          </div>
+          <pre class="terminal-console-output" id="taskLogArea"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 创作任务模态框 -->
+  <div class="modal-overlay" id="aiDraftModal">
+    <div class="modal-card modal-draft-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <div class="sparkle-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          </div>
+          <span id="draftModalTitle">派发 AI 创作 / 研报</span>
+        </span>
+        <button class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+      <form id="aiDraftForm">
+        <input type="hidden" id="draftTaskType" value="draft">
+        <div class="modal-body draft-form-body">
+          <div class="form-group">
+            <label class="form-label">写入目标知识库</label>
+            <div class="repo-selector-wrapper">
+              <select class="custom-select" id="draftRepo"></select>
+              <div class="select-chevron">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">目标存储相对路径与文件名</label>
+            <input type="text" class="text-input" id="draftFileName" placeholder="例如：2026-10-25-架构演进.md (留空自主命名)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">研究指令 / 课题约束</label>
+            <textarea class="text-input textarea-input" id="draftPrompt" rows="5" placeholder="请详述研报核心命题、论证边界、技术/商业框架或约束规则..." required></textarea>
+          </div>
+          <div class="callout-tip">
+            <div class="callout-icon">💡</div>
+            <div class="callout-text">
+              提交后由后台独立派生执行，手机关闭网页后后台持续完成并落盘。
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn close-modal-btn">取消</button>
+          <button type="submit" class="btn btn-primary" id="submitDraftBtn">提交后台运行</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 手机端全屏 Mermaid 架构图弹窗 (Lightbox) -->
+  <div class="modal-overlay" id="mermaidModal">
+    <div class="modal-card modal-mermaid-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+          <span>架构拓扑图全屏查看</span>
+        </span>
+        <button class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+      <div class="modal-body modal-mermaid-body" id="mermaidModalBody"></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=2.6.2"></script>
+</body>
+</html>

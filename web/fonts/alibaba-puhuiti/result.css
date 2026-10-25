@@ -1,0 +1,15 @@
+@font-face {
+  font-family: 'AlibabaPuHuiTi';
+  src: local('Alibaba PuHuiTi 3.0'), local('AlibabaPuHuiTi-3-55-Regular'), local('Alibaba PuHuiTi'), url('./AlibabaPuHuiTi-3-55-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AlibabaPuHuiTi';
+  src: local('Alibaba PuHuiTi 3.0 Bold'), local('AlibabaPuHuiTi-3-85-Bold'), url('./AlibabaPuHuiTi-3-85-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
