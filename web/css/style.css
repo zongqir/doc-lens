@@ -844,7 +844,7 @@ body.modal-open {
   overflow: visible !important;
 }
 
-/* 3. 最近历史 Tab 独占全屏 */
+/* 3. 最近历史 Tab：支持两段式手风琴折叠与纵向顺畅滚动 */
 .sidebar-scrollable-content[data-active-tab="recent"] #sectionFileTree,
 .sidebar-scrollable-content[data-active-tab="recent"] #sectionFavorites {
   display: none !important;
@@ -867,12 +867,31 @@ body.modal-open {
   background: transparent !important;
   border: none !important;
   border-bottom: 1px dashed var(--border-subtle) !important;
-  padding: 4px 4px 8px !important;
+  padding: 6px 4px 8px !important;
   margin-bottom: 8px !important;
-  cursor: default;
+  cursor: pointer !important;
+  user-select: none;
+  border-radius: var(--radius-xs);
+  transition: background-color var(--transition-fast);
 }
 
-.sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section-body {
+.sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section-header:hover {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+.sidebar-scrollable-content[data-active-tab="recent"] .section-toggle-chevron {
+  display: inline-flex !important;
+}
+
+.sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section.collapsed .section-toggle-chevron {
+  transform: rotate(-90deg) !important;
+}
+
+.sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section.collapsed .sidebar-section-body {
+  display: none !important;
+}
+
+.sidebar-scrollable-content[data-active-tab="recent"] .sidebar-section:not(.collapsed) .sidebar-section-body {
   display: block !important;
   padding: 0 !important;
   height: auto !important;

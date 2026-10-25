@@ -11,7 +11,70 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
+
+// naturalLess 实现自然排序比较：将字符串拆分为文本段和数字段交替序列，
+// 文本段按大小写不敏感字典序比较，数字段按数值大小比较。
+// 例如: "2-foo" < "10-foo"（数值 2 < 10），而非字典序 "10" < "2"。
+func naturalLess(a, b string) bool {
+	ia, ib := 0, 0
+	for ia < len(a) && ib < len(b) {
+		ca, cb := rune(a[ia]), rune(b[ib])
+		aDigit, bDigit := unicode.IsDigit(ca), unicode.IsDigit(cb)
+
+		switch {
+		case aDigit && bDigit:
+			// 跳过前导零
+			nza, nzb := ia, ib
+			for nza < len(a) && a[nza] == '0' {
+				nza++
+			}
+			for nzb < len(b) && b[nzb] == '0' {
+				nzb++
+			}
+			// 找到数字段结尾
+			ea, eb := nza, nzb
+			for ea < len(a) && unicode.IsDigit(rune(a[ea])) {
+				ea++
+			}
+			for eb < len(b) && unicode.IsDigit(rune(b[eb])) {
+				eb++
+			}
+			lenA, lenB := ea-nza, eb-nzb
+			// 有效位数不同 → 位数少的更小
+			if lenA != lenB {
+				return lenA < lenB
+			}
+			// 有效位数相同 → 逐字符比较数字
+			for k := 0; k < lenA; k++ {
+				if a[nza+k] != b[nzb+k] {
+					return a[nza+k] < b[nzb+k]
+				}
+			}
+			// 数值完全相等 → 前导零多的排前面（稳定性）
+			if (nza - ia) != (nzb - ib) {
+				return (nza - ia) > (nzb - ib)
+			}
+			ia, ib = ea, eb
+
+		case aDigit != bDigit:
+			// 数字段 < 非数字段（数字开头的排前面）
+			return aDigit
+
+		default:
+			// 两个都是非数字字符，大小写不敏感比较
+			la, lb := unicode.ToLower(ca), unicode.ToLower(cb)
+			if la != lb {
+				return la < lb
+			}
+			ia++
+			ib++
+		}
+	}
+	// 短串是长串的前缀 → 短串更小
+	return len(a) < len(b)
+}
 
 var ignoredDirNames = map[string]bool{
 	".git":          true,
@@ -453,7 +516,7 @@ func (rm *RepoManager) scanDirectory(realRoot, relPath string, currentDepth, max
 		if children[i].IsDir != children[j].IsDir {
 			return children[i].IsDir
 		}
-		return strings.ToLower(children[i].Name) < strings.ToLower(children[j].Name)
+		return naturalLess(children[i].Name, children[j].Name)
 	})
 
 	node.Children = children

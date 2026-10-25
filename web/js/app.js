@@ -2167,7 +2167,7 @@
     }
 
     listEl.innerHTML = '';
-    recent.slice(0, 8).forEach(item => {
+    recent.slice(0, 40).forEach(item => {
       const card = document.createElement('a');
       card.className = 'recent-item-card';
       if (state.currentPath === item.path) card.classList.add('active');
@@ -2221,7 +2221,7 @@
     listEl.innerHTML = '<div class="section-empty-hint">正在读取最新研报...</div>';
 
     try {
-      const res = await fetch(`/api/recent?repo=${encodeURIComponent(repoID)}&limit=8`);
+      const res = await fetch(`/api/recent?repo=${encodeURIComponent(repoID)}&limit=30`);
       if (!res.ok) throw new Error('Failed to load recent files');
       const files = await res.json();
       if (!files || files.length === 0) {
@@ -4427,8 +4427,8 @@
         // * text* → *text*  (开启 * 后的空格，但排除行首列表项)
         // 只修复 * 前面有非空白字符 或 * 在行首非列表位置的情况
         s = s.replace(/(?<=\S)(\*) +([\S])/g, '$1$2');
-        // 行首 emphasis（非列表：列表项为 `* ` 后面通常不会再有闭合 `*`）
-        s = s.replace(/^(\*) +(?![ \t])/gm, '$1');
+        // 注意：行首 `* ` 开头几乎一定是列表项，不做 emphasis 修复——
+        // 误删空格会将 `* **bold**` 变成 `***bold**`（bold-italic 而非 list + bold）
 
         // *text * → *text*  (闭合 * 前的空格)
         s = s.replace(/([\S]) +(\*)(?!\*)/g, '$1$2');
