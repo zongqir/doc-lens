@@ -3173,17 +3173,16 @@
       }
       const t = type.toLowerCase();
       const icon = ALERT_ICONS[t] || ALERT_ICONS.note;
-      const conf = ALERT_CONFIG[t] || { label: t.toUpperCase(), tag: t.toUpperCase() };
+      const conf = ALERT_CONFIG[t] || { label: t.toUpperCase() };
       const contentHtml = mdParser ? mdParser.render(combined) : combined;
       return `\n<div class="markdown-alert markdown-alert-${t}">
-  <div class="markdown-alert-header">
-    <div class="markdown-alert-icon-box">${icon}</div>
-    <div class="markdown-alert-title">
-      <span class="markdown-alert-title-text">${conf.label}</span>
-      <span class="markdown-alert-type-badge">${conf.tag}</span>
+  <div class="markdown-alert-icon-col">${icon}</div>
+  <div class="markdown-alert-content-col">
+    <div class="markdown-alert-header-row">
+      <span class="markdown-alert-label">${conf.label}</span>
     </div>
+    <div class="markdown-alert-body">${contentHtml}</div>
   </div>
-  <div class="markdown-alert-content">${contentHtml}</div>
 </div>\n`;
     });
   }
