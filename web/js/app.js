@@ -3121,7 +3121,7 @@
     // 5. 构建“知识库完整章节分布”卡片网格
     let chaptersHtml = '';
     if (chapters.length > 0) {
-      chapters.forEach(ch => {
+      chapters.forEach((ch, idx) => {
         const decodedLastPath = lastRead ? decodeURIComponent(lastRead.path) : '';
         const isCurrentChapter = lastRead && ch.path && (decodedLastPath.includes(ch.path) || ch.docs.some(d => decodeURIComponent(d.fullRoute) === decodedLastPath));
         let docListHtml = '';
