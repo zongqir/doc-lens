@@ -195,6 +195,9 @@ func (w *gzipResponseWriter) WriteHeader(code int) {
 		w.ResponseWriter.WriteHeader(code)
 		return
 	}
+	// 关键修复：开启 gzip 后原有的 Content-Length 不再准确，必须立即删除！
+	// 否则 HTTP/2 客户端（浏览器/反向代理）发现实际接收字节与 Content-Length 不符时，会报 net::ERR_HTTP2_PROTOCOL_ERROR
+	w.Header().Del("Content-Length")
 	w.Header().Set("Content-Encoding", "gzip")
 	w.ResponseWriter.WriteHeader(code)
 }
@@ -221,7 +224,14 @@ func (w *gzipResponseWriter) Close() error {
 
 func (a *App) gzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		// HEAD 请求无响应体，或不支持 gzip 的请求直接放行
+		if r.Method == http.MethodHead || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// 常见二进制/字体/图像资源本身已具备高压缩率，跳过 gzip 避免无谓开销
+		ext := strings.ToLower(filepath.Ext(r.URL.Path))
+		if ext == ".woff2" || ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".ico" || ext == ".webp" {
 			next.ServeHTTP(w, r)
 			return
 		}
