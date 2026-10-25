@@ -2757,7 +2757,36 @@
     return isAbs ? '/' + res : (res || '.');
   }
 
-  // 资源与图片 URL 智能解析器：相对当前文档目录 -> /raw 静态服务地址
+  // 智能路径重叠拼接：如果 dirRoute 后缀与 relPath 前缀重叠，自动消除重复段
+  // 例如 dirRoute = "/product/01-价值篇", relPath = "01-价值篇/README.md" -> "/product/01-价值篇/README.md"
+  function mergeOverlappingPaths(dirRoute, relPath) {
+    const cleanDir = (dirRoute || '').replace(/^\/+|\/+$/g, '');
+    const cleanRel = (relPath || '').replace(/^\/+|\/+$/g, '');
+    if (!cleanDir) return '/' + cleanRel;
+    if (!cleanRel) return '/' + cleanDir;
+
+    const dirParts = cleanDir.split('/').filter(Boolean);
+    const relParts = cleanRel.split('/').filter(Boolean);
+
+    // 从最大可能重叠长度开始向下贪婪匹配
+    const maxOverlap = Math.min(dirParts.length, relParts.length);
+    for (let k = maxOverlap; k > 0; k--) {
+      let isOverlap = true;
+      for (let i = 0; i < k; i++) {
+        if (dirParts[dirParts.length - k + i] !== relParts[i]) {
+          isOverlap = false;
+          break;
+        }
+      }
+      if (isOverlap) {
+        return '/' + dirParts.concat(relParts.slice(k)).join('/');
+      }
+    }
+
+    return '/' + dirParts.concat(relParts).join('/');
+  }
+
+  // 资源与图片 URL 智能解析器：相对当前文档目录 -> /raw 静态服务地址（自动消除重复目录段）
   function resolveAssetUrl(url) {
     if (!url) return '';
     const trimmed = url.trim();
@@ -2779,9 +2808,18 @@
         fullRoute = normalizePath(`${repoPrefix}/${trimmed.replace(/^\/+/, '')}`);
       }
     } else {
-      // 相对路径：基于当前文档所在目录进行相对计算
-      const currentDir = state.currentPath.substring(0, state.currentPath.lastIndexOf('/')) || repoPrefix || '';
-      fullRoute = normalizePath(`${currentDir}/${trimmed}`);
+      // 相对路径：基于当前文档所在目录进行相对计算并消除目录重叠
+      let curPath = state.currentDoc?.path || state.currentPath || '';
+      let currentDir;
+      if (/\.[a-zA-Z0-9]+$/.test(curPath)) {
+        currentDir = curPath.substring(0, curPath.lastIndexOf('/'));
+      } else {
+        currentDir = curPath.replace(/\/+$/, '');
+      }
+      if (!currentDir) currentDir = repoPrefix || '';
+
+      const stripped = trimmed.replace(/^\.\//, '');
+      fullRoute = normalizePath(mergeOverlappingPaths(currentDir, stripped));
     }
 
     return '/raw' + fullRoute;
@@ -2843,12 +2881,103 @@
       return targetRoute + '/index.md';
     }
 
-    // 4. 若无后缀且尚未匹配，默认补齐 .md
+    // 4. 若无后缀且尚未匹配，且不属于已有扩展名，默认补齐 .md
     if (!/\.[a-zA-Z0-9]+$/.test(targetRoute)) {
       return targetRoute + '.md';
     }
 
     return targetRoute;
+  }
+
+  // Markdown 文档内链全息智能路由解析器：
+  // 自动兼容：相对当前文档目录、相对知识库根目录、省略 .md、链接目录名自动找 README/index、消除重复路径层级
+  function smartResolveMarkdownRoute(rawPath) {
+    if (!rawPath) return '';
+    const cleanRaw = rawPath.trim();
+    if (!cleanRaw) return '';
+
+    const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
+
+    // 1. 获取当前文档实际所在目录路由
+    const curPath = state.currentDoc?.path || state.currentPath || '';
+    let currentDir;
+    if (/\.[a-zA-Z0-9]+$/.test(curPath)) {
+      currentDir = curPath.substring(0, curPath.lastIndexOf('/'));
+    } else {
+      currentDir = curPath.replace(/\/+$/, '');
+    }
+    if (!currentDir) currentDir = repoPrefix || '';
+
+    // 2. 提取当前知识库全部文档线性列表（用于真值校验）
+    let tree = state.treeData;
+    if (!tree && state.currentRepo && state.repoTreeCache) {
+      tree = state.repoTreeCache.get(state.currentRepo.ID);
+    }
+    const docs = getFlattenedDocList(tree, state.currentRepo?.RoutePrefix);
+
+    const findInDocs = (r) => {
+      if (!r || docs.length === 0) return null;
+      const cleanR = normalizePath(r);
+      // 精确匹配
+      let hit = docs.find(d => d.fullRoute === cleanR);
+      if (hit) return hit.fullRoute;
+      // 补齐 .md
+      hit = docs.find(d => d.fullRoute === cleanR + '.md');
+      if (hit) return hit.fullRoute;
+      // 目录 README.md / index.md
+      hit = docs.find(d => d.fullRoute === cleanR + '/README.md');
+      if (hit) return hit.fullRoute;
+      hit = docs.find(d => d.fullRoute === cleanR + '/index.md');
+      if (hit) return hit.fullRoute;
+      return null;
+    };
+
+    // 3. 绝对路径情况：/xxx
+    if (cleanRaw.startsWith('/')) {
+      let cand;
+      if (repoPrefix && (cleanRaw === repoPrefix || cleanRaw.startsWith(repoPrefix + '/'))) {
+        cand = normalizePath(cleanRaw);
+      } else {
+        cand = normalizePath(`${repoPrefix}/${cleanRaw.replace(/^\/+/, '')}`);
+      }
+      const match = findInDocs(cand);
+      if (match) return match;
+      return resolveDocExtension(cand);
+    }
+
+    // 4. 相对路径情况：生成各维度候选
+    const strippedRaw = cleanRaw.replace(/^\.\//, '');
+
+    // 候选 A：重叠智能合并（解决当前目录包含相同前缀时被重复叠加的问题）
+    const candOverlap = normalizePath(mergeOverlappingPaths(currentDir, strippedRaw));
+    // 候选 B：纯相对当前文档目录
+    const candRelative = normalizePath(`${currentDir}/${cleanRaw}`);
+    // 候选 C：相对知识库根目录（解决直接写 01-价值篇... 的全库根相对习惯）
+    const candRepoRoot = normalizePath(`${repoPrefix}/${strippedRaw}`);
+
+    // 按优先级匹配树中真实存在的文档
+    const matchOverlap = findInDocs(candOverlap);
+    if (matchOverlap) return matchOverlap;
+
+    const matchRel = findInDocs(candRelative);
+    if (matchRel) return matchRel;
+
+    const matchRoot = findInDocs(candRepoRoot);
+    if (matchRoot) return matchRoot;
+
+    // 5. 若文档树中未命中（如首次加载树尚未就绪或未来待建文档）：
+    // 消除相邻重复路径层级（如 /a/b/b/c -> /a/b/c）
+    let fallback = candOverlap;
+    const parts = fallback.split('/').filter(Boolean);
+    const dedupParts = [];
+    for (const p of parts) {
+      if (dedupParts.length === 0 || dedupParts[dedupParts.length - 1] !== p) {
+        dedupParts.push(p);
+      }
+    }
+    fallback = '/' + dedupParts.join('/');
+
+    return resolveDocExtension(fallback);
   }
 
   // 平滑滚动至页面标题锚点
@@ -2905,21 +3034,8 @@
           return;
         }
 
-        const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
-        let targetRoute;
-
-        if (rawPath.startsWith('/')) {
-          // 绝对路径：若已带当前仓库前缀则直接规范化；否则补齐当前知识库前缀
-          if (repoPrefix && (rawPath === repoPrefix || rawPath.startsWith(repoPrefix + '/'))) {
-            targetRoute = normalizePath(rawPath);
-          } else {
-            targetRoute = normalizePath(`${repoPrefix}/${rawPath.replace(/^\/+/, '')}`);
-          }
-        } else {
-          // 相对路径：基于当前文档所在目录进行相对计算并规范化（自动消除 ./ 与 ../）
-          const currentDir = state.currentPath.substring(0, state.currentPath.lastIndexOf('/')) || repoPrefix || '';
-          targetRoute = normalizePath(`${currentDir}/${rawPath}`);
-        }
+        let targetRoute = smartResolveMarkdownRoute(rawPath);
+        if (!targetRoute) return;
 
         // 3. 检查是否为非文档类静态资源（如图片、压缩包、PDF等），若为静态资源则通过 /raw 服务打开
         const ext = targetRoute.substring(targetRoute.lastIndexOf('.')).toLowerCase();
@@ -2929,12 +3045,9 @@
           return;
         }
 
-        // 4. 智能文档扩展名补齐
-        targetRoute = resolveDocExtension(targetRoute);
-
         routeTo(targetRoute, true);
 
-        // 5. 若带有跨文档锚点，在文章加载后自动平滑滚动
+        // 4. 若带有跨文档锚点，在文章加载后自动平滑滚动
         if (hashPart) {
           setTimeout(() => {
             scrollToAnchor('#' + hashPart);

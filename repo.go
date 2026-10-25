@@ -237,13 +237,21 @@ func (rm *RepoManager) SafeResolve(repo *RepoConfig, relPath string) (string, er
 
 	realTarget, err := filepath.EvalSymlinks(absPath)
 	if err != nil {
-		parent := filepath.Dir(absPath)
-		realParent, pErr := filepath.EvalSymlinks(parent)
-		if pErr != nil {
-			return "", fmt.Errorf("security check failed: cannot resolve parent directory: %w", pErr)
-		}
-		if realParent != realRepo && !strings.HasPrefix(realParent, realRepo+string(filepath.Separator)) {
-			return "", errors.New("security check failed: parent directory is outside repository root")
+		// 目标路径尚不存在时，逐级向上查找最近存在的物理祖先目录并校验是否逃逸仓库
+		ancestor := absPath
+		for {
+			parent := filepath.Dir(ancestor)
+			if parent == ancestor || parent == "." || parent == "/" {
+				break
+			}
+			realParent, pErr := filepath.EvalSymlinks(parent)
+			if pErr == nil {
+				if realParent != realRepo && !strings.HasPrefix(realParent, realRepo+string(filepath.Separator)) {
+					return "", errors.New("security check failed: parent directory is outside repository root")
+				}
+				break
+			}
+			ancestor = parent
 		}
 		return absPath, nil
 	}
@@ -499,18 +507,81 @@ func (rm *RepoManager) GetRecentFiles(repoID string, limit int) ([]RecentFileInf
 	return results, nil
 }
 
+// deduplicatePathSegments 消除相对路径中相邻重复的目录段，例如 a/b/b/c.md -> a/b/c.md
+func deduplicatePathSegments(pathStr string) string {
+	parts := strings.Split(filepath.ToSlash(pathStr), "/")
+	var dedup []string
+	for _, p := range parts {
+		if p == "" || p == "." {
+			continue
+		}
+		if len(dedup) > 0 && dedup[len(dedup)-1] == p {
+			continue
+		}
+		dedup = append(dedup, p)
+	}
+	return strings.Join(dedup, "/")
+}
+
 func (rm *RepoManager) GetCachedFile(repo *RepoConfig, relPath string) (*CachedDoc, error) {
 	absPath, err := rm.SafeResolve(repo, relPath)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return nil, fmt.Errorf("file not found: %w", err)
+	info, statErr := os.Stat(absPath)
+	if statErr != nil {
+		// 1. 容错：尝试追加 .md 扩展名查找
+		candMd := absPath + ".md"
+		if cInfo, cErr := os.Stat(candMd); cErr == nil && !cInfo.IsDir() {
+			absPath = candMd
+			info = cInfo
+			relPath = relPath + ".md"
+			statErr = nil
+		}
 	}
+
+	// 2. 容错：若路径存在重复目录层级（如 a/b/b/c），尝试去重后解析
+	if statErr != nil {
+		dedupRel := deduplicatePathSegments(relPath)
+		if dedupRel != relPath {
+			if dAbs, dErr := rm.SafeResolve(repo, dedupRel); dErr == nil {
+				if dInfo, sErr := os.Stat(dAbs); sErr == nil {
+					absPath = dAbs
+					info = dInfo
+					relPath = dedupRel
+					statErr = nil
+				} else if dMdInfo, mdErr := os.Stat(dAbs + ".md"); mdErr == nil && !dMdInfo.IsDir() {
+					absPath = dAbs + ".md"
+					info = dMdInfo
+					relPath = dedupRel + ".md"
+					statErr = nil
+				}
+			}
+		}
+	}
+
+	if statErr != nil {
+		return nil, fmt.Errorf("file not found: %w", statErr)
+	}
+
+	// 3. 目录智能回退：若目标为目录，自动索引其下的 README.md 或 index.md
 	if info.IsDir() {
-		return nil, errors.New("target is a directory, not a file")
+		candidates := []string{"README.md", "index.md", "readme.md", "Index.md"}
+		found := false
+		for _, cand := range candidates {
+			candPath := filepath.Join(absPath, cand)
+			if cInfo, cErr := os.Stat(candPath); cErr == nil && !cInfo.IsDir() {
+				absPath = candPath
+				info = cInfo
+				relPath = filepath.ToSlash(filepath.Join(relPath, cand))
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, errors.New("target is a directory without README.md or index.md")
+		}
 	}
 
 	if info.Size() > 10*1024*1024 {

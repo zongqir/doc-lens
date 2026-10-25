@@ -466,6 +466,17 @@ func (a *App) handleRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, sErr := os.Stat(absPath); sErr != nil {
+		dedupRel := deduplicatePathSegments(relPath)
+		if dedupRel != relPath {
+			if dAbs, dErr := a.rm.SafeResolve(repo, dedupRel); dErr == nil {
+				if _, sdErr := os.Stat(dAbs); sdErr == nil {
+					absPath = dAbs
+				}
+			}
+		}
+	}
+
 	ext := strings.ToLower(filepath.Ext(absPath))
 	if !allowedRawExtensions[ext] {
 		http.Error(w, "forbidden file extension", http.StatusForbidden)
