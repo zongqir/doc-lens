@@ -457,9 +457,19 @@ body.modal-open {
 }
 
 .repo-switcher-icon {
-  font-size: 16px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-accent);
   flex-shrink: 0;
+}
+
+.repo-switcher-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
 }
 
 .repo-switcher-title {
@@ -560,6 +570,26 @@ body.modal-open {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.repo-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.repo-item-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+}
+
+.repo-menu-item.active .repo-item-icon {
+  color: var(--accent-color);
 }
 
 .repo-item-name {
