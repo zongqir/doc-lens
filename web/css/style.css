@@ -3111,7 +3111,7 @@ body.modal-open {
   min-width: 0;
   max-width: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
 }
 
@@ -3135,7 +3135,8 @@ body.modal-open {
   user-select: none;
 }
 
-.doc-pagination-card:hover {
+.doc-pagination-card:hover,
+.doc-pagination-card:active {
   border-color: var(--accent-color);
   background: var(--bg-surface-hover);
   transform: translateY(-2px);
@@ -3165,7 +3166,8 @@ body.modal-open {
   line-height: 1;
 }
 
-.doc-pagination-card:hover .doc-pagination-header {
+.doc-pagination-card:hover .doc-pagination-header,
+.doc-pagination-card:active .doc-pagination-header {
   color: var(--accent-color);
 }
 
@@ -3174,11 +3176,13 @@ body.modal-open {
   transition: transform var(--transition-fast);
 }
 
-.doc-pagination-card.doc-pagination-prev:hover .doc-pagination-arrow {
+.doc-pagination-card.doc-pagination-prev:hover .doc-pagination-arrow,
+.doc-pagination-card.doc-pagination-prev:active .doc-pagination-arrow {
   transform: translateX(-3px);
 }
 
-.doc-pagination-card.doc-pagination-next:hover .doc-pagination-arrow {
+.doc-pagination-card.doc-pagination-next:hover .doc-pagination-arrow,
+.doc-pagination-card.doc-pagination-next:active .doc-pagination-arrow {
   transform: translateX(3px);
 }
 
@@ -3200,7 +3204,8 @@ body.modal-open {
   line-height: 1.45;
 }
 
-.doc-pagination-card:hover .doc-pagination-title {
+.doc-pagination-card:hover .doc-pagination-title,
+.doc-pagination-card:active .doc-pagination-title {
   color: var(--accent-color);
 }
 
