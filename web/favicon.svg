@@ -18,14 +18,9 @@
   <rect x="2" y="2" width="60" height="30" rx="16" fill="url(#glintGrad)" />
   <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
 
-  <!-- Modern Technical Doc icon -->
-  <g filter="url(#softShadow)" stroke="#ffffff" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Document outline with precision fold -->
-    <path d="M37.5 13H21a4 4 0 0 0-4 4v30a4 4 0 0 0 4 4h22a4 4 0 0 0 4-4V22.5L37.5 13z" stroke-width="3.5" />
-    <polyline points="37 13 37 23 47 23" stroke-width="3.5" />
-    <!-- Formatted document lines -->
-    <line x1="25" y1="23" x2="31" y2="23" stroke-width="3.2" />
-    <line x1="25" y1="32" x2="39" y2="32" stroke-width="3.2" />
-    <line x1="25" y1="40" x2="34" y2="40" stroke-width="3.2" />
+  <!-- Modern Open Knowledge Tome icon -->
+  <g filter="url(#softShadow)" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 14h12a8 8 0 0 1 8 8v28a6 6 0 0 0-6-6H12z" fill="rgba(255,255,255,0.22)" />
+    <path d="M52 14H40a8 8 0 0 0-8 8v28a6 6 0 0 1 6-6h14z" fill="rgba(255,255,255,0.36)" />
   </g>
 </svg>
