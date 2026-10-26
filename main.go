@@ -632,6 +632,21 @@ func (a *App) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(parts) > 1 && parts[1] == "retry" {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		newTask, err := a.tm.RetryTask(taskID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(newTask)
+		return
+	}
+
 	task := a.tm.GetTask(taskID)
 	if task == nil {
 		http.Error(w, `{"error":"task not found"}`, http.StatusNotFound)

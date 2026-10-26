@@ -6289,12 +6289,16 @@
       if (el.draftTargetFile) el.draftTargetFile.value = rel;
       if (el.draftDocContextPath) el.draftDocContextPath.textContent = rel;
       if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'block';
+    } else if (options.targetFile) {
+      if (el.draftTargetFile) el.draftTargetFile.value = options.targetFile;
+      if (el.draftDocContextPath) el.draftDocContextPath.textContent = options.targetFile;
+      if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'block';
     } else {
       if (el.draftTargetFile) el.draftTargetFile.value = '';
       if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'none';
     }
 
-    const defaultAction = options.defaultAction || (doc ? 'append' : 'new');
+    const defaultAction = options.defaultAction || (doc || options.targetFile ? 'append' : 'new');
     setTaskActionType(defaultAction);
 
     if (options.prompt && el.draftPrompt) {
@@ -6427,7 +6431,7 @@
           <span class="task-status-badge">${statusMap[t.status] || t.status}</span>
           <span class="task-time-str">${new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
-        <div class="terminal-task-prompt" title="${escapeHtml(t.prompt)}">${escapeHtml(t.prompt)}</div>
+        <div class="terminal-task-prompt" title="${escapeHtml(t.full_prompt || t.prompt)}">${escapeHtml(t.prompt)}</div>
         ${hasOutputFile ? `
           <div class="terminal-task-jump-row">
             <button type="button" class="btn btn-primary btn-task-jump-doc" data-jump-file="${escapeHtml(t.output_file)}">
@@ -6435,10 +6439,22 @@
             </button>
           </div>
         ` : ''}
+        ${t.status === 'failed' ? `
+          <div class="terminal-task-fail-row">
+            <button type="button" class="btn btn-task-retry-doc btn-card-retry" data-retry-id="${taskId}">
+              🔄 重试
+            </button>
+            <button type="button" class="btn btn-task-retry-doc btn-card-edit" data-edit-id="${taskId}">
+              ✏️ 编辑
+            </button>
+          </div>
+        ` : ''}
       `;
 
       item.addEventListener('click', (e) => {
         if (e.target.closest('.btn-task-jump-doc')) return;
+        if (e.target.closest('.btn-card-retry')) return;
+        if (e.target.closest('.btn-card-edit')) return;
         document.querySelectorAll('.terminal-task-item').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
         inspectTask(taskId);
@@ -6454,6 +6470,22 @@
             invalidateDocCache(targetUrl);
             routeTo(targetUrl, true);
           }
+        });
+      }
+
+      const cardRetryBtn = item.querySelector('.btn-card-retry');
+      if (cardRetryBtn) {
+        cardRetryBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          retryTask(taskId);
+        });
+      }
+
+      const cardEditBtn = item.querySelector('.btn-card-edit');
+      if (cardEditBtn) {
+        cardEditBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          editAndRetryTask(taskId);
         });
       }
 
@@ -6485,27 +6517,122 @@
         <span>ID: ${taskId.substring(0, 8)}</span>
         <span>仓库: ${escapeHtml(task.repo_id)}</span>
       `;
-
-      if (task.output_file && task.status === 'completed') {
-        el.activeTaskActions.innerHTML = `
-          <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
-            <span>📖 立即打开文档 ➔</span>
-          </button>
-        `;
-        document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
-          closeAllModals();
-          invalidateDocCache(task.output_file);
-          routeTo(task.output_file, true);
-        });
-      } else {
-        el.activeTaskActions.innerHTML = '';
-      }
+      renderActiveTaskActions(task);
     }
 
     fetchTaskLogs(taskId);
     state.taskLogTimer = setInterval(() => {
       fetchTaskLogs(taskId);
     }, 2000);
+  }
+
+  function renderActiveTaskActions(task) {
+    if (!el.activeTaskActions || !task) return;
+    const taskId = task.id || task.ID;
+
+    if (task.output_file && task.status === 'completed') {
+      el.activeTaskActions.innerHTML = `
+        <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
+          <span>📖 立即打开文档 ➔</span>
+        </button>
+      `;
+      const openBtn = document.getElementById('openGeneratedFileBtn');
+      if (openBtn) {
+        openBtn.addEventListener('click', () => {
+          closeAllModals();
+          invalidateDocCache(task.output_file);
+          routeTo(task.output_file, true);
+        });
+      }
+    } else if (task.status === 'failed') {
+      el.activeTaskActions.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="retryTaskBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <span>🔄 一键重试</span>
+          </button>
+          <button class="btn" id="editRetryTaskBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
+            <span>✏️ 载入并重新编辑</span>
+          </button>
+        </div>
+      `;
+      const retryBtn = document.getElementById('retryTaskBtn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => retryTask(taskId));
+      }
+      const editBtn = document.getElementById('editRetryTaskBtn');
+      if (editBtn) {
+        editBtn.addEventListener('click', () => editAndRetryTask(taskId));
+      }
+    } else {
+      el.activeTaskActions.innerHTML = '';
+    }
+  }
+
+  async function retryTask(taskId) {
+    const retryBtn = document.getElementById('retryTaskBtn');
+    if (retryBtn) {
+      retryBtn.disabled = true;
+      retryBtn.innerHTML = '<span>⏳ 正在重试...</span>';
+    }
+    document.querySelectorAll(`.btn-card-retry[data-retry-id="${taskId}"]`).forEach(btn => {
+      btn.disabled = true;
+      btn.textContent = '⏳ 重试中...';
+    });
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/retry`, {
+        method: 'POST'
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('重试任务失败: ' + (err.error || '未知错误'));
+        if (retryBtn) {
+          retryBtn.disabled = false;
+          retryBtn.innerHTML = '<span>🔄 一键重试</span>';
+        }
+        await loadTasks();
+        return;
+      }
+      const newTask = await res.json();
+      await loadTasks();
+      inspectTask(newTask.id || newTask.ID);
+    } catch (e) {
+      alert('重试网络请求失败，请检查服务状态');
+      if (retryBtn) {
+        retryBtn.disabled = false;
+        retryBtn.innerHTML = '<span>🔄 一键重试</span>';
+      }
+      await loadTasks();
+    }
+  }
+
+  async function editAndRetryTask(taskId) {
+    let task = state.tasks.find(t => (t.id || t.ID) === taskId);
+    if (!task) return;
+
+    if (!task.full_prompt) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`);
+        if (res.ok) {
+          const detail = await res.json();
+          task = { ...task, ...detail };
+        }
+      } catch (e) {}
+    }
+
+    closeAllModals();
+
+    const prompt = task.full_prompt || task.Prompt || task.prompt || '';
+    const repoId = task.repo_id || task.RepoID || '';
+    const targetFile = task.target_file || task.TargetFile || '';
+    const type = task.type || task.Type || 'new';
+
+    openAiTaskModal({
+      repoId: repoId,
+      targetFile: targetFile,
+      defaultAction: type,
+      prompt: prompt
+    });
   }
 
   async function fetchTaskLogs(taskId) {
@@ -6526,17 +6653,8 @@
           }
           loadTasks();
 
-          if (task.status === 'completed' && task.output_file && (task.id || task.ID) === state.activeTaskId) {
-            el.activeTaskActions.innerHTML = `
-              <button class="btn btn-primary" id="openGeneratedFileBtn" style="padding:4px 12px;font-size:12px;display:flex;align-items:center;gap:6px;">
-                <span>📖 立即打开文档 ➔</span>
-              </button>
-            `;
-            document.getElementById('openGeneratedFileBtn').addEventListener('click', () => {
-              closeAllModals();
-              invalidateDocCache(task.output_file);
-              routeTo(task.output_file, true);
-            });
+          if ((task.id || task.ID) === state.activeTaskId) {
+            renderActiveTaskActions(task);
           }
 
           if (task.status === 'completed') {

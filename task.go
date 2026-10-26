@@ -20,6 +20,7 @@ type Task struct {
 	Type       string    `json:"type"`       // "new" | "draft" | "append" | "modify" | "explain"
 	Status     string    `json:"status"`     // "queued" | "running" | "completed" | "failed"
 	Prompt     string    `json:"prompt"`     // 持久化存储的前 500 字符摘要
+	FullPrompt string    `json:"full_prompt,omitempty"` // 完整 Prompt (最大 5000 字符)，供重试与回填编辑
 	RepoID     string    `json:"repo_id"`
 	RepoName   string    `json:"repo_name"`
 	TargetFile string    `json:"target_file"` // 关联的参考/修改文档路径（相对路径）
@@ -105,6 +106,27 @@ func (tm *TaskManager) loadTasks() {
 					}
 				}
 			}
+			// 自动回填 FullPrompt（兼容旧版本历史数据或从日志首部提取）
+			if t.FullPrompt == "" {
+				if t.LogFile != "" {
+					if data, err := os.ReadFile(t.LogFile); err == nil {
+						str := string(data)
+						idx1 := strings.Index(str, "\nPrompt: ")
+						if idx1 != -1 {
+							idx1 += len("\nPrompt: ")
+							idx2 := strings.Index(str[idx1:], "\n===============================")
+							if idx2 != -1 {
+								t.FullPrompt = strings.TrimSpace(str[idx1 : idx1+idx2])
+							}
+						}
+					}
+				}
+				if t.FullPrompt == "" {
+					t.FullPrompt = t.Prompt
+				}
+			}
+			t.rawPrompt = t.FullPrompt
+
 			// 防御性截断，避免历史 tasks.json 膨胀导致启动 OOM
 			if rPrompt := []rune(t.Prompt); len(rPrompt) > 500 {
 				t.Prompt = string(rPrompt[:500]) + "..."
@@ -189,6 +211,7 @@ func (tm *TaskManager) SubmitTask(taskType, repoID, targetFile, prompt string) (
 		Type:       taskType,
 		Status:     "queued",
 		Prompt:     promptSummary,
+		FullPrompt: prompt,
 		RepoID:     repoID,
 		RepoName:   repo.Name,
 		TargetFile: cleanTarget,
@@ -524,4 +547,38 @@ func (tm *TaskManager) ReadTaskLog(id string, tailBytes int64) (string, error) {
 	}
 	data, err := io.ReadAll(io.LimitReader(file, tailBytes))
 	return string(data), err
+}
+
+func (tm *TaskManager) RetryTask(id string) (*Task, error) {
+	tm.mu.RLock()
+	var targetTask *Task
+	for _, t := range tm.tasks {
+		if t.ID == id {
+			targetTask = t
+			break
+		}
+	}
+	tm.mu.RUnlock()
+
+	if targetTask == nil {
+		return nil, fmt.Errorf("task %s not found", id)
+	}
+
+	prompt := targetTask.FullPrompt
+	if prompt == "" {
+		prompt = targetTask.rawPrompt
+	}
+	if prompt == "" {
+		prompt = targetTask.Prompt
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return nil, errors.New("cannot retry task with empty prompt")
+	}
+
+	taskType := targetTask.Type
+	if taskType == "" {
+		taskType = "draft"
+	}
+
+	return tm.SubmitTask(taskType, targetTask.RepoID, targetTask.TargetFile, prompt)
 }
