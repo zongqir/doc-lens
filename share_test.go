@@ -84,4 +84,16 @@ func TestShareManager(t *testing.T) {
 	if delErr != ErrShareNotFound {
 		t.Errorf("expected ErrShareNotFound after delete, got %v", delErr)
 	}
+
+	// 8. Test single active share overwrite
+	item1, _ := sm.CreateShare("world_lens", "single.md", "Single Doc", 7, "")
+	item2, _ := sm.CreateShare("world_lens", "single.md", "Single Doc Updated", 30, "1234")
+	if _, err := sm.GetShare(item1.ID); err != ErrShareNotFound {
+		t.Errorf("expected old share to be deleted upon overwrite, got err: %v", err)
+	}
+	gotActive := sm.GetDocShare("world_lens", "single.md")
+	if gotActive == nil || gotActive.ID != item2.ID || gotActive.Passcode != "1234" {
+		t.Errorf("expected new share to be active and have passcode 1234")
+	}
 }
+

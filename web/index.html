@@ -367,7 +367,7 @@
     </div>
   </div>
 
-  <!-- 文档对外只读分享模态框 -->
+  <!-- 文档对外只读分享模态框 (极简单篇单一分享架构) -->
   <div class="modal-overlay" id="shareDocModal">
     <div class="modal-card modal-share-card">
       <div class="modal-header">
@@ -385,7 +385,9 @@
         </span>
         <button type="button" class="btn btn-icon-only close-modal-btn">✕</button>
       </div>
+
       <div class="modal-body share-modal-body">
+        <!-- 顶部文档信息预览 -->
         <div class="share-doc-preview">
           <span class="share-doc-icon">📄</span>
           <div class="share-doc-info">
@@ -394,64 +396,78 @@
           </div>
         </div>
 
-        <form id="createShareForm" class="create-share-form">
-          <div class="share-options-grid">
-            <div class="form-group" style="margin-bottom:0;">
-              <label class="form-label">有效期限</label>
-              <select id="shareExpireDays" class="custom-select share-select">
-                <option value="7" selected>7 天有效 (推荐)</option>
-                <option value="1">1 天有效 (临时阅读)</option>
-                <option value="30">30 天有效</option>
-                <option value="0">永久有效</option>
-              </select>
+        <!-- 场景 1：当前已存在生效中的专属分享卡片 -->
+        <div class="share-active-panel" id="shareActivePanel" style="display:none;">
+          <div class="share-active-badge-row">
+            <div class="share-live-tag">
+              <span class="live-dot"></span>
+              <span>分享进行中</span>
             </div>
+            <span class="share-view-counter" id="shareViewCounter">👁️ 0 次浏览</span>
+          </div>
 
-            <div class="form-group" style="margin-bottom:0;">
-              <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;">
-                <span>访问密码保护</span>
-                <input type="checkbox" id="shareEnablePasscode" style="cursor:pointer;">
-              </label>
-              <div class="share-passcode-input-wrap" id="sharePasscodeWrap" style="display:none;">
-                <input type="text" id="sharePasscodeInput" class="text-input" placeholder="4位密码" maxlength="8">
-                <button type="button" class="btn btn-sm btn-refresh-code" id="refreshPasscodeBtn" title="生成随机密码">🎲</button>
-              </div>
-              <div class="share-passcode-hint" id="sharePasscodeHint">公开免密（任何人持链接即可阅读）</div>
+          <div class="share-url-container">
+            <input type="text" class="text-input share-url-input" id="shareActiveUrlInput" readonly>
+            <button type="button" class="btn btn-primary btn-copy-share-main" id="mainCopyShareBtn">
+              <span id="copyBtnText">复制链接</span>
+            </button>
+          </div>
+
+          <!-- 手机端友好：大字号独立卡片展示指标，绝无横向挤压 -->
+          <div class="share-meta-cards">
+            <div class="share-meta-card">
+              <span class="meta-card-title">有效期限</span>
+              <span class="meta-card-value" id="shareMetaExpire">永久有效</span>
+            </div>
+            <div class="share-meta-card">
+              <span class="meta-card-title">提取保护</span>
+              <span class="meta-card-value" id="shareMetaPasscode">公开免密</span>
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-generate-share" id="generateShareBtn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-            </svg>
-            <span>生成新分享链接</span>
-          </button>
-        </form>
-
-        <!-- 最新生成分享链接结果展示区 -->
-        <div class="share-result-box" id="shareResultBox" style="display:none;">
-          <div class="share-result-header">
-            <span class="share-result-title">🎉 分享链接已生成</span>
-            <span class="share-result-meta" id="shareResultMeta"></span>
-          </div>
-          <div class="share-link-input-group">
-            <input type="text" class="text-input share-url-input" id="shareResultUrl" readonly>
-            <button type="button" class="btn btn-primary" id="copyShareResultBtn">复制链接</button>
-          </div>
-          <div class="share-result-tip">
-            💡 访客通过此专属链接即可直接免密进入沉浸式阅读模式，全库目录与其他文档仍安全隔离。
+          <div class="share-card-actions">
+            <button type="button" class="btn btn-sm btn-revoke-action" id="revokeActiveShareBtn">
+              ✕ 撤回并关闭分享
+            </button>
           </div>
         </div>
 
-        <!-- 本文档历史有效分享列表 -->
-        <div class="share-history-section" id="shareHistorySection">
-          <div class="share-history-header">
-            <span>本文档的历史分享</span>
-            <span class="tree-badge" id="shareHistoryCountBadge">0 项</span>
+        <!-- 场景 2：新建/重新配置分享设置表单 -->
+        <form id="shareSettingsForm" class="share-settings-form">
+          <div class="share-settings-title" id="shareFormTitle">设置分享参数</div>
+
+          <div class="form-group">
+            <label class="form-label">有效期限</label>
+            <select id="shareExpireDays" class="custom-select share-select">
+              <option value="7" selected>7 天有效 (推荐)</option>
+              <option value="1">1 天有效 (临时阅读)</option>
+              <option value="30">30 天有效</option>
+              <option value="0">永久有效</option>
+            </select>
           </div>
-          <div class="share-history-list" id="shareHistoryList">
-            <!-- 动态渲染历史分享 -->
+
+          <div class="form-group" style="margin-bottom:18px;">
+            <div class="share-pass-header">
+              <label class="form-label" style="margin-bottom:0;">访问密码保护</label>
+              <label class="share-checkbox-label">
+                <input type="checkbox" id="shareEnablePasscode" style="cursor:pointer;">
+                <span>设置 4 位密码</span>
+              </label>
+            </div>
+            <div class="share-passcode-input-wrap" id="sharePasscodeWrap" style="display:none;">
+              <input type="text" id="sharePasscodeInput" class="text-input" placeholder="4位密码" maxlength="8">
+              <button type="button" class="btn btn-sm" id="refreshPasscodeBtn" title="随机生成 4 位数字密码">🎲 换一个</button>
+            </div>
+            <div class="share-passcode-hint" id="sharePasscodeHint">公开免密（任何人持链接即可阅读）</div>
           </div>
+
+          <button type="submit" class="btn btn-primary btn-submit-share" id="submitShareBtn">
+            <span id="submitShareBtnText">生成分享链接并复制</span>
+          </button>
+        </form>
+
+        <div class="share-bottom-tip">
+          💡 提示：单篇文档始终只保留一个最新分享链接。若重新生成，将自动覆盖之前的分享设置。
         </div>
       </div>
     </div>

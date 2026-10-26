@@ -809,6 +809,12 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		repo := r.URL.Query().Get("repo")
 		path := r.URL.Query().Get("path")
+		if repo != "" && path != "" {
+			share := a.sm.GetDocShare(repo, path)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"share": share})
+			return
+		}
 		shares := a.sm.ListShares(repo, path)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(shares)

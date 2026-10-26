@@ -79,6 +79,45 @@
     }
   }
 
+  // 跨平台与跨网络协议(HTTP/HTTPS)剪贴板复制工具，含移动端/局域网降级支持
+  async function copyTextToClipboard(text) {
+    if (!text) return false;
+    // 优先尝试标准 Clipboard API（仅在 HTTPS 或 localhost 等安全上下文生效）
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {
+        // Fallback below
+      }
+    }
+    // 降级方案：创建不可见 textarea 使用 document.execCommand('copy')，兼容 HTTP 局域网及各类移动端浏览器
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.left = '0';
+      ta.style.width = '2em';
+      ta.style.height = '2em';
+      ta.style.padding = '0';
+      ta.style.border = 'none';
+      ta.style.outline = 'none';
+      ta.style.boxShadow = 'none';
+      ta.style.background = 'transparent';
+      ta.setAttribute('readonly', '');
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const successful = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!successful;
+    } catch (err) {
+      return false;
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', initApp);
 
   async function initApp() {
@@ -241,25 +280,29 @@
     el.draftDocContextPath = document.getElementById('draftDocContextPath');
     el.clearDraftContextBtn = document.getElementById('clearDraftContextBtn');
 
-    // 分享功能相关 DOM 元素
+    // 分享功能相关 DOM 元素 (单篇唯一专属分享模型)
     el.shareDocModal = document.getElementById('shareDocModal');
     el.shareModalDocTitle = document.getElementById('shareModalDocTitle');
     el.shareModalDocPath = document.getElementById('shareModalDocPath');
-    el.createShareForm = document.getElementById('createShareForm');
+
+    el.shareActivePanel = document.getElementById('shareActivePanel');
+    el.shareActiveUrlInput = document.getElementById('shareActiveUrlInput');
+    el.mainCopyShareBtn = document.getElementById('mainCopyShareBtn');
+    el.shareViewCounter = document.getElementById('shareViewCounter');
+    el.shareMetaExpire = document.getElementById('shareMetaExpire');
+    el.shareMetaPasscode = document.getElementById('shareMetaPasscode');
+    el.revokeActiveShareBtn = document.getElementById('revokeActiveShareBtn');
+
+    el.shareSettingsForm = document.getElementById('shareSettingsForm');
+    el.shareFormTitle = document.getElementById('shareFormTitle');
     el.shareExpireDays = document.getElementById('shareExpireDays');
     el.shareEnablePasscode = document.getElementById('shareEnablePasscode');
     el.sharePasscodeWrap = document.getElementById('sharePasscodeWrap');
     el.sharePasscodeInput = document.getElementById('sharePasscodeInput');
     el.refreshPasscodeBtn = document.getElementById('refreshPasscodeBtn');
     el.sharePasscodeHint = document.getElementById('sharePasscodeHint');
-    el.generateShareBtn = document.getElementById('generateShareBtn');
-    el.shareResultBox = document.getElementById('shareResultBox');
-    el.shareResultUrl = document.getElementById('shareResultUrl');
-    el.shareResultMeta = document.getElementById('shareResultMeta');
-    el.copyShareResultBtn = document.getElementById('copyShareResultBtn');
-    el.shareHistorySection = document.getElementById('shareHistorySection');
-    el.shareHistoryList = document.getElementById('shareHistoryList');
-    el.shareHistoryCountBadge = document.getElementById('shareHistoryCountBadge');
+    el.submitShareBtn = document.getElementById('submitShareBtn');
+    el.submitShareBtnText = document.getElementById('submitShareBtnText');
 
     el.sharePasscodeModal = document.getElementById('sharePasscodeModal');
     el.sharePasscodeForm = document.getElementById('sharePasscodeForm');
@@ -274,7 +317,7 @@
       el.shareEnablePasscode.addEventListener('change', () => {
         if (el.shareEnablePasscode.checked) {
           if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'flex';
-          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '已启用访问密码保护';
+          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '已启用 4 位访问密码保护';
           if (el.sharePasscodeInput && !el.sharePasscodeInput.value) {
             el.sharePasscodeInput.value = generateRandomPasscode();
           }
@@ -291,12 +334,16 @@
       });
     }
 
-    if (el.createShareForm) {
-      el.createShareForm.addEventListener('submit', handleCreateShare);
+    if (el.mainCopyShareBtn) {
+      el.mainCopyShareBtn.addEventListener('click', copyMainShareUrl);
     }
 
-    if (el.copyShareResultBtn) {
-      el.copyShareResultBtn.addEventListener('click', copyShareResultUrl);
+    if (el.revokeActiveShareBtn) {
+      el.revokeActiveShareBtn.addEventListener('click', revokeCurrentActiveShare);
+    }
+
+    if (el.shareSettingsForm) {
+      el.shareSettingsForm.addEventListener('submit', handleSaveShareSettings);
     }
 
     if (el.sharePasscodeForm) {
@@ -2741,8 +2788,8 @@
       toggleFavorite(doc);
     });
 
-    document.getElementById('copyLinkBtn').addEventListener('click', () => {
-      navigator.clipboard.writeText(window.location.href);
+    document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+      await copyTextToClipboard(window.location.href);
       const b = document.getElementById('copyLinkBtn');
       b.classList.add('copy-success');
       b.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
@@ -5375,9 +5422,9 @@
         }
       });
 
-      copyBtn.addEventListener('click', (e) => {
+      copyBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText((code || pre).innerText);
+        await copyTextToClipboard((code || pre).innerText);
         copyBtn.innerHTML = `${SVG_ICONS.check} <span style="color:#10b981;">已复制</span>`;
         setTimeout(() => {
           copyBtn.innerHTML = `${SVG_ICONS.copy} <span>复制</span>`;
@@ -7156,120 +7203,120 @@
   }
 
   // =========================================================================
-  // 单篇文档对外免密只读分享模块 (Document Sharing & Reader Mode)
+  // 单篇文档对外免密只读分享模块 (Document Sharing & Reader Mode - 极简单一分享架构)
   // =========================================================================
 
   let currentShareTargetDoc = null;
+  let currentDocActiveShare = null;
 
   function generateRandomPasscode() {
     return Math.floor(1000 + Math.random() * 9000).toString();
   }
 
-  function openShareModal(doc) {
+  async function openShareModal(doc) {
     if (!doc) return;
     currentShareTargetDoc = doc;
+    currentDocActiveShare = null;
 
-    const title = doc.name ? cleanDocTitle(doc.name) : (doc.title || doc.path.split('/').pop() || '未命名文档');
+    const title = doc.name ? cleanDocTitle(doc.name) : (doc.title || (doc.path ? doc.path.split('/').pop() : '未命名文档'));
     if (el.shareModalDocTitle) el.shareModalDocTitle.textContent = title;
-    if (el.shareModalDocPath) el.shareModalDocPath.textContent = doc.path;
+    if (el.shareModalDocPath) el.shareModalDocPath.textContent = doc.rel_path || doc.path || '';
 
-    // 重置表单状态
+    // 重置表单初始状态
     if (el.shareExpireDays) el.shareExpireDays.value = '7';
     if (el.shareEnablePasscode) el.shareEnablePasscode.checked = false;
     if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'none';
     if (el.sharePasscodeInput) el.sharePasscodeInput.value = '';
     if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
-    if (el.shareResultBox) el.shareResultBox.style.display = 'none';
+
+    // 默认先隐藏已生效卡片
+    if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
+    if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
+    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
 
     openModal(el.shareDocModal);
 
-    // 加载当前文档历史分享记录
-    loadDocShares(doc.repo_id || (state.currentRepo ? state.currentRepo.ID : ''), doc.rel_path || doc.path);
+    // 加载当前文档唯一的生效分享状态
+    const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
+    await loadCurrentDocShare(repoId, relPath);
   }
 
-  async function loadDocShares(repoId, relPath) {
-    if (!el.shareHistoryList) return;
-    el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">正在加载历史分享记录...</div>';
-
+  async function loadCurrentDocShare(repoId, relPath) {
     try {
       const cleanRel = (relPath || '').replace(/^\/+/, '');
       const res = await fetch(`/api/shares?repo=${encodeURIComponent(repoId)}&path=${encodeURIComponent(cleanRel)}`);
       if (!res.ok) {
-        el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">暂无历史分享记录</div>';
-        if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = '0 项';
+        currentDocActiveShare = null;
+        renderActiveSharePanel(null);
         return;
       }
-      const list = await res.json();
-      renderShareHistory(list);
+      const data = await res.json();
+      currentDocActiveShare = data.share || null;
+      renderActiveSharePanel(currentDocActiveShare);
     } catch (e) {
-      el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">加载历史分享失败</div>';
+      currentDocActiveShare = null;
+      renderActiveSharePanel(null);
     }
   }
 
-  function renderShareHistory(shares) {
-    if (!el.shareHistoryList) return;
-    if (!shares || shares.length === 0) {
-      el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">暂无有效分享记录</div>';
-      if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = '0 项';
+  function renderActiveSharePanel(share) {
+    if (!share) {
+      if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
+      if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
+      if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
       return;
     }
 
-    if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = `${shares.length} 项`;
+    const shareUrl = `${window.location.origin}/s/${share.id}`;
+    if (el.shareActiveUrlInput) el.shareActiveUrlInput.value = shareUrl;
+
+    if (el.shareViewCounter) {
+      el.shareViewCounter.textContent = `👁️ ${share.view_count || 0} 次浏览`;
+    }
 
     const now = Math.floor(Date.now() / 1000);
-    el.shareHistoryList.innerHTML = shares.map(item => {
-      const isExpired = item.expires_at > 0 && now > item.expires_at;
-      let expText = '永久有效';
-      if (item.expires_at > 0) {
-        expText = isExpired ? '已过期' : `截止 ${new Date(item.expires_at * 1000).toLocaleDateString()}`;
-      }
-      const passText = item.passcode ? `🔑 密码: ${escapeHtml(item.passcode)}` : '🔓 免密';
-      const shareUrl = `${window.location.origin}/s/${item.id}`;
+    const isExpired = share.expires_at > 0 && now > share.expires_at;
+    let expText = '永久有效';
+    if (share.expires_at > 0) {
+      expText = isExpired ? '⚠️ 已过期' : `截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
+    }
+    if (el.shareMetaExpire) {
+      el.shareMetaExpire.textContent = expText;
+      el.shareMetaExpire.style.color = isExpired ? '#ef4444' : 'var(--text-primary)';
+    }
 
-      return `
-        <div class="share-history-item" data-id="${item.id}">
-          <div class="share-history-info">
-            <div class="share-history-id-row">
-              <span class="share-history-id">/s/${escapeHtml(item.id)}</span>
-              <span class="tree-badge" style="font-size:10px;padding:1px 5px;${isExpired ? 'color:#ef4444;' : ''}">${expText}</span>
-              <span class="tree-badge" style="font-size:10px;padding:1px 5px;">${passText}</span>
-            </div>
-            <div class="share-history-meta">
-              <span>阅读量: ${item.view_count || 0} 次</span>
-              <span style="margin: 0 4px;">·</span>
-              <span>创建于 ${new Date(item.created_at).toLocaleDateString()}</span>
-            </div>
-          </div>
-          <div class="share-history-actions">
-            <button type="button" class="btn btn-sm btn-copy-history" data-url="${shareUrl}" title="复制此分享链接">复制</button>
-            <button type="button" class="btn btn-sm btn-revoke-share" data-id="${item.id}" title="撤销此分享链接">撤回</button>
-          </div>
-        </div>
-      `;
-    }).join('');
+    const passText = share.passcode ? `🔑 密码: ${share.passcode}` : '🔓 公开免密';
+    if (el.shareMetaPasscode) {
+      el.shareMetaPasscode.textContent = passText;
+    }
 
-    // 绑定复制与撤销事件
-    el.shareHistoryList.querySelectorAll('.btn-copy-history').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.getAttribute('data-url');
-        navigator.clipboard.writeText(url);
-        btn.textContent = '已复制';
-        setTimeout(() => { btn.textContent = '复制'; }, 1800);
-      });
-    });
-
-    el.shareHistoryList.querySelectorAll('.btn-revoke-share').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const shareId = btn.getAttribute('data-id');
-        if (!confirm(`确定撤回此分享链接 (/s/${shareId}) 吗？撤回后外部访客将立即无法阅读。`)) {
-          return;
-        }
-        await revokeShare(shareId);
-      });
-    });
+    if (el.shareActivePanel) el.shareActivePanel.style.display = 'block';
+    if (el.shareFormTitle) el.shareFormTitle.textContent = '修改分享参数 (覆盖当前链接)';
+    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '覆盖并重新生成分享链接';
   }
 
-  async function handleCreateShare(e) {
+  async function copyMainShareUrl() {
+    if (!el.shareActiveUrlInput || !el.shareActiveUrlInput.value) return;
+    const ok = await copyTextToClipboard(el.shareActiveUrlInput.value);
+    const copyBtn = el.mainCopyShareBtn;
+    if (copyBtn) {
+      const origHtml = copyBtn.innerHTML;
+      if (ok) {
+        copyBtn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="color:#10b981;font-weight:600;">已复制链接!</span>
+        `;
+      } else {
+        copyBtn.innerHTML = `<span>复制失败，请手动选中文本复制</span>`;
+      }
+      setTimeout(() => {
+        if (copyBtn) copyBtn.innerHTML = origHtml;
+      }, 2000);
+    }
+  }
+
+  async function handleSaveShareSettings(e) {
     e.preventDefault();
     if (!currentShareTargetDoc) return;
 
@@ -7281,9 +7328,11 @@
     const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
     const title = currentShareTargetDoc.name ? cleanDocTitle(currentShareTargetDoc.name) : (currentShareTargetDoc.title || relPath.split('/').pop());
 
-    if (el.generateShareBtn) {
-      el.generateShareBtn.disabled = true;
-      el.generateShareBtn.innerHTML = '正在生成...';
+    if (el.submitShareBtn) {
+      el.submitShareBtn.disabled = true;
+    }
+    if (el.submitShareBtnText) {
+      el.submitShareBtnText.textContent = '正在处理...';
     }
 
     try {
@@ -7305,55 +7354,43 @@
         return;
       }
 
+      // 重新加载并更新为最新生效的分享卡片
+      await loadCurrentDocShare(repoId, relPath);
+
+      // 自动复制新生成的分享链接到剪贴板
       const fullUrl = `${window.location.origin}/s/${data.share_id}`;
-      if (el.shareResultUrl) el.shareResultUrl.value = fullUrl;
-      if (el.shareResultMeta) {
-        let metaText = expireDays > 0 ? `${expireDays} 天有效` : '永久有效';
-        if (passcode) metaText += ` · 密码: ${passcode}`;
-        el.shareResultMeta.textContent = metaText;
+      const copied = await copyTextToClipboard(fullUrl);
+
+      if (el.mainCopyShareBtn && copied) {
+        const origHtml = el.mainCopyShareBtn.innerHTML;
+        el.mainCopyShareBtn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="color:#10b981;font-weight:600;">已生成并自动复制!</span>
+        `;
+        setTimeout(() => {
+          if (el.mainCopyShareBtn) el.mainCopyShareBtn.innerHTML = origHtml;
+        }, 2500);
       }
-      if (el.shareResultBox) el.shareResultBox.style.display = 'block';
-
-      // 自动复制到剪贴板
-      try {
-        await navigator.clipboard.writeText(fullUrl);
-        if (el.copyShareResultBtn) {
-          el.copyShareResultBtn.textContent = '已自动复制到剪贴板!';
-          setTimeout(() => { if (el.copyShareResultBtn) el.copyShareResultBtn.textContent = '复制链接'; }, 2500);
-        }
-      } catch (copyErr) {}
-
-      // 刷新历史分享列表
-      loadDocShares(repoId, relPath);
     } catch (err) {
       alert('网络通信异常，请重试');
     } finally {
-      if (el.generateShareBtn) {
-        el.generateShareBtn.disabled = false;
-        el.generateShareBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-          </svg>
-          <span>生成新分享链接</span>
-        `;
+      if (el.submitShareBtn) {
+        el.submitShareBtn.disabled = false;
+      }
+      if (el.submitShareBtnText) {
+        el.submitShareBtnText.textContent = currentDocActiveShare ? '覆盖并重新生成分享链接' : '生成分享链接并复制';
       }
     }
   }
 
-  function copyShareResultUrl() {
-    if (!el.shareResultUrl || !el.shareResultUrl.value) return;
-    navigator.clipboard.writeText(el.shareResultUrl.value);
-    if (el.copyShareResultBtn) {
-      const orig = el.copyShareResultBtn.textContent;
-      el.copyShareResultBtn.textContent = '已复制!';
-      setTimeout(() => { el.copyShareResultBtn.textContent = orig; }, 2000);
+  async function revokeCurrentActiveShare() {
+    if (!currentDocActiveShare) return;
+    if (!confirm(`确定撤回当前分享链接 (/s/${currentDocActiveShare.id}) 吗？撤回后外部访客将立即无法阅读。`)) {
+      return;
     }
-  }
 
-  async function revokeShare(shareId) {
     try {
-      const res = await fetch(`/api/shares/${encodeURIComponent(shareId)}`, {
+      const res = await fetch(`/api/shares/${encodeURIComponent(currentDocActiveShare.id)}`, {
         method: 'DELETE'
       });
       if (!res.ok) {
@@ -7361,11 +7398,9 @@
         alert(data.error || '撤回失败');
         return;
       }
-      if (currentShareTargetDoc) {
-        const repoId = currentShareTargetDoc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
-        const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
-        loadDocShares(repoId, relPath);
-      }
+
+      currentDocActiveShare = null;
+      renderActiveSharePanel(null);
     } catch (e) {
       alert('撤回通信失败');
     }
@@ -7510,8 +7545,8 @@
 
       const copyBtn = document.getElementById('copyShareLinkBtn');
       if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-          navigator.clipboard.writeText(window.location.href);
+        copyBtn.addEventListener('click', async () => {
+          await copyTextToClipboard(window.location.href);
           copyBtn.classList.add('copy-success');
           copyBtn.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
           setTimeout(() => {

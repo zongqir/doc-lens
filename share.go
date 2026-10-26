@@ -87,6 +87,16 @@ func (sm *ShareManager) loadShares() {
 		if item.ExpiresAt > 0 && now-item.ExpiresAt > 60*86400 {
 			continue
 		}
+		// 单篇文档只保留最新的一条有效分享（覆盖旧的）
+		cleanRel := filepath.ToSlash(filepath.Clean(item.RelPath))
+		cleanRel = strings.TrimPrefix(cleanRel, "/")
+		for oldID, old := range sm.shares {
+			if old.RepoID == item.RepoID && old.RelPath == cleanRel {
+				if item.CreatedAt.After(old.CreatedAt) {
+					delete(sm.shares, oldID)
+				}
+			}
+		}
 		sm.shares[item.ID] = item
 	}
 }
@@ -108,13 +118,20 @@ func (sm *ShareManager) saveShares() {
 	}
 }
 
-// CreateShare 创建新的分享链接
+// CreateShare 为文档创建/更新分享链接（每篇文档始终唯一，覆盖之前的分享）
 func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays int, passcode string) (*ShareItem, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
 	cleanRel = strings.TrimPrefix(cleanRel, "/")
+
+	// 核心逻辑：若本文档之前存在旧分享，直接删除并覆盖，避免多条冗余难管
+	for oldID, old := range sm.shares {
+		if old.RepoID == repoID && old.RelPath == cleanRel {
+			delete(sm.shares, oldID)
+		}
+	}
 
 	var expiresAt int64 = 0
 	if expireDays > 0 {
@@ -155,6 +172,27 @@ func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays
 
 	copyItem := *item
 	return &copyItem, nil
+}
+
+// GetDocShare 查询指定文档当前唯一的活跃分享（自动过滤已过期）
+func (sm *ShareManager) GetDocShare(repoID, relPath string) *ShareItem {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
+	cleanRel = strings.TrimPrefix(cleanRel, "/")
+
+	now := time.Now().Unix()
+	for _, item := range sm.shares {
+		if item.RepoID == repoID && item.RelPath == cleanRel {
+			if item.ExpiresAt > 0 && now > item.ExpiresAt {
+				return nil
+			}
+			copyItem := *item
+			return &copyItem
+		}
+	}
+	return nil
 }
 
 // GetShare 获取分享记录（自动校验有效期）

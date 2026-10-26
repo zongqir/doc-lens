@@ -6657,185 +6657,245 @@ body.modal-open {
   margin-top: 2px;
 }
 
-.share-options-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-@media (max-width: 500px) {
-  .share-options-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.share-select {
-  width: 100%;
-}
-
-.share-passcode-input-wrap {
+/* 当前活跃分享卡片 */
+.share-active-panel {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.share-active-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.share-live-tag {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
-}
-
-.share-passcode-input-wrap .text-input {
-  font-family: var(--font-mono);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 2px;
-  text-align: center;
-  padding: 6px 8px;
-}
-
-.btn-refresh-code {
-  padding: 6px 10px;
-  flex-shrink: 0;
-}
-
-.share-passcode-hint {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  margin-top: 6px;
-}
-
-.btn-generate-share {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-}
-
-.share-result-box {
-  margin-top: 20px;
-  padding: 14px;
-  background-color: var(--bg-surface-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  animation: fadeIn 0.2s ease-out;
-}
-
-.share-result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.share-result-title {
-  font-weight: 600;
-  font-size: 13.5px;
   color: #10b981;
 }
 
-.share-result-meta {
-  font-size: 11.5px;
-  color: var(--text-muted);
+.share-live-tag .live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  animation: pulseDot 2s infinite;
 }
 
-.share-link-input-group {
+@keyframes pulseDot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.share-view-counter {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.share-url-container {
   display: flex;
   gap: 8px;
 }
 
 .share-url-input {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  background-color: var(--bg-subtle);
-  color: var(--text-primary);
   flex: 1;
-}
-
-.share-result-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 8px;
-  line-height: 1.5;
-}
-
-/* 历史分享列表 */
-.share-history-section {
-  margin-top: 22px;
-  border-top: 1px solid var(--border-default);
-  padding-top: 14px;
-}
-
-.share-history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 10px;
-}
-
-.share-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.share-history-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 9px 12px;
   background-color: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  user-select: all;
+}
+
+.btn-copy-share-main {
+  padding: 9px 18px;
+  font-weight: 600;
+  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 手机端与桌面端自适应双卡片：整洁呈现有效期与密码保护，绝不挤压 */
+.share-meta-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.share-history-info {
+.share-meta-card {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1;
+  gap: 4px;
+  padding: 10px 12px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
-.share-history-id-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.share-history-id {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--accent-color);
-}
-
-.share-history-meta {
-  color: var(--text-muted);
+.meta-card-title {
   font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
-.share-history-actions {
+.meta-card-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.btn-revoke-action {
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: transparent;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.btn-revoke-action:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: #ef4444;
+}
+
+/* 分享设置表单 */
+.share-settings-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.share-settings-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
 }
 
-.btn-revoke-share {
-  color: #ef4444 !important;
-  border-color: rgba(239, 68, 68, 0.25) !important;
+.share-pass-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.btn-revoke-share:hover {
-  background-color: rgba(239, 68, 68, 0.1) !important;
+.share-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.share-passcode-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.share-passcode-input-wrap .text-input {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+  max-width: 140px;
+  padding: 8px 10px;
+}
+
+.share-passcode-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 5px;
+}
+
+.btn-submit-share {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  margin-top: 6px;
+}
+
+.share-bottom-tip {
+  margin-top: 16px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 手机端响应式优化 (<=640px) */
+@media (max-width: 640px) {
+  .modal-share-card {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .share-url-container {
+    flex-direction: column;
+  }
+
+  .btn-copy-share-main {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .share-meta-cards {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .share-pass-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .share-passcode-input-wrap {
+    width: 100%;
+  }
+
+  .share-passcode-input-wrap .text-input {
+    flex: 1;
+    max-width: none;
+  }
 }
 
 /* 访客提取码弹窗 */
