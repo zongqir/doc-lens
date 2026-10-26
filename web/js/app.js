@@ -4746,6 +4746,13 @@
       return trimmed;
     }
 
+    // 若处于单篇只读分享模式，所有相对静态资源经由免密沙箱 /api/share/raw 加载
+    if (state.isShareMode && state.shareId) {
+      const relFile = trimmed.replace(/^\.\//, '');
+      const passParam = state.sharePasscode ? '&passcode=' + encodeURIComponent(state.sharePasscode) : '';
+      return `/api/share/raw?id=${encodeURIComponent(state.shareId)}&file=${encodeURIComponent(relFile)}${passParam}`;
+    }
+
     const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
     let fullRoute;
 
@@ -7146,6 +7153,394 @@
       el.audioStatusPill.textContent = '已就绪';
       el.audioStatusPill.className = 'audio-status-pill playing';
     }
+  }
+
+  // =========================================================================
+  // 单篇文档对外免密只读分享模块 (Document Sharing & Reader Mode)
+  // =========================================================================
+
+  let currentShareTargetDoc = null;
+
+  function generateRandomPasscode() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  function openShareModal(doc) {
+    if (!doc) return;
+    currentShareTargetDoc = doc;
+
+    const title = doc.name ? cleanDocTitle(doc.name) : (doc.title || doc.path.split('/').pop() || '未命名文档');
+    if (el.shareModalDocTitle) el.shareModalDocTitle.textContent = title;
+    if (el.shareModalDocPath) el.shareModalDocPath.textContent = doc.path;
+
+    // 重置表单状态
+    if (el.shareExpireDays) el.shareExpireDays.value = '7';
+    if (el.shareEnablePasscode) el.shareEnablePasscode.checked = false;
+    if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'none';
+    if (el.sharePasscodeInput) el.sharePasscodeInput.value = '';
+    if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
+    if (el.shareResultBox) el.shareResultBox.style.display = 'none';
+
+    openModal(el.shareDocModal);
+
+    // 加载当前文档历史分享记录
+    loadDocShares(doc.repo_id || (state.currentRepo ? state.currentRepo.ID : ''), doc.rel_path || doc.path);
+  }
+
+  async function loadDocShares(repoId, relPath) {
+    if (!el.shareHistoryList) return;
+    el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">正在加载历史分享记录...</div>';
+
+    try {
+      const cleanRel = (relPath || '').replace(/^\/+/, '');
+      const res = await fetch(`/api/shares?repo=${encodeURIComponent(repoId)}&path=${encodeURIComponent(cleanRel)}`);
+      if (!res.ok) {
+        el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">暂无历史分享记录</div>';
+        if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = '0 项';
+        return;
+      }
+      const list = await res.json();
+      renderShareHistory(list);
+    } catch (e) {
+      el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">加载历史分享失败</div>';
+    }
+  }
+
+  function renderShareHistory(shares) {
+    if (!el.shareHistoryList) return;
+    if (!shares || shares.length === 0) {
+      el.shareHistoryList.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">暂无有效分享记录</div>';
+      if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = '0 项';
+      return;
+    }
+
+    if (el.shareHistoryCountBadge) el.shareHistoryCountBadge.textContent = `${shares.length} 项`;
+
+    const now = Math.floor(Date.now() / 1000);
+    el.shareHistoryList.innerHTML = shares.map(item => {
+      const isExpired = item.expires_at > 0 && now > item.expires_at;
+      let expText = '永久有效';
+      if (item.expires_at > 0) {
+        expText = isExpired ? '已过期' : `截止 ${new Date(item.expires_at * 1000).toLocaleDateString()}`;
+      }
+      const passText = item.passcode ? `🔑 密码: ${escapeHtml(item.passcode)}` : '🔓 免密';
+      const shareUrl = `${window.location.origin}/s/${item.id}`;
+
+      return `
+        <div class="share-history-item" data-id="${item.id}">
+          <div class="share-history-info">
+            <div class="share-history-id-row">
+              <span class="share-history-id">/s/${escapeHtml(item.id)}</span>
+              <span class="tree-badge" style="font-size:10px;padding:1px 5px;${isExpired ? 'color:#ef4444;' : ''}">${expText}</span>
+              <span class="tree-badge" style="font-size:10px;padding:1px 5px;">${passText}</span>
+            </div>
+            <div class="share-history-meta">
+              <span>阅读量: ${item.view_count || 0} 次</span>
+              <span style="margin: 0 4px;">·</span>
+              <span>创建于 ${new Date(item.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+          <div class="share-history-actions">
+            <button type="button" class="btn btn-sm btn-copy-history" data-url="${shareUrl}" title="复制此分享链接">复制</button>
+            <button type="button" class="btn btn-sm btn-revoke-share" data-id="${item.id}" title="撤销此分享链接">撤回</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // 绑定复制与撤销事件
+    el.shareHistoryList.querySelectorAll('.btn-copy-history').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-url');
+        navigator.clipboard.writeText(url);
+        btn.textContent = '已复制';
+        setTimeout(() => { btn.textContent = '复制'; }, 1800);
+      });
+    });
+
+    el.shareHistoryList.querySelectorAll('.btn-revoke-share').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const shareId = btn.getAttribute('data-id');
+        if (!confirm(`确定撤回此分享链接 (/s/${shareId}) 吗？撤回后外部访客将立即无法阅读。`)) {
+          return;
+        }
+        await revokeShare(shareId);
+      });
+    });
+  }
+
+  async function handleCreateShare(e) {
+    e.preventDefault();
+    if (!currentShareTargetDoc) return;
+
+    const expireDays = parseInt(el.shareExpireDays ? el.shareExpireDays.value : '7') || 0;
+    const enablePasscode = el.shareEnablePasscode ? el.shareEnablePasscode.checked : false;
+    const passcode = enablePasscode && el.sharePasscodeInput ? el.sharePasscodeInput.value.trim() : '';
+
+    const repoId = currentShareTargetDoc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
+    const title = currentShareTargetDoc.name ? cleanDocTitle(currentShareTargetDoc.name) : (currentShareTargetDoc.title || relPath.split('/').pop());
+
+    if (el.generateShareBtn) {
+      el.generateShareBtn.disabled = true;
+      el.generateShareBtn.innerHTML = '正在生成...';
+    }
+
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo_id: repoId,
+          rel_path: relPath,
+          doc_title: title,
+          expire_days: expireDays,
+          passcode: passcode
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || '生成分享链接失败');
+        return;
+      }
+
+      const fullUrl = `${window.location.origin}/s/${data.share_id}`;
+      if (el.shareResultUrl) el.shareResultUrl.value = fullUrl;
+      if (el.shareResultMeta) {
+        let metaText = expireDays > 0 ? `${expireDays} 天有效` : '永久有效';
+        if (passcode) metaText += ` · 密码: ${passcode}`;
+        el.shareResultMeta.textContent = metaText;
+      }
+      if (el.shareResultBox) el.shareResultBox.style.display = 'block';
+
+      // 自动复制到剪贴板
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        if (el.copyShareResultBtn) {
+          el.copyShareResultBtn.textContent = '已自动复制到剪贴板!';
+          setTimeout(() => { if (el.copyShareResultBtn) el.copyShareResultBtn.textContent = '复制链接'; }, 2500);
+        }
+      } catch (copyErr) {}
+
+      // 刷新历史分享列表
+      loadDocShares(repoId, relPath);
+    } catch (err) {
+      alert('网络通信异常，请重试');
+    } finally {
+      if (el.generateShareBtn) {
+        el.generateShareBtn.disabled = false;
+        el.generateShareBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <span>生成新分享链接</span>
+        `;
+      }
+    }
+  }
+
+  function copyShareResultUrl() {
+    if (!el.shareResultUrl || !el.shareResultUrl.value) return;
+    navigator.clipboard.writeText(el.shareResultUrl.value);
+    if (el.copyShareResultBtn) {
+      const orig = el.copyShareResultBtn.textContent;
+      el.copyShareResultBtn.textContent = '已复制!';
+      setTimeout(() => { el.copyShareResultBtn.textContent = orig; }, 2000);
+    }
+  }
+
+  async function revokeShare(shareId) {
+    try {
+      const res = await fetch(`/api/shares/${encodeURIComponent(shareId)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || '撤回失败');
+        return;
+      }
+      if (currentShareTargetDoc) {
+        const repoId = currentShareTargetDoc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+        const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
+        loadDocShares(repoId, relPath);
+      }
+    } catch (e) {
+      alert('撤回通信失败');
+    }
+  }
+
+  // 访客端：加载分享文档内容
+  async function loadSharedDoc(shareId, passcode = '') {
+    if (!shareId) return;
+
+    renderDocumentSkeleton('/s/' + shareId);
+
+    try {
+      const url = `/api/share/content?id=${encodeURIComponent(shareId)}${passcode ? '&passcode=' + encodeURIComponent(passcode) : ''}`;
+      const res = await fetch(url);
+
+      if (res.status === 401) {
+        const errData = await res.json();
+        if (errData.error === 'need_passcode') {
+          if (el.sharePasscodePromptText && errData.title) {
+            el.sharePasscodePromptText.textContent = `本文档《${errData.title}》已被作者设置访问保护，请输入密码继续：`;
+          }
+          openModal(el.sharePasscodeModal);
+          if (el.guestPasscodeInput) {
+            el.guestPasscodeInput.value = '';
+            el.guestPasscodeInput.focus();
+          }
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        let errMsg = '该分享链接不存在、超出有效期限或已被作者撤销。';
+        if (errData.error === 'expired') {
+          errMsg = '抱歉，此分享链接已超出有效期限，无法继续阅读。';
+        }
+        renderShareErrorPage(errMsg);
+        return;
+      }
+
+      const docData = await res.json();
+      state.currentShareDoc = docData;
+      state.sharePasscode = passcode;
+      closeModal(el.sharePasscodeModal);
+
+      renderSharedDocument(docData);
+    } catch (err) {
+      renderShareErrorPage('网络加载失败，请检查网络连接或稍后重试。');
+    }
+  }
+
+  function handleGuestPasscodeSubmit(e) {
+    e.preventDefault();
+    if (!el.guestPasscodeInput) return;
+    const code = el.guestPasscodeInput.value.trim();
+    if (!code) return;
+    if (el.sharePasscodeError) el.sharePasscodeError.textContent = '';
+
+    loadSharedDoc(state.shareId, code);
+  }
+
+  function renderShareErrorPage(msg) {
+    if (el.articleHeader) el.articleHeader.style.display = 'none';
+    if (el.articleBody) {
+      el.articleBody.innerHTML = `
+        <div style="text-align:center;padding:60px 20px;max-width:500px;margin:0 auto;">
+          <div style="font-size:48px;margin-bottom:16px;">📭</div>
+          <h2 style="font-size:18px;font-weight:700;margin-bottom:10px;color:var(--text-primary);">分享链接不可访问</h2>
+          <p style="font-size:14px;color:var(--text-muted);line-height:1.6;margin-bottom:24px;">${escapeHtml(msg)}</p>
+          <a href="/" class="btn btn-primary" style="display:inline-flex;align-items:center;padding:8px 20px;text-decoration:none;">进入 DocLens 知识库</a>
+        </div>
+      `;
+    }
+    resetDocScroll();
+  }
+
+  function renderSharedDocument(docData) {
+    if (!docData) return;
+    const title = docData.title || (docData.rel_path ? docData.rel_path.split('/').pop() : '技术文档');
+    document.title = `${title} - DocLens 分享阅读`;
+
+    if (el.articleHeader) el.articleHeader.style.display = 'block';
+
+    if (el.headerBreadcrumbs) {
+      el.headerBreadcrumbs.innerHTML = `
+        <span class="breadcrumb-item breadcrumb-home">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          <span>${escapeHtml(docData.repo_name || '知识库')}</span>
+        </span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-item active">${escapeHtml(title)}</span>
+      `;
+    }
+
+    if (el.articlePath) el.articlePath.textContent = docData.rel_path || '';
+    if (el.articleTypePill) el.articleTypePill.style.display = 'none';
+
+    const dateStr = new Date((docData.mod_time || 0) * 1000).toLocaleString('zh-CN', { hour12: false });
+    if (el.articleMeta) {
+      el.articleMeta.innerHTML = `
+        <span class="article-meta-item">📅 ${dateStr}</span>
+        <span class="article-meta-item">📏 ${docData.lines || 0} 行</span>
+        <span class="article-meta-item">👁️ ${docData.view_count || 1} 次阅读</span>
+        <span class="article-meta-item">🏷️ ${escapeHtml(docData.repo_name || '')}</span>
+      `;
+    }
+
+    const isMarkdown = docData.type === 'markdown';
+    if (el.articleActions) {
+      el.articleActions.innerHTML = `
+        ${isMarkdown ? `
+        <button class="btn btn-mindmap" id="docMindmapBtn" title="查看文章思维导图（层级大纲脑图）">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+          <span class="btn-text-full">思维导图</span>
+          <span class="btn-text-short">导图</span>
+        </button>` : ''}
+        <button class="btn" id="copyShareLinkBtn" title="复制当前分享链接">
+          ${SVG_ICONS.link}
+          <span class="btn-text-full">复制链接</span>
+          <span class="btn-text-short">链接</span>
+        </button>
+      `;
+
+      if (isMarkdown) {
+        const mindmapBtn = document.getElementById('docMindmapBtn');
+        if (mindmapBtn) {
+          mindmapBtn.addEventListener('click', () => {
+            openDocMindmap({
+              path: docData.rel_path,
+              name: docData.title,
+              content: docData.content
+            });
+          });
+        }
+      }
+
+      const copyBtn = document.getElementById('copyShareLinkBtn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(window.location.href);
+          copyBtn.classList.add('copy-success');
+          copyBtn.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
+          setTimeout(() => {
+            copyBtn.classList.remove('copy-success');
+            copyBtn.innerHTML = `${SVG_ICONS.link} <span class="btn-text-full">复制链接</span><span class="btn-text-short">链接</span>`;
+          }, 2000);
+        });
+      }
+    }
+
+    if (docData.type === 'markdown') {
+      renderMarkdownDoc(docData.content);
+    } else if (docData.type === 'html') {
+      renderHtmlDoc(docData.path, docData.content);
+    } else {
+      renderCodeDoc(docData.content, docData.path);
+    }
+
+    if (el.articleBody) {
+      const footerDiv = document.createElement('div');
+      footerDiv.className = 'shared-reader-footer';
+      footerDiv.innerHTML = `
+        <div>由 <strong>DocLens</strong> 轻量技术知识库驱动 · 单篇只读保护</div>
+        <a href="/" target="_self">进入主知识库</a>
+      `;
+      el.articleBody.appendChild(footerDiv);
+    }
+
+    resetDocScroll();
   }
 
   function escapeHtml(str) {
