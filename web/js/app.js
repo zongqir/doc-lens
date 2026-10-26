@@ -20,7 +20,8 @@
     starFilled: '<svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
     chevronRight: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
     chevronDown: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>',
-    properties: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>'
+    properties: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
+    headphones: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>'
   };
 
   const ALERT_ICONS = {
@@ -97,6 +98,7 @@
     initMermaidLightboxEvents();
     initTocLevelControl();
     bindGlobalKeybindings();
+    initAudioPlayer();
 
     initSidebarTabs();
     renderRecentReads();
@@ -2568,8 +2570,14 @@
 
     const fav = isFavorite(doc.path);
     const isMarkdown = doc.type === 'markdown';
+    const isAudioPlayingCurrent = audioState.isPlaying && audioState.currentDoc && audioState.currentDoc.path === doc.path;
     el.articleActions.innerHTML = `
       ${isMarkdown ? `
+      <button class="btn btn-audio ${isAudioPlayingCurrent ? 'is-playing' : ''}" id="docAudioBtn" title="听文章（冷峻财经 / 智库解说音色）">
+        ${SVG_ICONS.headphones}
+        <span class="btn-text-full">听文章</span>
+        <span class="btn-text-short">听书</span>
+      </button>
       <button class="btn btn-mindmap" id="docMindmapBtn" title="查看文章思维导图（层级大纲脑图）">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="18" cy="5" r="3"></circle>
@@ -2607,6 +2615,12 @@
     `;
 
     if (isMarkdown) {
+      const audioBtn = document.getElementById('docAudioBtn');
+      if (audioBtn) {
+        audioBtn.addEventListener('click', () => {
+          toggleDocAudio(doc);
+        });
+      }
       const mindmapBtn = document.getElementById('docMindmapBtn');
       if (mindmapBtn) {
         mindmapBtn.addEventListener('click', () => {
@@ -6738,6 +6752,285 @@
         }
       }
     } catch (e) {}
+  }
+
+  /* ==========================================================================
+     文章语音朗读播客控制器 (Audio Overview / TTS)
+     ========================================================================== */
+  const audioState = {
+    audio: null,
+    currentDoc: null,
+    voice: localStorage.getItem('doc_lens_tts_voice') || 'zh-CN-YunyangNeural',
+    speed: parseFloat(localStorage.getItem('doc_lens_tts_speed') || '1.0'),
+    isGenerating: false,
+    isPlaying: false
+  };
+
+  function initAudioPlayer() {
+    el.docAudioBar = document.getElementById('docAudioBar');
+    el.audioPlayToggleBtn = document.getElementById('audioPlayToggleBtn');
+    el.audioPlayIcon = document.getElementById('audioPlayIcon');
+    el.audioTrackTitle = document.getElementById('audioTrackTitle');
+    el.audioCurrentTime = document.getElementById('audioCurrentTime');
+    el.audioDuration = document.getElementById('audioDuration');
+    el.audioStatusPill = document.getElementById('audioStatusPill');
+    el.audioProgressSlider = document.getElementById('audioProgressSlider');
+    el.audioVoiceSelect = document.getElementById('audioVoiceSelect');
+    el.audioSpeedBtn = document.getElementById('audioSpeedBtn');
+    el.audioDownloadBtn = document.getElementById('audioDownloadBtn');
+    el.audioCloseBtn = document.getElementById('audioCloseBtn');
+    audioState.audio = document.getElementById('globalAudioPlayer');
+
+    if (!audioState.audio) return;
+
+    // 恢复历史音色偏好
+    if (el.audioVoiceSelect) {
+      el.audioVoiceSelect.value = audioState.voice;
+      el.audioVoiceSelect.addEventListener('change', () => {
+        audioState.voice = el.audioVoiceSelect.value;
+        localStorage.setItem('doc_lens_tts_voice', audioState.voice);
+        if (audioState.currentDoc) {
+          playDocAudio(audioState.currentDoc, true);
+        }
+      });
+    }
+
+    // 恢复历史倍速
+    if (el.audioSpeedBtn) {
+      el.audioSpeedBtn.textContent = audioState.speed + 'x';
+      audioState.audio.playbackRate = audioState.speed;
+      el.audioSpeedBtn.addEventListener('click', () => {
+        const speeds = [1.0, 1.25, 1.5, 1.75, 2.0];
+        let idx = speeds.indexOf(audioState.speed);
+        idx = (idx + 1) % speeds.length;
+        audioState.speed = speeds[idx];
+        audioState.audio.playbackRate = audioState.speed;
+        el.audioSpeedBtn.textContent = audioState.speed + 'x';
+        localStorage.setItem('doc_lens_tts_speed', audioState.speed.toString());
+      });
+    }
+
+    // 播放/暂停切换
+    if (el.audioPlayToggleBtn) {
+      el.audioPlayToggleBtn.addEventListener('click', () => {
+        if (!audioState.audio.src) return;
+        if (audioState.audio.paused) {
+          audioState.audio.play();
+        } else {
+          audioState.audio.pause();
+        }
+      });
+    }
+
+    // 进度条拖动
+    if (el.audioProgressSlider) {
+      el.audioProgressSlider.addEventListener('input', () => {
+        if (audioState.audio.duration) {
+          const seekTime = (el.audioProgressSlider.value / 100) * audioState.audio.duration;
+          el.audioCurrentTime.textContent = formatAudioTime(seekTime);
+        }
+      });
+      el.audioProgressSlider.addEventListener('change', () => {
+        if (audioState.audio.duration) {
+          audioState.audio.currentTime = (el.audioProgressSlider.value / 100) * audioState.audio.duration;
+        }
+      });
+    }
+
+    // 音频核心事件监听
+    audioState.audio.addEventListener('timeupdate', () => {
+      if (!audioState.audio.duration) return;
+      const pct = (audioState.audio.currentTime / audioState.audio.duration) * 100;
+      el.audioProgressSlider.value = pct;
+      el.audioCurrentTime.textContent = formatAudioTime(audioState.audio.currentTime);
+    });
+
+    audioState.audio.addEventListener('loadedmetadata', () => {
+      el.audioDuration.textContent = formatAudioTime(audioState.audio.duration);
+      audioState.audio.playbackRate = audioState.speed;
+    });
+
+    audioState.audio.addEventListener('play', () => {
+      audioState.isPlaying = true;
+      updateAudioPlayButtonUI(true);
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '播放中';
+        el.audioStatusPill.className = 'audio-status-pill playing';
+      }
+      const audioBtn = document.getElementById('docAudioBtn');
+      if (audioBtn) audioBtn.classList.add('is-playing');
+    });
+
+    audioState.audio.addEventListener('pause', () => {
+      audioState.isPlaying = false;
+      updateAudioPlayButtonUI(false);
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '已暂停';
+        el.audioStatusPill.className = 'audio-status-pill';
+      }
+      const audioBtn = document.getElementById('docAudioBtn');
+      if (audioBtn) audioBtn.classList.remove('is-playing');
+    });
+
+    audioState.audio.addEventListener('ended', () => {
+      audioState.isPlaying = false;
+      updateAudioPlayButtonUI(false);
+      el.audioProgressSlider.value = 0;
+      el.audioCurrentTime.textContent = '00:00';
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '已播完';
+        el.audioStatusPill.className = 'audio-status-pill';
+      }
+      const audioBtn = document.getElementById('docAudioBtn');
+      if (audioBtn) audioBtn.classList.remove('is-playing');
+    });
+
+    audioState.audio.addEventListener('error', () => {
+      audioState.isPlaying = false;
+      updateAudioPlayButtonUI(false);
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '加载失败';
+        el.audioStatusPill.className = 'audio-status-pill';
+      }
+    });
+
+    // 关闭音频播放器
+    if (el.audioCloseBtn) {
+      el.audioCloseBtn.addEventListener('click', () => {
+        if (audioState.audio) {
+          audioState.audio.pause();
+        }
+        if (el.docAudioBar) {
+          el.docAudioBar.style.display = 'none';
+        }
+        const audioBtn = document.getElementById('docAudioBtn');
+        if (audioBtn) audioBtn.classList.remove('is-playing');
+      });
+    }
+  }
+
+  function formatAudioTime(secs) {
+    if (!secs || isNaN(secs) || secs < 0) return '00:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function updateAudioPlayButtonUI(isPlaying) {
+    if (!el.audioPlayIcon) return;
+    if (isPlaying) {
+      el.audioPlayIcon.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+    } else {
+      el.audioPlayIcon.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+    }
+  }
+
+  async function toggleDocAudio(doc) {
+    if (!doc) return;
+    // 如果播放的是当前文档，切换暂停/播放
+    if (audioState.currentDoc && audioState.currentDoc.path === doc.path && audioState.currentDoc.repo_id === doc.repo_id && audioState.audio.src) {
+      if (audioState.audio.paused) {
+        audioState.audio.play();
+      } else {
+        audioState.audio.pause();
+      }
+      return;
+    }
+    playDocAudio(doc, false);
+  }
+
+  async function playDocAudio(doc, forceRegenerate) {
+    if (!doc) return;
+    audioState.currentDoc = doc;
+    const docTitle = doc.path.split('/').pop().replace(/\.md$/i, '');
+
+    if (el.docAudioBar) {
+      el.docAudioBar.style.display = 'block';
+    }
+    if (el.audioTrackTitle) {
+      el.audioTrackTitle.textContent = docTitle;
+      el.audioTrackTitle.title = docTitle;
+    }
+    if (el.audioStatusPill) {
+      el.audioStatusPill.textContent = '检查中...';
+      el.audioStatusPill.className = 'audio-status-pill generating';
+    }
+    if (el.audioPlayToggleBtn) {
+      el.audioPlayToggleBtn.disabled = true;
+    }
+
+    const voice = audioState.voice;
+    const audioUrl = `/api/audio?repo=${encodeURIComponent(doc.repo_id)}&path=${encodeURIComponent(doc.path)}&voice=${encodeURIComponent(voice)}`;
+
+    try {
+      if (!forceRegenerate) {
+        // 先检查是否有现成缓存
+        const checkRes = await fetch(`${audioUrl}&check=true`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.cached) {
+            startAudioPlayback(audioUrl, docTitle);
+            return;
+          }
+        }
+      }
+
+      // 未缓存或强制切换：调用生成
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '🎙️ 正在合成解说音频 (约2~5秒)...';
+      }
+
+      const genRes = await fetch('/api/audio/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: doc.repo_id,
+          path: doc.path,
+          voice: voice
+        })
+      });
+
+      if (!genRes.ok) {
+        const errJson = await genRes.json().catch(() => ({}));
+        throw new Error(errJson.error || '合成音频失败');
+      }
+
+      const genData = await genRes.json();
+      startAudioPlayback(genData.url || audioUrl, docTitle);
+    } catch (err) {
+      console.error('[Audio] Error synthesizing audio:', err);
+      if (el.audioStatusPill) {
+        el.audioStatusPill.textContent = '合成失败: ' + err.message;
+        el.audioStatusPill.className = 'audio-status-pill';
+      }
+      if (el.audioPlayToggleBtn) {
+        el.audioPlayToggleBtn.disabled = false;
+      }
+    }
+  }
+
+  function startAudioPlayback(url, title) {
+    if (!audioState.audio) return;
+    audioState.audio.src = url;
+    audioState.audio.load();
+    audioState.audio.playbackRate = audioState.speed;
+    audioState.audio.play().catch(e => {
+      console.warn('[Audio] Autoplay blocked or deferred:', e);
+    });
+
+    if (el.audioDownloadBtn) {
+      el.audioDownloadBtn.href = url;
+      el.audioDownloadBtn.download = `${title}.mp3`;
+    }
+
+    if (el.audioPlayToggleBtn) {
+      el.audioPlayToggleBtn.disabled = false;
+    }
+
+    if (el.audioStatusPill) {
+      el.audioStatusPill.textContent = '已就绪';
+      el.audioStatusPill.className = 'audio-status-pill playing';
+    }
   }
 
   function escapeHtml(str) {

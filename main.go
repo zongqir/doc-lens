@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -25,6 +26,7 @@ type App struct {
 	cfg     *Config
 	rm      *RepoManager
 	tm      *TaskManager
+	tts     *TTSManager
 	cfgPath string
 }
 
@@ -39,6 +41,7 @@ func main() {
 
 	rm := NewRepoManager(cfg.Repositories)
 	tm := NewTaskManager(cfg, rm)
+	tts := NewTTSManager(cfg.StateDir)
 
 	_ = os.MkdirAll(cfg.StateDir, 0755)
 	logFile, err := os.OpenFile(filepath.Join(cfg.StateDir, "access.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -50,6 +53,7 @@ func main() {
 		cfg:     cfg,
 		rm:      rm,
 		tm:      tm,
+		tts:     tts,
 		cfgPath: *cfgPath,
 	}
 
@@ -92,6 +96,11 @@ func (a *App) routes() http.Handler {
 	// 3. AI 异步任务 API (需要认证)
 	mux.HandleFunc("/api/tasks", a.requireAuth(a.handleTasks))
 	mux.HandleFunc("/api/tasks/", a.requireAuth(a.handleTaskDetail))
+
+	// 3.5 语音朗读 TTS API (需要认证)
+	mux.HandleFunc("/api/audio/voices", a.requireAuth(a.handleAudioVoices))
+	mux.HandleFunc("/api/audio/generate", a.requireAuth(a.handleAudioGenerate))
+	mux.HandleFunc("/api/audio", a.requireAuth(a.handleAudio))
 
 	// 4. 原始文件直读 (供 HTML 沙箱 Iframe 读取，需要认证)
 	mux.HandleFunc("/raw/", a.requireAuth(a.handleRaw))
@@ -232,9 +241,14 @@ func (a *App) gzipMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// 音频流与大媒体文件跳过 gzip 避免无谓开销及 Range 协商冲突
+		if strings.HasPrefix(r.URL.Path, "/api/audio") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		// 常见二进制/字体/图像资源本身已具备高压缩率，跳过 gzip 避免无谓开销
 		ext := strings.ToLower(filepath.Ext(r.URL.Path))
-		if ext == ".woff2" || ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".ico" || ext == ".webp" {
+		if ext == ".woff2" || ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".ico" || ext == ".webp" || ext == ".mp3" || ext == ".wav" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -655,4 +669,115 @@ func (a *App) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(task)
+}
+
+func (a *App) handleAudioVoices(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_ = json.NewEncoder(w).Encode(AvailableVoices)
+}
+
+type AudioGenReq struct {
+	RepoID string `json:"repo"`
+	Path   string `json:"path"`
+	Voice  string `json:"voice"`
+}
+
+func (a *App) handleAudioGenerate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req AudioGenReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+
+	repo, err := a.rm.GetRepoByID(req.RepoID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"repo not found: %s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	cachedDoc, err := a.rm.GetCachedFile(repo, req.Path)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	cacheFile, err := a.tts.Synthesize(ctx, req.RepoID, req.Path, req.Voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	fi, _ := os.Stat(cacheFile)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status": "ready",
+		"size":   fi.Size(),
+		"voice":  req.Voice,
+		"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", req.RepoID, req.Path, req.Voice),
+	})
+}
+
+func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
+	repoID := r.URL.Query().Get("repo")
+	relPath := r.URL.Query().Get("path")
+	voice := r.URL.Query().Get("voice")
+	checkOnly := r.URL.Query().Get("check") == "true"
+
+	if voice == "" {
+		voice = "zh-CN-YunyangNeural"
+	}
+
+	repo, err := a.rm.GetRepoByID(repoID)
+	if err != nil {
+		http.Error(w, `{"error":"repo not found"}`, http.StatusBadRequest)
+		return
+	}
+
+	cachedDoc, err := a.rm.GetCachedFile(repo, relPath)
+	if err != nil {
+		http.Error(w, `{"error":"file not found"}`, http.StatusNotFound)
+		return
+	}
+
+	cacheFile := a.tts.getAudioCachePath(repoID, relPath, voice, cachedDoc.ModTime)
+	fi, err := os.Stat(cacheFile)
+	cached := err == nil && fi.Size() > 1024
+
+	if checkOnly {
+		w.Header().Set("Content-Type", "application/json")
+		var sz int64
+		if cached {
+			sz = fi.Size()
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"cached": cached,
+			"size":   sz,
+			"voice":  voice,
+			"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", repoID, relPath, voice),
+		})
+		return
+	}
+
+	if !cached {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+		defer cancel()
+		cacheFile, err = a.tts.Synthesize(ctx, repoID, relPath, voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "audio/mpeg")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	http.ServeFile(w, r, cacheFile)
 }
