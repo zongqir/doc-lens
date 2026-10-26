@@ -869,6 +869,34 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Method == http.MethodPut {
+		var req struct {
+			ShareID    string `json:"share_id"`
+			ExpireDays int    `json:"expire_days"`
+			Passcode   string `json:"passcode"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			return
+		}
+		if req.ShareID == "" {
+			http.Error(w, `{"error":"share_id is required"}`, http.StatusBadRequest)
+			return
+		}
+		item, err := a.sm.UpdateShare(req.ShareID, req.ExpireDays, req.Passcode)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"share":    item,
+			"url":      "/s/" + item.ID,
+			"share_id": item.ID,
+		})
+		return
+	}
+
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 

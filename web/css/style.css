@@ -6760,13 +6760,12 @@ body.modal-open {
   white-space: nowrap;
 }
 
-/* 有效期与提取密码单行紧凑显示，去除多余卡片标签文字 */
-.share-meta-inline {
+/* 在卡片内部直接微调有效期与密码，去除生硬复杂的下半部分表单 */
+.share-inline-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
+  justify-content: space-between;
+  gap: 12px;
   background: var(--bg-subtle);
   padding: 8px 12px;
   border-radius: var(--radius-md);
@@ -6774,66 +6773,114 @@ body.modal-open {
   flex-wrap: wrap;
 }
 
-.share-meta-item {
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.share-meta-sep {
-  color: var(--text-muted);
-  opacity: 0.5;
-}
-
-/* 重新配置折叠栏 */
-.share-reconfig-bar {
-  margin-bottom: 14px;
-}
-
-.btn-toggle-reconfig {
-  background: transparent;
-  border: 1px dashed var(--border-default);
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 7px 16px;
-  border-radius: var(--radius-full);
+.share-control-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all var(--transition-fast);
-  width: 100%;
-  justify-content: center;
+  font-size: 12.5px;
 }
 
-.btn-toggle-reconfig:hover {
-  color: var(--accent-color);
+.share-control-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.share-inline-select {
+  font-size: 12px;
+  padding: 3px 8px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.share-inline-select:focus {
   border-color: var(--accent-color);
-  background: var(--accent-subtle);
 }
 
-/* 分享设置表单 */
-.share-settings-form {
+.share-control-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-edit-pass-toggle {
+  font-size: 11.5px;
+  padding: 2px 8px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--accent-color);
+  background: var(--accent-subtle);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-edit-pass-toggle:hover {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+/* 密码编辑小抽屉 */
+.share-pass-drawer {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.share-pass-drawer-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-pass-drawer-input {
+  width: 110px;
+  height: 28px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+}
+
+.btn-danger-link {
+  color: #ef4444;
+  background: transparent;
+  border: none;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.btn-danger-link:hover {
+  text-decoration: underline;
+}
+
+/* 场景 2：文档未分享时的初次配置卡片 */
+.share-create-panel {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  padding: 6px 0 10px;
 }
 
-.share-settings-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.share-create-intro {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
-.share-pass-header {
+.share-create-fields {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .share-checkbox-label {
@@ -6849,7 +6896,7 @@ body.modal-open {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .share-passcode-input-wrap .text-input {
@@ -6858,13 +6905,7 @@ body.modal-open {
   letter-spacing: 2px;
   text-align: center;
   max-width: 140px;
-  padding: 8px 10px;
-}
-
-.share-passcode-hint {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  margin-top: 5px;
+  padding: 6px 10px;
 }
 
 .btn-submit-share {
@@ -6873,15 +6914,7 @@ body.modal-open {
   font-size: 14px;
   font-weight: 600;
   border-radius: var(--radius-md);
-  margin-top: 6px;
-}
-
-.share-bottom-tip {
-  margin-top: 14px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  text-align: center;
+  margin-top: 4px;
 }
 
 /* 手机端响应式优化 (<=640px) */
@@ -6900,16 +6933,16 @@ body.modal-open {
     padding: 10px;
   }
 
-  .share-meta-inline {
-    font-size: 12px;
-    padding: 7px 10px;
-    gap: 6px;
-  }
-
-  .share-pass-header {
+  .share-inline-controls {
     flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
+    gap: 8px;
+  }
+
+  .share-create-fields {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .share-passcode-input-wrap {

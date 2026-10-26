@@ -195,6 +195,28 @@ func (sm *ShareManager) GetDocShare(repoID, relPath string) *ShareItem {
 	return nil
 }
 
+// UpdateShare 更新已存在的分享参数（修改有效期或密码，保留原短链接）
+func (sm *ShareManager) UpdateShare(id string, expireDays int, passcode string) (*ShareItem, error) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	item, exists := sm.shares[id]
+	if !exists {
+		return nil, ErrShareNotFound
+	}
+
+	var expiresAt int64 = 0
+	if expireDays > 0 {
+		expiresAt = time.Now().AddDate(0, 0, expireDays).Unix()
+	}
+	item.ExpiresAt = expiresAt
+	item.Passcode = strings.TrimSpace(passcode)
+	sm.saveShares()
+
+	copyItem := *item
+	return &copyItem, nil
+}
+
 // GetShare 获取分享记录（自动校验有效期）
 func (sm *ShareManager) GetShare(id string) (*ShareItem, error) {
 	sm.mu.RLock()

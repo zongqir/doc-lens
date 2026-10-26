@@ -396,7 +396,7 @@
           </div>
         </div>
 
-        <!-- 场景 1：当前已存在生效中的专属分享卡片 -->
+        <!-- 场景 1：当前已存在生效中的专属分享卡片 (直觉化快捷修改，无冗余下半部分) -->
         <div class="share-active-panel" id="shareActivePanel" style="display:none;">
           <div class="share-active-header">
             <div class="share-live-status">
@@ -417,57 +417,71 @@
             </button>
           </div>
 
-          <!-- 有效期与密码单行紧凑显示，去除多余标签文字 -->
-          <div class="share-meta-inline">
-            <span class="share-meta-item" id="shareMetaExpire">📅 7 天有效</span>
-            <span class="share-meta-sep">·</span>
-            <span class="share-meta-item" id="shareMetaPasscode">🔓 公开免密</span>
+          <!-- 在卡片内直接调整有效期与密码，修改即时保存生效，无需重新生成新链接 -->
+          <div class="share-inline-controls">
+            <div class="share-control-item">
+              <span class="share-control-icon">📅</span>
+              <select id="activeShareExpireSelect" class="custom-select share-inline-select" title="直接更改有效期">
+                <option value="7">7 天有效</option>
+                <option value="1">1 天有效</option>
+                <option value="30">30 天有效</option>
+                <option value="0">永久有效</option>
+              </select>
+              <span class="share-control-desc" id="activeShareExpireDesc"></span>
+            </div>
+
+            <div class="share-control-item">
+              <span class="share-control-icon">🔑</span>
+              <span class="share-control-desc" id="activeSharePassDesc">公开免密</span>
+              <button type="button" class="btn btn-sm btn-edit-pass-toggle" id="activeShareEditPassToggle">设置密码</button>
+            </div>
+          </div>
+
+          <!-- 密码编辑小抽屉 (仅在点击“设置密码”或“修改密码”展开) -->
+          <div class="share-pass-drawer" id="activeSharePassDrawer" style="display:none;">
+            <div class="share-pass-drawer-inner">
+              <input type="text" class="text-input share-pass-drawer-input" id="activeSharePassInput" placeholder="输入4位密码" maxlength="8">
+              <button type="button" class="btn btn-sm" id="activeShareDiceBtn" title="随机生成4位密码">🎲</button>
+              <button type="button" class="btn btn-sm btn-primary" id="activeShareSavePassBtn">保存</button>
+              <button type="button" class="btn btn-sm btn-danger-link" id="activeShareRemovePassBtn" style="display:none;">取消密码</button>
+              <button type="button" class="btn btn-sm" id="activeShareClosePassBtn">✕</button>
+            </div>
           </div>
         </div>
 
-        <!-- 针对已分享文档的重新配置折叠开关 -->
-        <div class="share-reconfig-bar" id="shareReconfigBar" style="display:none;">
-          <button type="button" class="btn-toggle-reconfig" id="toggleReconfigBtn">
-            <span id="reconfigBtnText">⚙️ 重新设置参数 (覆盖旧链接)</span>
-          </button>
-        </div>
-
-        <!-- 场景 2：新建 / 重新配置分享设置表单 -->
-        <form id="shareSettingsForm" class="share-settings-form">
-          <div class="share-settings-title" id="shareFormTitle">设置分享参数</div>
-
-          <div class="form-group">
-            <label class="form-label">有效期</label>
-            <select id="shareExpireDays" class="custom-select share-select">
-              <option value="7" selected>7 天 (推荐)</option>
-              <option value="1">1 天 (临时阅读)</option>
-              <option value="30">30 天</option>
-              <option value="0">永久有效</option>
-            </select>
+        <!-- 场景 2：文档尚未分享时的初次配置卡片 -->
+        <div class="share-create-panel" id="shareCreatePanel" style="display:none;">
+          <div class="share-create-intro">
+            生成免密只读专属链接后，可安全分享给他人阅读，全库其他资料安全隔离。
           </div>
 
-          <div class="form-group" style="margin-bottom:18px;">
-            <div class="share-pass-header">
-              <label class="form-label" style="margin-bottom:0;">访问密码保护</label>
+          <div class="share-create-fields">
+            <div class="share-control-item">
+              <span class="share-control-icon">📅</span>
+              <select id="newShareExpireSelect" class="custom-select share-inline-select">
+                <option value="7" selected>7 天有效 (推荐)</option>
+                <option value="1">1 天有效 (临时阅读)</option>
+                <option value="30">30 天有效</option>
+                <option value="0">永久有效</option>
+              </select>
+            </div>
+
+            <div class="share-control-item">
               <label class="share-checkbox-label">
-                <input type="checkbox" id="shareEnablePasscode" style="cursor:pointer;">
+                <input type="checkbox" id="newShareEnablePass" style="cursor:pointer;">
                 <span>启用 4 位密码</span>
               </label>
             </div>
-            <div class="share-passcode-input-wrap" id="sharePasscodeWrap" style="display:none;">
-              <input type="text" id="sharePasscodeInput" class="text-input" placeholder="4位密码" maxlength="8">
-              <button type="button" class="btn btn-sm" id="refreshPasscodeBtn" title="随机生成 4 位数字密码">🎲 换一个</button>
-            </div>
-            <div class="share-passcode-hint" id="sharePasscodeHint">公开免密（任何人持链接即可阅读）</div>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-submit-share" id="submitShareBtn">
-            <span id="submitShareBtnText">生成分享链接并复制</span>
-          </button>
-        </form>
+          <div class="share-passcode-input-wrap" id="newSharePassWrap" style="display:none;">
+            <input type="text" id="newSharePassInput" class="text-input" placeholder="4位密码" maxlength="8">
+            <button type="button" class="btn btn-sm" id="newShareDiceBtn" title="随机生成 4 位数字密码">🎲 换一个</button>
+          </div>
 
-        <div class="share-bottom-tip" id="shareBottomTip">
-          💡 提示：单篇文档只保留唯一有效链接，重新生成将自动覆盖旧链接。
+          <button type="button" class="btn btn-primary btn-submit-share" id="startShareBtn">
+            🚀 开启分享并复制链接
+          </button>
         </div>
       </div>
     </div>

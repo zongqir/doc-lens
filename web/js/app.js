@@ -281,7 +281,7 @@
     el.draftDocContextPath = document.getElementById('draftDocContextPath');
     el.clearDraftContextBtn = document.getElementById('clearDraftContextBtn');
 
-    // 分享功能相关 DOM 元素 (单篇唯一专属分享模型)
+    // 分享功能相关 DOM 元素 (单卡片一体化无缝修改模型)
     el.shareDocModal = document.getElementById('shareDocModal');
     el.shareModalDocTitle = document.getElementById('shareModalDocTitle');
     el.shareModalDocPath = document.getElementById('shareModalDocPath');
@@ -290,25 +290,26 @@
     el.shareActiveUrlInput = document.getElementById('shareActiveUrlInput');
     el.mainCopyShareBtn = document.getElementById('mainCopyShareBtn');
     el.shareViewCounter = document.getElementById('shareViewCounter');
-    el.shareMetaExpire = document.getElementById('shareMetaExpire');
-    el.shareMetaPasscode = document.getElementById('shareMetaPasscode');
     el.revokeActiveShareBtn = document.getElementById('revokeActiveShareBtn');
 
-    el.shareSettingsForm = document.getElementById('shareSettingsForm');
-    el.shareFormTitle = document.getElementById('shareFormTitle');
-    el.shareExpireDays = document.getElementById('shareExpireDays');
-    el.shareEnablePasscode = document.getElementById('shareEnablePasscode');
-    el.sharePasscodeWrap = document.getElementById('sharePasscodeWrap');
-    el.sharePasscodeInput = document.getElementById('sharePasscodeInput');
-    el.refreshPasscodeBtn = document.getElementById('refreshPasscodeBtn');
-    el.sharePasscodeHint = document.getElementById('sharePasscodeHint');
-    el.submitShareBtn = document.getElementById('submitShareBtn');
-    el.submitShareBtnText = document.getElementById('submitShareBtnText');
+    el.activeShareExpireSelect = document.getElementById('activeShareExpireSelect');
+    el.activeShareExpireDesc = document.getElementById('activeShareExpireDesc');
+    el.activeSharePassDesc = document.getElementById('activeSharePassDesc');
+    el.activeShareEditPassToggle = document.getElementById('activeShareEditPassToggle');
+    el.activeSharePassDrawer = document.getElementById('activeSharePassDrawer');
+    el.activeSharePassInput = document.getElementById('activeSharePassInput');
+    el.activeShareDiceBtn = document.getElementById('activeShareDiceBtn');
+    el.activeShareSavePassBtn = document.getElementById('activeShareSavePassBtn');
+    el.activeShareRemovePassBtn = document.getElementById('activeShareRemovePassBtn');
+    el.activeShareClosePassBtn = document.getElementById('activeShareClosePassBtn');
 
-    el.shareReconfigBar = document.getElementById('shareReconfigBar');
-    el.toggleReconfigBtn = document.getElementById('toggleReconfigBtn');
-    el.reconfigBtnText = document.getElementById('reconfigBtnText');
-    el.shareBottomTip = document.getElementById('shareBottomTip');
+    el.shareCreatePanel = document.getElementById('shareCreatePanel');
+    el.newShareExpireSelect = document.getElementById('newShareExpireSelect');
+    el.newShareEnablePass = document.getElementById('newShareEnablePass');
+    el.newSharePassWrap = document.getElementById('newSharePassWrap');
+    el.newSharePassInput = document.getElementById('newSharePassInput');
+    el.newShareDiceBtn = document.getElementById('newShareDiceBtn');
+    el.startShareBtn = document.getElementById('startShareBtn');
 
     el.sharePasscodeModal = document.getElementById('sharePasscodeModal');
     el.sharePasscodeForm = document.getElementById('sharePasscodeForm');
@@ -319,27 +320,6 @@
     el.sharedBadge = document.getElementById('sharedBadge');
     el.sharedHomeBtn = document.getElementById('sharedHomeBtn');
 
-    if (el.shareEnablePasscode) {
-      el.shareEnablePasscode.addEventListener('change', () => {
-        if (el.shareEnablePasscode.checked) {
-          if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'flex';
-          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '已启用 4 位访问密码保护';
-          if (el.sharePasscodeInput && !el.sharePasscodeInput.value) {
-            el.sharePasscodeInput.value = generateRandomPasscode();
-          }
-        } else {
-          if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'none';
-          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
-        }
-      });
-    }
-
-    if (el.refreshPasscodeBtn) {
-      el.refreshPasscodeBtn.addEventListener('click', () => {
-        if (el.sharePasscodeInput) el.sharePasscodeInput.value = generateRandomPasscode();
-      });
-    }
-
     if (el.mainCopyShareBtn) {
       el.mainCopyShareBtn.addEventListener('click', copyMainShareUrl);
     }
@@ -348,19 +328,65 @@
       el.revokeActiveShareBtn.addEventListener('click', revokeCurrentActiveShare);
     }
 
-    if (el.toggleReconfigBtn) {
-      el.toggleReconfigBtn.addEventListener('click', () => {
-        if (!el.shareSettingsForm) return;
-        const isHidden = el.shareSettingsForm.style.display === 'none';
-        el.shareSettingsForm.style.display = isHidden ? 'flex' : 'none';
-        if (el.reconfigBtnText) {
-          el.reconfigBtnText.textContent = isHidden ? '收起配置选项 ▲' : '⚙️ 重新设置参数 (覆盖旧链接)';
+    if (el.activeShareExpireSelect) {
+      el.activeShareExpireSelect.addEventListener('change', handleActiveExpireChange);
+    }
+
+    if (el.activeShareEditPassToggle) {
+      el.activeShareEditPassToggle.addEventListener('click', () => {
+        if (!el.activeSharePassDrawer) return;
+        const isHidden = el.activeSharePassDrawer.style.display === 'none';
+        el.activeSharePassDrawer.style.display = isHidden ? 'block' : 'none';
+        if (isHidden && el.activeSharePassInput) {
+          if (!el.activeSharePassInput.value) {
+            el.activeSharePassInput.value = generateRandomPasscode();
+          }
+          el.activeSharePassInput.focus();
         }
       });
     }
 
-    if (el.shareSettingsForm) {
-      el.shareSettingsForm.addEventListener('submit', handleSaveShareSettings);
+    if (el.activeShareDiceBtn) {
+      el.activeShareDiceBtn.addEventListener('click', () => {
+        if (el.activeSharePassInput) el.activeSharePassInput.value = generateRandomPasscode();
+      });
+    }
+
+    if (el.activeShareSavePassBtn) {
+      el.activeShareSavePassBtn.addEventListener('click', handleActiveSavePasscode);
+    }
+
+    if (el.activeShareRemovePassBtn) {
+      el.activeShareRemovePassBtn.addEventListener('click', handleActiveRemovePasscode);
+    }
+
+    if (el.activeShareClosePassBtn) {
+      el.activeShareClosePassBtn.addEventListener('click', () => {
+        if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
+      });
+    }
+
+    if (el.newShareEnablePass) {
+      el.newShareEnablePass.addEventListener('change', () => {
+        if (el.newShareEnablePass.checked) {
+          if (el.newSharePassWrap) el.newSharePassWrap.style.display = 'flex';
+          if (el.newSharePassInput && !el.newSharePassInput.value) {
+            el.newSharePassInput.value = generateRandomPasscode();
+          }
+        } else {
+          if (el.newSharePassWrap) el.newSharePassWrap.style.display = 'none';
+        }
+      });
+    }
+
+    if (el.newShareDiceBtn) {
+      el.newShareDiceBtn.addEventListener('click', () => {
+        if (el.newSharePassInput) el.newSharePassInput.value = generateRandomPasscode();
+      });
+    }
+
+    if (el.startShareBtn) {
+      el.startShareBtn.addEventListener('click', handleStartShare);
     }
 
     if (el.sharePasscodeForm) {
@@ -7233,23 +7259,20 @@
     if (el.shareModalDocTitle) el.shareModalDocTitle.textContent = title;
     if (el.shareModalDocPath) el.shareModalDocPath.textContent = doc.rel_path || doc.path || '';
 
-    // 重置表单初始状态
-    if (el.shareExpireDays) el.shareExpireDays.value = '7';
-    if (el.shareEnablePasscode) el.shareEnablePasscode.checked = false;
-    if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'none';
-    if (el.sharePasscodeInput) el.sharePasscodeInput.value = '';
-    if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
+    // 重置未分享面板初始值
+    if (el.newShareExpireSelect) el.newShareExpireSelect.value = '7';
+    if (el.newShareEnablePass) el.newShareEnablePass.checked = false;
+    if (el.newSharePassWrap) el.newSharePassWrap.style.display = 'none';
+    if (el.newSharePassInput) el.newSharePassInput.value = '';
+    if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
 
-    // 默认初始状态
+    // 默认隐藏活跃卡片，等待异步拉取状态
     if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
-    if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'none';
-    if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'flex';
-    if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
-    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
+    if (el.shareCreatePanel) el.shareCreatePanel.style.display = 'none';
 
     openModal(el.shareDocModal);
 
-    // 加载当前文档唯一的生效分享状态
+    // 查询当前文档生效分享
     const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
     const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
     await loadCurrentDocShare(repoId, relPath);
@@ -7276,42 +7299,182 @@
   function renderActiveSharePanel(share) {
     if (!share) {
       if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
-      if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'none';
-      if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'flex';
-      if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
-      if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
+      if (el.shareCreatePanel) el.shareCreatePanel.style.display = 'flex';
       return;
     }
 
+    if (el.shareCreatePanel) el.shareCreatePanel.style.display = 'none';
+    if (el.shareActivePanel) el.shareActivePanel.style.display = 'flex';
+
     const shareUrl = `${window.location.origin}/s/${share.id}`;
     if (el.shareActiveUrlInput) el.shareActiveUrlInput.value = shareUrl;
+    if (el.shareViewCounter) el.shareViewCounter.textContent = `${share.view_count || 0} 次浏览`;
 
-    if (el.shareViewCounter) {
-      el.shareViewCounter.textContent = `${share.view_count || 0} 次浏览`;
-    }
-
+    // 格式化有效期选择框与描述
     const now = Math.floor(Date.now() / 1000);
     const isExpired = share.expires_at > 0 && now > share.expires_at;
-    let expText = '📅 永久有效';
-    if (share.expires_at > 0) {
-      expText = isExpired ? '⚠️ 已过期' : `📅 截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
-    }
-    if (el.shareMetaExpire) {
-      el.shareMetaExpire.textContent = expText;
-      el.shareMetaExpire.style.color = isExpired ? '#ef4444' : 'var(--text-secondary)';
+    if (share.expires_at === 0) {
+      if (el.activeShareExpireSelect) el.activeShareExpireSelect.value = '0';
+      if (el.activeShareExpireDesc) {
+        el.activeShareExpireDesc.textContent = '永久有效';
+        el.activeShareExpireDesc.style.color = 'var(--text-muted)';
+      }
+    } else {
+      const daysRemaining = Math.max(1, Math.round((share.expires_at - now) / 86400));
+      if (el.activeShareExpireSelect) {
+        if (daysRemaining <= 1) el.activeShareExpireSelect.value = '1';
+        else if (daysRemaining <= 10) el.activeShareExpireSelect.value = '7';
+        else el.activeShareExpireSelect.value = '30';
+      }
+      if (el.activeShareExpireDesc) {
+        el.activeShareExpireDesc.textContent = isExpired ? '已过期' : `截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
+        el.activeShareExpireDesc.style.color = isExpired ? '#ef4444' : 'var(--text-muted)';
+      }
     }
 
-    const passText = share.passcode ? `🔑 密码 ${share.passcode}` : '🔓 免密访问';
-    if (el.shareMetaPasscode) {
-      el.shareMetaPasscode.textContent = passText;
+    // 格式化密码展示
+    if (share.passcode) {
+      if (el.activeSharePassDesc) el.activeSharePassDesc.textContent = `密码 ${share.passcode}`;
+      if (el.activeShareEditPassToggle) el.activeShareEditPassToggle.textContent = '修改';
+      if (el.activeShareRemovePassBtn) el.activeShareRemovePassBtn.style.display = 'inline-block';
+      if (el.activeSharePassInput) el.activeSharePassInput.value = share.passcode;
+    } else {
+      if (el.activeSharePassDesc) el.activeSharePassDesc.textContent = '公开免密';
+      if (el.activeShareEditPassToggle) el.activeShareEditPassToggle.textContent = '设置密码';
+      if (el.activeShareRemovePassBtn) el.activeShareRemovePassBtn.style.display = 'none';
+      if (el.activeSharePassInput) el.activeSharePassInput.value = '';
+    }
+  }
+
+  // 直接更改现有分享的有效期，即改即生效
+  async function handleActiveExpireChange() {
+    if (!currentDocActiveShare) return;
+    const expireDays = parseInt(el.activeShareExpireSelect.value) || 0;
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          share_id: currentDocActiveShare.id,
+          expire_days: expireDays,
+          passcode: currentDocActiveShare.passcode || ''
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentDocActiveShare = data.share;
+        renderActiveSharePanel(currentDocActiveShare);
+      }
+    } catch (e) {}
+  }
+
+  // 保存新密码
+  async function handleActiveSavePasscode() {
+    if (!currentDocActiveShare) return;
+    const newPass = (el.activeSharePassInput.value || '').trim();
+    const now = Math.floor(Date.now() / 1000);
+    const expireDays = currentDocActiveShare.expires_at > 0 ? Math.max(1, Math.round((currentDocActiveShare.expires_at - now) / 86400)) : 0;
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          share_id: currentDocActiveShare.id,
+          expire_days: expireDays,
+          passcode: newPass
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentDocActiveShare = data.share;
+        if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
+        renderActiveSharePanel(currentDocActiveShare);
+      }
+    } catch (e) {}
+  }
+
+  // 移除密码
+  async function handleActiveRemovePasscode() {
+    if (!currentDocActiveShare) return;
+    const now = Math.floor(Date.now() / 1000);
+    const expireDays = currentDocActiveShare.expires_at > 0 ? Math.max(1, Math.round((currentDocActiveShare.expires_at - now) / 86400)) : 0;
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          share_id: currentDocActiveShare.id,
+          expire_days: expireDays,
+          passcode: ''
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentDocActiveShare = data.share;
+        if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
+        renderActiveSharePanel(currentDocActiveShare);
+      }
+    } catch (e) {}
+  }
+
+  // 初次开启分享
+  async function handleStartShare() {
+    if (!currentShareTargetDoc) return;
+    const expireDays = parseInt(el.newShareExpireSelect ? el.newShareExpireSelect.value : '7') || 0;
+    const enablePass = el.newShareEnablePass ? el.newShareEnablePass.checked : false;
+    const pass = enablePass && el.newSharePassInput ? el.newSharePassInput.value.trim() : '';
+
+    const repoId = currentShareTargetDoc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
+    const title = currentShareTargetDoc.name ? cleanDocTitle(currentShareTargetDoc.name) : (currentShareTargetDoc.title || relPath.split('/').pop());
+
+    if (el.startShareBtn) {
+      el.startShareBtn.disabled = true;
+      el.startShareBtn.textContent = '正在开启分享...';
     }
 
-    if (el.shareActivePanel) el.shareActivePanel.style.display = 'flex';
-    if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'block';
-    if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'none';
-    if (el.reconfigBtnText) el.reconfigBtnText.textContent = '⚙️ 重新设置参数 (覆盖旧链接)';
-    if (el.shareFormTitle) el.shareFormTitle.textContent = '重新设置分享参数';
-    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '覆盖并重新生成链接';
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo_id: repoId,
+          rel_path: relPath,
+          doc_title: title,
+          expire_days: expireDays,
+          passcode: pass
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || '开启分享失败');
+        return;
+      }
+
+      currentDocActiveShare = data.share;
+      renderActiveSharePanel(currentDocActiveShare);
+
+      // 自动复制链接到剪贴板
+      const fullUrl = `${window.location.origin}/s/${data.share_id}`;
+      const copied = await copyTextToClipboard(fullUrl);
+      if (el.mainCopyShareBtn && copied) {
+        const origHtml = el.mainCopyShareBtn.innerHTML;
+        el.mainCopyShareBtn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="color:#10b981;font-weight:600;">已生成并自动复制!</span>
+        `;
+        setTimeout(() => {
+          if (el.mainCopyShareBtn) el.mainCopyShareBtn.innerHTML = origHtml;
+        }, 2500);
+      }
+    } catch (err) {
+      alert('网络通信异常，请重试');
+    } finally {
+      if (el.startShareBtn) {
+        el.startShareBtn.disabled = false;
+        el.startShareBtn.textContent = '🚀 开启分享并复制链接';
+      }
+    }
   }
 
   async function copyMainShareUrl() {
@@ -7331,73 +7494,6 @@
       setTimeout(() => {
         if (copyBtn) copyBtn.innerHTML = origHtml;
       }, 2000);
-    }
-  }
-
-  async function handleSaveShareSettings(e) {
-    e.preventDefault();
-    if (!currentShareTargetDoc) return;
-
-    const expireDays = parseInt(el.shareExpireDays ? el.shareExpireDays.value : '7') || 0;
-    const enablePasscode = el.shareEnablePasscode ? el.shareEnablePasscode.checked : false;
-    const passcode = enablePasscode && el.sharePasscodeInput ? el.sharePasscodeInput.value.trim() : '';
-
-    const repoId = currentShareTargetDoc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
-    const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
-    const title = currentShareTargetDoc.name ? cleanDocTitle(currentShareTargetDoc.name) : (currentShareTargetDoc.title || relPath.split('/').pop());
-
-    if (el.submitShareBtn) {
-      el.submitShareBtn.disabled = true;
-    }
-    if (el.submitShareBtnText) {
-      el.submitShareBtnText.textContent = '正在处理...';
-    }
-
-    try {
-      const res = await fetch('/api/shares', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repo_id: repoId,
-          rel_path: relPath,
-          doc_title: title,
-          expire_days: expireDays,
-          passcode: passcode
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || '生成分享链接失败');
-        return;
-      }
-
-      // 重新加载并更新为最新生效的分享卡片
-      await loadCurrentDocShare(repoId, relPath);
-
-      // 自动复制新生成的分享链接到剪贴板
-      const fullUrl = `${window.location.origin}/s/${data.share_id}`;
-      const copied = await copyTextToClipboard(fullUrl);
-
-      if (el.mainCopyShareBtn && copied) {
-        const origHtml = el.mainCopyShareBtn.innerHTML;
-        el.mainCopyShareBtn.innerHTML = `
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          <span style="color:#10b981;font-weight:600;">已生成并自动复制!</span>
-        `;
-        setTimeout(() => {
-          if (el.mainCopyShareBtn) el.mainCopyShareBtn.innerHTML = origHtml;
-        }, 2500);
-      }
-    } catch (err) {
-      alert('网络通信异常，请重试');
-    } finally {
-      if (el.submitShareBtn) {
-        el.submitShareBtn.disabled = false;
-      }
-      if (el.submitShareBtnText) {
-        el.submitShareBtnText.textContent = currentDocActiveShare ? '覆盖并重新生成链接' : '生成分享链接并复制';
-      }
     }
   }
 
