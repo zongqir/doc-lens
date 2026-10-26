@@ -85,6 +85,10 @@
       }
     } catch (e) {}
 
+    if ('scrollRestoration' in history) {
+      try { history.scrollRestoration = 'manual'; } catch (e) {}
+    }
+
     bindDOMElements();
     applyTheme(state.theme);
     initFontPreferences();
