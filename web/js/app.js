@@ -1326,7 +1326,12 @@
         if (i === segments.length - 1) {
           row.classList.add('active');
           try {
-            row.scrollIntoView({ block: window.innerWidth <= 900 ? 'center' : 'nearest', behavior: 'smooth' });
+            const scrollContainer = row.closest('.sidebar-scrollable-content');
+            if (scrollContainer) {
+              const rowTop = row.offsetTop;
+              const containerHeight = scrollContainer.clientHeight;
+              scrollContainer.scrollTo({ top: Math.max(0, rowTop - containerHeight / 2), behavior: 'smooth' });
+            }
           } catch (e) {}
 
           // 如果目标本身就是目录，确保展开显示内部文件并记住展开态
@@ -2401,24 +2406,16 @@
   // 阅读区滚动复位器：切换文档时坚决瞬间归零至最开头的最初阅读点，杜绝停留在底部的异常
   // =========================================================================
   function resetDocScroll() {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      try { document.activeElement.blur(); } catch (e) {}
+    }
+
     if (el.contentArea) {
-      const prevBehavior = el.contentArea.style.scrollBehavior;
-      el.contentArea.style.scrollBehavior = 'auto';
       el.contentArea.scrollTop = 0;
       el.contentArea.scrollLeft = 0;
-      try {
-        el.contentArea.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      } catch (e) {
-        el.contentArea.scrollTo(0, 0);
-      }
-      el.contentArea.style.scrollBehavior = prevBehavior || '';
     }
     if (typeof window !== 'undefined') {
-      try {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      } catch (e) {
-        window.scrollTo(0, 0);
-      }
+      try { window.scrollTo(0, 0); } catch (e) {}
     }
     if (document.documentElement) {
       document.documentElement.scrollTop = 0;
@@ -2427,15 +2424,30 @@
       document.body.scrollTop = 0;
     }
 
-    // 双保险：在下一动画帧（浏览器布局重排计算完成）再次确保置顶（排除锚点情况）
+    const forceTop = () => {
+      if (!window.location.hash) {
+        if (el.contentArea && el.contentArea.scrollTop !== 0) {
+          el.contentArea.scrollTop = 0;
+        }
+        if (typeof window !== 'undefined' && window.scrollY !== 0) {
+          window.scrollTo(0, 0);
+        }
+        if (document.documentElement && document.documentElement.scrollTop !== 0) {
+          document.documentElement.scrollTop = 0;
+        }
+        if (document.body && document.body.scrollTop !== 0) {
+          document.body.scrollTop = 0;
+        }
+      }
+    };
+
     requestAnimationFrame(() => {
-      if (el.contentArea && !window.location.hash) {
-        el.contentArea.scrollTop = 0;
-      }
-      if (typeof window !== 'undefined' && !window.location.hash) {
-        window.scrollTo(0, 0);
-      }
+      forceTop();
+      requestAnimationFrame(forceTop);
     });
+    setTimeout(forceTop, 30);
+    setTimeout(forceTop, 100);
+    setTimeout(forceTop, 250);
   }
 
   async function routeTo(urlPath, pushState = true) {
@@ -2716,8 +2728,11 @@
         btn.addEventListener('pointerenter', () => prefetchDocument(prevDoc.fullRoute), { once: true });
         btn.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
+          if (document.activeElement) document.activeElement.blur();
           resetDocScroll();
           routeTo(prevDoc.fullRoute, true);
+          resetDocScroll();
         });
       }
     }
@@ -2728,8 +2743,11 @@
         btn.addEventListener('pointerenter', () => prefetchDocument(nextDoc.fullRoute), { once: true });
         btn.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
+          if (document.activeElement) document.activeElement.blur();
           resetDocScroll();
           routeTo(nextDoc.fullRoute, true);
+          resetDocScroll();
         });
       }
     }
@@ -2880,10 +2898,14 @@
       }, { once: true });
       card.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        if (document.activeElement) document.activeElement.blur();
         resetDocScroll();
         routeTo(targetRoute, true);
+        resetDocScroll();
       });
     });
+    resetDocScroll();
   }
 
   function updateBreadcrumbs(doc) {
