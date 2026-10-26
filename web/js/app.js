@@ -21,7 +21,8 @@
     chevronRight: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
     chevronDown: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>',
     properties: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>',
-    headphones: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>'
+    headphones: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>',
+    share: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>'
   };
 
   const ALERT_ICONS = {
@@ -56,7 +57,11 @@
     activeSidebarTab: 'tree',
     searchModalMode: 'title',
     searchModalResults: [],
-    searchModalSelectedIndex: -1
+    searchModalSelectedIndex: -1,
+    isShareMode: false,
+    shareId: null,
+    sharePasscode: '',
+    currentShareDoc: null
   };
 
   const mermaidStore = new Map();
@@ -105,8 +110,38 @@
     renderFavorites();
 
     window.addEventListener('popstate', () => {
-      routeTo(window.location.pathname, false);
+      const sm = window.location.pathname.match(/^\/(s|share)\/([a-zA-Z0-9_-]+)\/?$/);
+      if (sm) {
+        state.isShareMode = true;
+        state.shareId = sm[2];
+        document.body.classList.add('is-share-mode');
+        if (el.sharedBadge) el.sharedBadge.style.display = 'inline-flex';
+        if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'inline-flex';
+        loadSharedDoc(sm[2]);
+      } else {
+        if (state.isShareMode) {
+          state.isShareMode = false;
+          state.shareId = null;
+          document.body.classList.remove('is-share-mode');
+          if (el.sharedBadge) el.sharedBadge.style.display = 'none';
+          if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'none';
+        }
+        routeTo(window.location.pathname, false);
+      }
     });
+
+    // 检查是否为对外公开分享专属链接 (/s/:id 或 /share/:id)
+    const initPath = window.location.pathname;
+    const shareMatch = initPath.match(/^\/(s|share)\/([a-zA-Z0-9_-]+)\/?$/);
+    if (shareMatch) {
+      state.isShareMode = true;
+      state.shareId = shareMatch[2];
+      document.body.classList.add('is-share-mode');
+      if (el.sharedBadge) el.sharedBadge.style.display = 'inline-flex';
+      if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'inline-flex';
+      await loadSharedDoc(state.shareId);
+      return;
+    }
 
     await Promise.all([checkAuth(), loadRepos()]);
 
@@ -205,6 +240,68 @@
     el.draftDocContextGroup = document.getElementById('draftDocContextGroup');
     el.draftDocContextPath = document.getElementById('draftDocContextPath');
     el.clearDraftContextBtn = document.getElementById('clearDraftContextBtn');
+
+    // 分享功能相关 DOM 元素
+    el.shareDocModal = document.getElementById('shareDocModal');
+    el.shareModalDocTitle = document.getElementById('shareModalDocTitle');
+    el.shareModalDocPath = document.getElementById('shareModalDocPath');
+    el.createShareForm = document.getElementById('createShareForm');
+    el.shareExpireDays = document.getElementById('shareExpireDays');
+    el.shareEnablePasscode = document.getElementById('shareEnablePasscode');
+    el.sharePasscodeWrap = document.getElementById('sharePasscodeWrap');
+    el.sharePasscodeInput = document.getElementById('sharePasscodeInput');
+    el.refreshPasscodeBtn = document.getElementById('refreshPasscodeBtn');
+    el.sharePasscodeHint = document.getElementById('sharePasscodeHint');
+    el.generateShareBtn = document.getElementById('generateShareBtn');
+    el.shareResultBox = document.getElementById('shareResultBox');
+    el.shareResultUrl = document.getElementById('shareResultUrl');
+    el.shareResultMeta = document.getElementById('shareResultMeta');
+    el.copyShareResultBtn = document.getElementById('copyShareResultBtn');
+    el.shareHistorySection = document.getElementById('shareHistorySection');
+    el.shareHistoryList = document.getElementById('shareHistoryList');
+    el.shareHistoryCountBadge = document.getElementById('shareHistoryCountBadge');
+
+    el.sharePasscodeModal = document.getElementById('sharePasscodeModal');
+    el.sharePasscodeForm = document.getElementById('sharePasscodeForm');
+    el.guestPasscodeInput = document.getElementById('guestPasscodeInput');
+    el.sharePasscodeError = document.getElementById('sharePasscodeError');
+    el.sharePasscodePromptText = document.getElementById('sharePasscodePromptText');
+
+    el.sharedBadge = document.getElementById('sharedBadge');
+    el.sharedHomeBtn = document.getElementById('sharedHomeBtn');
+
+    if (el.shareEnablePasscode) {
+      el.shareEnablePasscode.addEventListener('change', () => {
+        if (el.shareEnablePasscode.checked) {
+          if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'flex';
+          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '已启用访问密码保护';
+          if (el.sharePasscodeInput && !el.sharePasscodeInput.value) {
+            el.sharePasscodeInput.value = generateRandomPasscode();
+          }
+        } else {
+          if (el.sharePasscodeWrap) el.sharePasscodeWrap.style.display = 'none';
+          if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
+        }
+      });
+    }
+
+    if (el.refreshPasscodeBtn) {
+      el.refreshPasscodeBtn.addEventListener('click', () => {
+        if (el.sharePasscodeInput) el.sharePasscodeInput.value = generateRandomPasscode();
+      });
+    }
+
+    if (el.createShareForm) {
+      el.createShareForm.addEventListener('submit', handleCreateShare);
+    }
+
+    if (el.copyShareResultBtn) {
+      el.copyShareResultBtn.addEventListener('click', copyShareResultUrl);
+    }
+
+    if (el.sharePasscodeForm) {
+      el.sharePasscodeForm.addEventListener('submit', handleGuestPasscodeSubmit);
+    }
 
     // 事件绑定
     if (el.themeBtn) el.themeBtn.addEventListener('click', toggleTheme);
@@ -2607,6 +2704,11 @@
         <span class="btn-text-full">复制链接</span>
         <span class="btn-text-short">链接</span>
       </button>
+      <button class="btn btn-share" id="shareDocBtn" title="生成此文档的只读免密分享链接，可安全分享给他人阅读">
+        ${SVG_ICONS.share}
+        <span class="btn-text-full">分享</span>
+        <span class="btn-text-short">分享</span>
+      </button>
       <button class="btn" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
         <span class="btn-text-full">AI 协作</span>
@@ -2649,6 +2751,13 @@
         b.innerHTML = `${SVG_ICONS.link} <span class="btn-text-full">复制链接</span><span class="btn-text-short">链接</span>`;
       }, 2000);
     });
+
+    const shareBtn = document.getElementById('shareDocBtn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        openShareModal(doc);
+      });
+    }
 
     document.getElementById('aiDocTaskBtn').addEventListener('click', () => {
       openAiTaskModal({ doc: doc, defaultAction: 'append' });

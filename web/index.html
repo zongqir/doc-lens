@@ -25,6 +25,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" fill="rgba(255,255,255,0.2)"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" fill="rgba(255,255,255,0.36)"></path></svg>
         </div>
         <span class="brand-name">DocLens</span>
+        <span class="shared-reader-badge" id="sharedBadge" style="display:none;">分享</span>
       </a>
     </div>
 
@@ -110,6 +111,8 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
         <span class="btn-text">任务控制台</span>
       </button>
+
+      <a href="/" class="btn btn-sm btn-outline shared-home-btn" id="sharedHomeBtn" style="display:none;" title="访问 DocLens 知识库首页">主知识库</a>
     </div>
   </header>
 
@@ -359,6 +362,124 @@
         </div>
         <div class="modal-footer">
           <button type="submit" class="btn btn-primary" style="width:100%;height:40px;">认证并开启空间</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 文档对外只读分享模态框 -->
+  <div class="modal-overlay" id="shareDocModal">
+    <div class="modal-card modal-share-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <div class="share-icon-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+          </div>
+          <span>分享此文档</span>
+        </span>
+        <button type="button" class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+      <div class="modal-body share-modal-body">
+        <div class="share-doc-preview">
+          <span class="share-doc-icon">📄</span>
+          <div class="share-doc-info">
+            <div class="share-doc-title" id="shareModalDocTitle">文档标题</div>
+            <div class="share-doc-path" id="shareModalDocPath">路径</div>
+          </div>
+        </div>
+
+        <form id="createShareForm" class="create-share-form">
+          <div class="share-options-grid">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label">有效期限</label>
+              <select id="shareExpireDays" class="custom-select share-select">
+                <option value="7" selected>7 天有效 (推荐)</option>
+                <option value="1">1 天有效 (临时阅读)</option>
+                <option value="30">30 天有效</option>
+                <option value="0">永久有效</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;">
+                <span>访问密码保护</span>
+                <input type="checkbox" id="shareEnablePasscode" style="cursor:pointer;">
+              </label>
+              <div class="share-passcode-input-wrap" id="sharePasscodeWrap" style="display:none;">
+                <input type="text" id="sharePasscodeInput" class="text-input" placeholder="4位密码" maxlength="8">
+                <button type="button" class="btn btn-sm btn-refresh-code" id="refreshPasscodeBtn" title="生成随机密码">🎲</button>
+              </div>
+              <div class="share-passcode-hint" id="sharePasscodeHint">公开免密（任何人持链接即可阅读）</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-generate-share" id="generateShareBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span>生成新分享链接</span>
+          </button>
+        </form>
+
+        <!-- 最新生成分享链接结果展示区 -->
+        <div class="share-result-box" id="shareResultBox" style="display:none;">
+          <div class="share-result-header">
+            <span class="share-result-title">🎉 分享链接已生成</span>
+            <span class="share-result-meta" id="shareResultMeta"></span>
+          </div>
+          <div class="share-link-input-group">
+            <input type="text" class="text-input share-url-input" id="shareResultUrl" readonly>
+            <button type="button" class="btn btn-primary" id="copyShareResultBtn">复制链接</button>
+          </div>
+          <div class="share-result-tip">
+            💡 访客通过此专属链接即可直接免密进入沉浸式阅读模式，全库目录与其他文档仍安全隔离。
+          </div>
+        </div>
+
+        <!-- 本文档历史有效分享列表 -->
+        <div class="share-history-section" id="shareHistorySection">
+          <div class="share-history-header">
+            <span>本文档的历史分享</span>
+            <span class="tree-badge" id="shareHistoryCountBadge">0 项</span>
+          </div>
+          <div class="share-history-list" id="shareHistoryList">
+            <!-- 动态渲染历史分享 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 访客端密码访问拦截模态框 (Passcode Required) -->
+  <div class="modal-overlay" id="sharePasscodeModal">
+    <div class="modal-card modal-share-passcode-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <div class="auth-lock-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </div>
+          <span>受密码保护的技术文档</span>
+        </span>
+      </div>
+      <form id="sharePasscodeForm">
+        <div class="modal-body">
+          <p class="login-prompt-text" id="sharePasscodePromptText">
+            作者为此文档设置了访问保护，请输入访问密码后开启阅读。
+          </p>
+          <div class="form-group" style="margin-top:16px;">
+            <input type="text" id="guestPasscodeInput" class="text-input passcode-input-large" placeholder="请输入提取密码..." maxlength="16" required autofocus autocomplete="off">
+          </div>
+          <div id="sharePasscodeError" class="form-error-msg"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary" style="width:100%;height:40px;font-size:14px;font-weight:600;">解锁并阅读文档</button>
         </div>
       </form>
     </div>

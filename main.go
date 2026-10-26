@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ type App struct {
 	rm      *RepoManager
 	tm      *TaskManager
 	tts     *TTSManager
+	sm      *ShareManager
 	cfgPath string
 }
 
@@ -42,6 +44,7 @@ func main() {
 	rm := NewRepoManager(cfg.Repositories)
 	tm := NewTaskManager(cfg, rm)
 	tts := NewTTSManager(cfg.StateDir)
+	sm := NewShareManager(cfg.StateDir)
 
 	_ = os.MkdirAll(cfg.StateDir, 0755)
 	logFile, err := os.OpenFile(filepath.Join(cfg.StateDir, "access.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -54,6 +57,7 @@ func main() {
 		rm:      rm,
 		tm:      tm,
 		tts:     tts,
+		sm:      sm,
 		cfgPath: *cfgPath,
 	}
 
@@ -101,6 +105,12 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/audio/voices", a.requireAuth(a.handleAudioVoices))
 	mux.HandleFunc("/api/audio/generate", a.requireAuth(a.handleAudioGenerate))
 	mux.HandleFunc("/api/audio", a.requireAuth(a.handleAudio))
+
+	// 3.6 单篇文档只读分享 API (管理需认证，访客读取免认证)
+	mux.HandleFunc("/api/shares", a.requireAuth(a.handleShares))
+	mux.HandleFunc("/api/shares/", a.requireAuth(a.handleShareItem))
+	mux.HandleFunc("/api/share/content", a.handleShareContent)
+	mux.HandleFunc("/api/share/raw", a.handleShareRaw)
 
 	// 4. 原始文件直读 (供 HTML 沙箱 Iframe 读取，需要认证)
 	mux.HandleFunc("/raw/", a.requireAuth(a.handleRaw))
@@ -242,7 +252,7 @@ func (a *App) gzipMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		// 音频流与大媒体文件跳过 gzip 避免无谓开销及 Range 协商冲突
-		if strings.HasPrefix(r.URL.Path, "/api/audio") {
+		if strings.HasPrefix(r.URL.Path, "/api/audio") || strings.HasPrefix(r.URL.Path, "/api/share/raw") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -793,4 +803,234 @@ func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	http.ServeFile(w, r, cacheFile)
+}
+
+func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		repo := r.URL.Query().Get("repo")
+		path := r.URL.Query().Get("path")
+		shares := a.sm.ListShares(repo, path)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(shares)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			RepoID     string `json:"repo_id"`
+			RelPath    string `json:"rel_path"`
+			DocTitle   string `json:"doc_title"`
+			ExpireDays int    `json:"expire_days"`
+			Passcode   string `json:"passcode"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			return
+		}
+		if req.RepoID == "" || req.RelPath == "" {
+			http.Error(w, `{"error":"repo_id and rel_path are required"}`, http.StatusBadRequest)
+			return
+		}
+
+		repo, err := a.rm.GetRepoByID(req.RepoID)
+		if err != nil {
+			http.Error(w, `{"error":"repo not found"}`, http.StatusBadRequest)
+			return
+		}
+		cleanRel := cleanDocRelPath(repo, req.RelPath)
+		if _, err := a.rm.GetCachedFile(repo, cleanRel); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"target doc not found: %s"}`, err.Error()), http.StatusNotFound)
+			return
+		}
+
+		docTitle := req.DocTitle
+		if docTitle == "" {
+			docTitle = filepath.Base(cleanRel)
+		}
+
+		item, err := a.sm.CreateShare(req.RepoID, cleanRel, docTitle, req.ExpireDays, req.Passcode)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"share":    item,
+			"url":      "/s/" + item.ID,
+			"share_id": item.ID,
+		})
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (a *App) handleShareItem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/shares/")
+	id = strings.TrimSpace(id)
+	if id == "" {
+		http.Error(w, `{"error":"missing share id"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := a.sm.DeleteShare(id); err != nil {
+		if errors.Is(err, ErrShareNotFound) {
+			http.Error(w, `{"error":"share not found"}`, http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+}
+
+func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
+	shareID := r.URL.Query().Get("id")
+	if shareID == "" {
+		http.Error(w, `{"error":"missing share id"}`, http.StatusBadRequest)
+		return
+	}
+
+	item, err := a.sm.GetShare(shareID)
+	if err != nil {
+		if errors.Is(err, ErrShareExpired) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusGone)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "expired"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "not_found"})
+		return
+	}
+
+	passcode := r.URL.Query().Get("passcode")
+	if passcode == "" {
+		passcode = r.Header.Get("X-DocLens-Passcode")
+	}
+
+	if item.Passcode != "" && passcode != item.Passcode {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error":      "need_passcode",
+			"title":      item.DocTitle,
+			"created_at": item.CreatedAt,
+			"has_pass":   true,
+		})
+		return
+	}
+
+	// 访客成功读取，递增阅读计数
+	a.sm.IncrementViewCount(shareID)
+
+	repo, err := a.rm.GetRepoByID(item.RepoID)
+	if err != nil {
+		http.Error(w, `{"error":"repo not found"}`, http.StatusNotFound)
+		return
+	}
+
+	cachedDoc, err := a.rm.GetCachedFile(repo, item.RelPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
+		return
+	}
+
+	resp := map[string]any{
+		"id":           item.ID,
+		"title":        item.DocTitle,
+		"path":         cachedDoc.Resp.Path,
+		"rel_path":     item.RelPath,
+		"type":         cachedDoc.Resp.Type,
+		"content":      cachedDoc.Resp.Content,
+		"size":         cachedDoc.Resp.Size,
+		"lines":        cachedDoc.Resp.Lines,
+		"mod_time":     cachedDoc.Resp.ModTime,
+		"repo_name":    repo.Name,
+		"created_at":   item.CreatedAt,
+		"expires_at":   item.ExpiresAt,
+		"view_count":   item.ViewCount,
+		"has_passcode": item.Passcode != "",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (a *App) handleShareRaw(w http.ResponseWriter, r *http.Request) {
+	shareID := r.URL.Query().Get("id")
+	file := r.URL.Query().Get("file")
+	passcode := r.URL.Query().Get("passcode")
+	if passcode == "" {
+		passcode = r.Header.Get("X-DocLens-Passcode")
+	}
+
+	if shareID == "" || file == "" {
+		http.Error(w, "missing parameters", http.StatusBadRequest)
+		return
+	}
+
+	item, err := a.sm.GetShare(shareID)
+	if err != nil {
+		http.Error(w, "share not found or expired", http.StatusNotFound)
+		return
+	}
+
+	if item.Passcode != "" && passcode != item.Passcode {
+		http.Error(w, "invalid passcode", http.StatusUnauthorized)
+		return
+	}
+
+	repo, err := a.rm.GetRepoByID(item.RepoID)
+	if err != nil {
+		http.Error(w, "repo not found", http.StatusNotFound)
+		return
+	}
+
+	cleanFile := filepath.Clean(filepath.ToSlash(file))
+	cleanFile = strings.TrimPrefix(cleanFile, "/")
+
+	docDir := filepath.Dir(item.RelPath)
+	targetRel := filepath.Clean(filepath.Join(docDir, cleanFile))
+
+	absPath, err := a.rm.SafeResolve(repo, targetRel)
+	if err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if _, sErr := os.Stat(absPath); sErr != nil {
+		// 备用尝试：若相对文档目录未找到，尝试直接相对仓库根目录查找
+		if fbAbs, fErr := a.rm.SafeResolve(repo, cleanFile); fErr == nil {
+			if _, fbStat := os.Stat(fbAbs); fbStat == nil {
+				absPath = fbAbs
+			}
+		}
+	}
+
+	ext := strings.ToLower(filepath.Ext(absPath))
+	if !allowedRawExtensions[ext] {
+		http.Error(w, "forbidden file extension", http.StatusForbidden)
+		return
+	}
+
+	if ext == ".html" || ext == ".htm" {
+		w.Header().Set("Content-Security-Policy", "sandbox allow-scripts allow-forms; default-src 'self' 'unsafe-inline' data: blob: https:;")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+	} else if ext == ".svg" {
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:;")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+	}
+
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeFile(w, r, absPath)
 }
