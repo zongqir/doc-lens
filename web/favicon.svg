@@ -18,16 +18,14 @@
   <rect x="2" y="2" width="60" height="30" rx="16" fill="url(#glintGrad)" />
   <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
 
-  <!-- Lens & reticle icon -->
-  <g filter="url(#softShadow)">
-    <!-- Outer magnifying lens ring -->
-    <circle cx="28" cy="28" r="14" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" />
-    <!-- Lens handle -->
-    <line x1="38.5" y1="38.5" x2="50.5" y2="50.5" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
-    <!-- Reticle / Target crosshair inside lens -->
-    <line x1="28" y1="20" x2="28" y2="36" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.9" />
-    <line x1="20" y1="28" x2="36" y2="28" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.9" />
-    <!-- Center focal point -->
-    <circle cx="28" cy="28" r="2.2" fill="#ffffff" />
+  <!-- Modern Technical Doc icon -->
+  <g filter="url(#softShadow)" stroke="#ffffff" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Document outline with precision fold -->
+    <path d="M37.5 13H21a4 4 0 0 0-4 4v30a4 4 0 0 0 4 4h22a4 4 0 0 0 4-4V22.5L37.5 13z" stroke-width="3.5" />
+    <polyline points="37 13 37 23 47 23" stroke-width="3.5" />
+    <!-- Formatted document lines -->
+    <line x1="25" y1="23" x2="31" y2="23" stroke-width="3.2" />
+    <line x1="25" y1="32" x2="39" y2="32" stroke-width="3.2" />
+    <line x1="25" y1="40" x2="34" y2="40" stroke-width="3.2" />
   </g>
 </svg>
