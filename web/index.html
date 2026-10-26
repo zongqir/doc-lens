@@ -398,12 +398,16 @@
 
         <!-- 场景 1：当前已存在生效中的专属分享卡片 -->
         <div class="share-active-panel" id="shareActivePanel" style="display:none;">
-          <div class="share-active-badge-row">
-            <div class="share-live-tag">
+          <div class="share-active-header">
+            <div class="share-live-status">
               <span class="live-dot"></span>
-              <span>分享进行中</span>
+              <span class="share-live-text">分享中</span>
+              <span class="share-dot-sep">·</span>
+              <span class="share-view-counter" id="shareViewCounter">0 次浏览</span>
             </div>
-            <span class="share-view-counter" id="shareViewCounter">👁️ 0 次浏览</span>
+            <button type="button" class="btn-revoke-link" id="revokeActiveShareBtn" title="撤回后外部访客将立即无法阅读">
+              撤回分享
+            </button>
           </div>
 
           <div class="share-url-container">
@@ -413,35 +417,31 @@
             </button>
           </div>
 
-          <!-- 手机端友好：大字号独立卡片展示指标，绝无横向挤压 -->
-          <div class="share-meta-cards">
-            <div class="share-meta-card">
-              <span class="meta-card-title">有效期限</span>
-              <span class="meta-card-value" id="shareMetaExpire">永久有效</span>
-            </div>
-            <div class="share-meta-card">
-              <span class="meta-card-title">提取保护</span>
-              <span class="meta-card-value" id="shareMetaPasscode">公开免密</span>
-            </div>
-          </div>
-
-          <div class="share-card-actions">
-            <button type="button" class="btn btn-sm btn-revoke-action" id="revokeActiveShareBtn">
-              ✕ 撤回并关闭分享
-            </button>
+          <!-- 有效期与密码单行紧凑显示，去除多余标签文字 -->
+          <div class="share-meta-inline">
+            <span class="share-meta-item" id="shareMetaExpire">📅 7 天有效</span>
+            <span class="share-meta-sep">·</span>
+            <span class="share-meta-item" id="shareMetaPasscode">🔓 公开免密</span>
           </div>
         </div>
 
-        <!-- 场景 2：新建/重新配置分享设置表单 -->
+        <!-- 针对已分享文档的重新配置折叠开关 -->
+        <div class="share-reconfig-bar" id="shareReconfigBar" style="display:none;">
+          <button type="button" class="btn-toggle-reconfig" id="toggleReconfigBtn">
+            <span id="reconfigBtnText">⚙️ 重新设置参数 (覆盖旧链接)</span>
+          </button>
+        </div>
+
+        <!-- 场景 2：新建 / 重新配置分享设置表单 -->
         <form id="shareSettingsForm" class="share-settings-form">
           <div class="share-settings-title" id="shareFormTitle">设置分享参数</div>
 
           <div class="form-group">
-            <label class="form-label">有效期限</label>
+            <label class="form-label">有效期</label>
             <select id="shareExpireDays" class="custom-select share-select">
-              <option value="7" selected>7 天有效 (推荐)</option>
-              <option value="1">1 天有效 (临时阅读)</option>
-              <option value="30">30 天有效</option>
+              <option value="7" selected>7 天 (推荐)</option>
+              <option value="1">1 天 (临时阅读)</option>
+              <option value="30">30 天</option>
               <option value="0">永久有效</option>
             </select>
           </div>
@@ -451,7 +451,7 @@
               <label class="form-label" style="margin-bottom:0;">访问密码保护</label>
               <label class="share-checkbox-label">
                 <input type="checkbox" id="shareEnablePasscode" style="cursor:pointer;">
-                <span>设置 4 位密码</span>
+                <span>启用 4 位密码</span>
               </label>
             </div>
             <div class="share-passcode-input-wrap" id="sharePasscodeWrap" style="display:none;">
@@ -466,8 +466,8 @@
           </button>
         </form>
 
-        <div class="share-bottom-tip">
-          💡 提示：单篇文档始终只保留一个最新分享链接。若重新生成，将自动覆盖之前的分享设置。
+        <div class="share-bottom-tip" id="shareBottomTip">
+          💡 提示：单篇文档只保留唯一有效链接，重新生成将自动覆盖旧链接。
         </div>
       </div>
     </div>

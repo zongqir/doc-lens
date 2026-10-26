@@ -304,6 +304,11 @@
     el.submitShareBtn = document.getElementById('submitShareBtn');
     el.submitShareBtnText = document.getElementById('submitShareBtnText');
 
+    el.shareReconfigBar = document.getElementById('shareReconfigBar');
+    el.toggleReconfigBtn = document.getElementById('toggleReconfigBtn');
+    el.reconfigBtnText = document.getElementById('reconfigBtnText');
+    el.shareBottomTip = document.getElementById('shareBottomTip');
+
     el.sharePasscodeModal = document.getElementById('sharePasscodeModal');
     el.sharePasscodeForm = document.getElementById('sharePasscodeForm');
     el.guestPasscodeInput = document.getElementById('guestPasscodeInput');
@@ -340,6 +345,17 @@
 
     if (el.revokeActiveShareBtn) {
       el.revokeActiveShareBtn.addEventListener('click', revokeCurrentActiveShare);
+    }
+
+    if (el.toggleReconfigBtn) {
+      el.toggleReconfigBtn.addEventListener('click', () => {
+        if (!el.shareSettingsForm) return;
+        const isHidden = el.shareSettingsForm.style.display === 'none';
+        el.shareSettingsForm.style.display = isHidden ? 'flex' : 'none';
+        if (el.reconfigBtnText) {
+          el.reconfigBtnText.textContent = isHidden ? '收起配置选项 ▲' : '⚙️ 重新设置参数 (覆盖旧链接)';
+        }
+      });
     }
 
     if (el.shareSettingsForm) {
@@ -7229,8 +7245,10 @@
     if (el.sharePasscodeInput) el.sharePasscodeInput.value = '';
     if (el.sharePasscodeHint) el.sharePasscodeHint.textContent = '公开免密（任何人持链接即可阅读）';
 
-    // 默认先隐藏已生效卡片
+    // 默认初始状态
     if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
+    if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'none';
+    if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'flex';
     if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
     if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
 
@@ -7263,6 +7281,8 @@
   function renderActiveSharePanel(share) {
     if (!share) {
       if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
+      if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'none';
+      if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'flex';
       if (el.shareFormTitle) el.shareFormTitle.textContent = '设置分享参数';
       if (el.submitShareBtnText) el.submitShareBtnText.textContent = '生成分享链接并复制';
       return;
@@ -7272,28 +7292,31 @@
     if (el.shareActiveUrlInput) el.shareActiveUrlInput.value = shareUrl;
 
     if (el.shareViewCounter) {
-      el.shareViewCounter.textContent = `👁️ ${share.view_count || 0} 次浏览`;
+      el.shareViewCounter.textContent = `${share.view_count || 0} 次浏览`;
     }
 
     const now = Math.floor(Date.now() / 1000);
     const isExpired = share.expires_at > 0 && now > share.expires_at;
-    let expText = '永久有效';
+    let expText = '📅 永久有效';
     if (share.expires_at > 0) {
-      expText = isExpired ? '⚠️ 已过期' : `截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
+      expText = isExpired ? '⚠️ 已过期' : `📅 截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
     }
     if (el.shareMetaExpire) {
       el.shareMetaExpire.textContent = expText;
-      el.shareMetaExpire.style.color = isExpired ? '#ef4444' : 'var(--text-primary)';
+      el.shareMetaExpire.style.color = isExpired ? '#ef4444' : 'var(--text-secondary)';
     }
 
-    const passText = share.passcode ? `🔑 密码: ${share.passcode}` : '🔓 公开免密';
+    const passText = share.passcode ? `🔑 密码 ${share.passcode}` : '🔓 免密访问';
     if (el.shareMetaPasscode) {
       el.shareMetaPasscode.textContent = passText;
     }
 
-    if (el.shareActivePanel) el.shareActivePanel.style.display = 'block';
-    if (el.shareFormTitle) el.shareFormTitle.textContent = '修改分享参数 (覆盖当前链接)';
-    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '覆盖并重新生成分享链接';
+    if (el.shareActivePanel) el.shareActivePanel.style.display = 'flex';
+    if (el.shareReconfigBar) el.shareReconfigBar.style.display = 'block';
+    if (el.shareSettingsForm) el.shareSettingsForm.style.display = 'none';
+    if (el.reconfigBtnText) el.reconfigBtnText.textContent = '⚙️ 重新设置参数 (覆盖旧链接)';
+    if (el.shareFormTitle) el.shareFormTitle.textContent = '重新设置分享参数';
+    if (el.submitShareBtnText) el.submitShareBtnText.textContent = '覆盖并重新生成链接';
   }
 
   async function copyMainShareUrl() {
@@ -7378,7 +7401,7 @@
         el.submitShareBtn.disabled = false;
       }
       if (el.submitShareBtnText) {
-        el.submitShareBtnText.textContent = currentDocActiveShare ? '覆盖并重新生成分享链接' : '生成分享链接并复制';
+        el.submitShareBtnText.textContent = currentDocActiveShare ? '覆盖并重新生成链接' : '生成分享链接并复制';
       }
     }
   }
