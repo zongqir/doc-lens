@@ -1415,6 +1415,7 @@ body.modal-open {
   display: flex;
   justify-content: center;
   -webkit-overflow-scrolling: touch;
+  overflow-anchor: none;
 }
 
 .article-container {

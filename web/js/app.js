@@ -2393,6 +2393,47 @@
     }
   }
 
+  // =========================================================================
+  // 阅读区滚动复位器：切换文档时坚决瞬间归零至最开头的最初阅读点，杜绝停留在底部的异常
+  // =========================================================================
+  function resetDocScroll() {
+    if (el.contentArea) {
+      const prevBehavior = el.contentArea.style.scrollBehavior;
+      el.contentArea.style.scrollBehavior = 'auto';
+      el.contentArea.scrollTop = 0;
+      el.contentArea.scrollLeft = 0;
+      try {
+        el.contentArea.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch (e) {
+        el.contentArea.scrollTo(0, 0);
+      }
+      el.contentArea.style.scrollBehavior = prevBehavior || '';
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } catch (e) {
+        window.scrollTo(0, 0);
+      }
+    }
+    if (document.documentElement) {
+      document.documentElement.scrollTop = 0;
+    }
+    if (document.body) {
+      document.body.scrollTop = 0;
+    }
+
+    // 双保险：在下一动画帧（浏览器布局重排计算完成）再次确保置顶（排除锚点情况）
+    requestAnimationFrame(() => {
+      if (el.contentArea && !window.location.hash) {
+        el.contentArea.scrollTop = 0;
+      }
+      if (typeof window !== 'undefined' && !window.location.hash) {
+        window.scrollTo(0, 0);
+      }
+    });
+  }
+
   async function routeTo(urlPath, pushState = true) {
     const decodedPath = decodeURIComponent(urlPath).replace(/\/+$/, '') || '/';
     if (pushState) {
@@ -2419,7 +2460,7 @@
       renderRecentReads();
       renderFavorites();
       renderWelcomeDashboard();
-      if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
+      resetDocScroll();
       return;
     }
 
@@ -2445,6 +2486,7 @@
       }
       renderDocument(doc);
       recordRecentRead(doc);
+      resetDocScroll();
     };
 
     // 1. 内存层命中：0ms 秒开
@@ -2470,6 +2512,7 @@
     // 3. 若无本地缓存，立刻渲染轻量骨架屏，杜绝界面冻结停滞卡顿感
     if (!hasLocalDoc) {
       renderDocumentSkeleton(decodedPath, targetRepo);
+      resetDocScroll();
     }
 
     // 4. 网络拉取（若已有本地渲染，则为后台静默 stale-while-revalidate，复用正在进行的 in-flight Promise）
@@ -2487,6 +2530,7 @@
           try { localStorage.removeItem('doc_lens_last_active_' + targetRepo.ID); } catch (e) {}
         }
         renderErrorDocument(decodedPath, err.message);
+        resetDocScroll();
       }
     }
   }
@@ -2589,6 +2633,7 @@
     }
 
     renderDocPagination();
+    resetDocScroll();
   }
 
   function cleanDocTitle(name) {
@@ -2667,8 +2712,8 @@
         btn.addEventListener('pointerenter', () => prefetchDocument(prevDoc.fullRoute), { once: true });
         btn.addEventListener('click', (e) => {
           e.preventDefault();
+          resetDocScroll();
           routeTo(prevDoc.fullRoute, true);
-          if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
     }
@@ -2679,8 +2724,8 @@
         btn.addEventListener('pointerenter', () => prefetchDocument(nextDoc.fullRoute), { once: true });
         btn.addEventListener('click', (e) => {
           e.preventDefault();
+          resetDocScroll();
           routeTo(nextDoc.fullRoute, true);
-          if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
         });
       }
     }
@@ -2831,8 +2876,8 @@
       }, { once: true });
       card.addEventListener('click', (e) => {
         e.preventDefault();
+        resetDocScroll();
         routeTo(targetRoute, true);
-        if (el.contentArea) el.contentArea.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
