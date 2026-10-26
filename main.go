@@ -60,9 +60,9 @@ func main() {
 	server := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Handler:      app.routes(),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 300 * time.Second,
+		IdleTimeout:  180 * time.Second,
 	}
 
 	log.Printf("[doc-lens] Server starting on http://%s:%d", cfg.Host, cfg.Port)
@@ -677,6 +677,17 @@ func (a *App) handleAudioVoices(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(AvailableVoices)
 }
 
+func cleanDocRelPath(repo *RepoConfig, rawPath string) string {
+	p := strings.TrimSpace(rawPath)
+	prefix := "/" + strings.Trim(repo.RoutePrefix, "/") + "/"
+	norm := "/" + strings.TrimLeft(p, "/")
+	if strings.HasPrefix(norm, prefix) {
+		p = strings.TrimPrefix(norm, prefix)
+	}
+	p = strings.Trim(p, "/\\")
+	return filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
+}
+
 type AudioGenReq struct {
 	RepoID string `json:"repo"`
 	Path   string `json:"path"`
@@ -701,7 +712,8 @@ func (a *App) handleAudioGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachedDoc, err := a.rm.GetCachedFile(repo, req.Path)
+	cleanPath := cleanDocRelPath(repo, req.Path)
+	cachedDoc, err := a.rm.GetCachedFile(repo, cleanPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
 		return
@@ -710,7 +722,7 @@ func (a *App) handleAudioGenerate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
-	cacheFile, err := a.tts.Synthesize(ctx, req.RepoID, req.Path, req.Voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
+	cacheFile, err := a.tts.Synthesize(ctx, req.RepoID, cleanPath, req.Voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
@@ -722,7 +734,7 @@ func (a *App) handleAudioGenerate(w http.ResponseWriter, r *http.Request) {
 		"status": "ready",
 		"size":   fi.Size(),
 		"voice":  req.Voice,
-		"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", req.RepoID, req.Path, req.Voice),
+		"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", req.RepoID, cleanPath, req.Voice),
 	})
 }
 
@@ -742,13 +754,14 @@ func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachedDoc, err := a.rm.GetCachedFile(repo, relPath)
+	cleanPath := cleanDocRelPath(repo, relPath)
+	cachedDoc, err := a.rm.GetCachedFile(repo, cleanPath)
 	if err != nil {
-		http.Error(w, `{"error":"file not found"}`, http.StatusNotFound)
+		http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
 		return
 	}
 
-	cacheFile := a.tts.getAudioCachePath(repoID, relPath, voice, cachedDoc.ModTime)
+	cacheFile := a.tts.getAudioCachePath(repoID, cleanPath, voice, cachedDoc.ModTime)
 	fi, err := os.Stat(cacheFile)
 	cached := err == nil && fi.Size() > 1024
 
@@ -762,7 +775,7 @@ func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
 			"cached": cached,
 			"size":   sz,
 			"voice":  voice,
-			"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", repoID, relPath, voice),
+			"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", repoID, cleanPath, voice),
 		})
 		return
 	}
@@ -770,7 +783,7 @@ func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
 	if !cached {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 		defer cancel()
-		cacheFile, err = a.tts.Synthesize(ctx, repoID, relPath, voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
+		cacheFile, err = a.tts.Synthesize(ctx, repoID, cleanPath, voice, cachedDoc.ModTime, cachedDoc.Resp.Content)
 		if err != nil {
 			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 			return

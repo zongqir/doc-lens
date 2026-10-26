@@ -6927,8 +6927,12 @@
 
   async function toggleDocAudio(doc) {
     if (!doc) return;
-    // 如果播放的是当前文档，切换暂停/播放
-    if (audioState.currentDoc && audioState.currentDoc.path === doc.path && audioState.currentDoc.repo_id === doc.repo_id && audioState.audio.src) {
+    const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
+    const curRelPath = audioState.currentDoc ? (audioState.currentDoc.rel_path || audioState.currentDoc.path || '').replace(/^\/+/, '') : '';
+    const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const curRepoId = audioState.currentDoc ? (audioState.currentDoc.repo_id || '') : '';
+
+    if (curRelPath === relPath && curRepoId === repoId && audioState.audio.src) {
       if (audioState.audio.paused) {
         audioState.audio.play();
       } else {
@@ -6942,7 +6946,9 @@
   async function playDocAudio(doc, forceRegenerate) {
     if (!doc) return;
     audioState.currentDoc = doc;
-    const docTitle = doc.path.split('/').pop().replace(/\.md$/i, '');
+    const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
+    const docTitle = relPath.split('/').pop().replace(/\.md$/i, '') || '文档音频';
 
     if (el.docAudioBar) {
       el.docAudioBar.style.display = 'block';
@@ -6960,7 +6966,7 @@
     }
 
     const voice = audioState.voice;
-    const audioUrl = `/api/audio?repo=${encodeURIComponent(doc.repo_id)}&path=${encodeURIComponent(doc.path)}&voice=${encodeURIComponent(voice)}`;
+    const audioUrl = `/api/audio?repo=${encodeURIComponent(repoId)}&path=${encodeURIComponent(relPath)}&voice=${encodeURIComponent(voice)}`;
 
     try {
       if (!forceRegenerate) {
@@ -6984,8 +6990,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repo: doc.repo_id,
-          path: doc.path,
+          repo: repoId,
+          path: relPath,
           voice: voice
         })
       });
