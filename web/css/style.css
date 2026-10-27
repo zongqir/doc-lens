@@ -5063,6 +5063,8 @@ body.modal-open {
 @media (max-width: 900px) {
   #menuBtn {
     display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .quick-search-trigger {
@@ -5132,7 +5134,9 @@ body.modal-open {
   }
 
   .fab-toc-btn {
-    display: flex;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   .header-center {
