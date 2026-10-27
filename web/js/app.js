@@ -6040,21 +6040,25 @@
       wrapper.innerHTML = `
         <div class="mermaid-toolbar">
           ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含括号等非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
-          <button class="mermaid-tool-btn" title="全屏高清查看">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-            <span>全屏</span>
+          <button type="button" class="mermaid-tool-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         </div>
         ${finalSvg}
       `;
       wrapper.setAttribute('data-rendered', 'true');
 
-      const expandBtn = wrapper.querySelector('.mermaid-tool-btn');
-      if (expandBtn) {
-        expandBtn.addEventListener('click', () => {
-          openMermaidLightbox(finalSvg);
-        });
-      }
+      // 支持：1. 点击右上角纯符号按钮全屏；2. 点击图表主体任意区域自动全屏
+      wrapper.addEventListener('click', (e) => {
+        // 如果点击的是节点内部可能存在的外部链接超链接，放行跳转
+        if (e.target.closest('a')) return;
+        // 如果点击的是自愈标签提示，不触发全屏
+        if (e.target.closest('.mermaid-heal-badge')) return;
+        // 如果用户正在划词选择文本，不误触发全屏
+        const selection = window.getSelection();
+        if (selection && selection.toString().trim().length > 0) return;
+        openMermaidLightbox(finalSvg);
+      });
     } else {
       // 降级兜底显示
       const errMsg = renderError ? (renderError.message || String(renderError)) : '未知解析错误';

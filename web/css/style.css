@@ -3388,12 +3388,18 @@ body.modal-open {
   box-shadow: var(--shadow-xs);
   position: relative;
   -webkit-overflow-scrolling: touch;
+  cursor: zoom-in;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .mermaid-wrapper:hover {
   border-color: var(--border-focus, #3b82f6);
   box-shadow: var(--shadow-sm);
+}
+
+.mermaid-wrapper a,
+.mermaid-wrapper .mermaid-toolbar {
+  cursor: default;
 }
 
 .mermaid-wrapper svg {
@@ -3456,23 +3462,28 @@ body.modal-open {
 }
 
 .mermaid-tool-btn {
-  background: var(--bg-surface-hover);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-xs);
-  font-size: 11.5px;
-  display: flex;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  box-shadow: var(--shadow-xs);
   transition: all var(--transition-fast);
+  backdrop-filter: blur(8px);
 }
 
 .mermaid-tool-btn:hover {
-  background: var(--bg-surface-active);
-  color: var(--text-primary);
-  border-color: var(--border-focus, #3b82f6);
+  background: var(--bg-surface-hover);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ==========================================================================
