@@ -254,7 +254,11 @@
     el.tocLevelCtrl = document.getElementById('tocLevelCtrl');
     el.mobileTocLevelCtrl = document.getElementById('mobileTocLevelCtrl');
     el.fabTocBtn = document.getElementById('fabTocBtn');
+    el.fabAiBtn = document.getElementById('fabAiBtn');
+    el.mobileMindmapBtn = document.getElementById('mobileMindmapBtn');
     el.mobileTocModal = document.getElementById('mobileTocModal');
+    el.copyOriginDocLinkBtn = document.getElementById('copyOriginDocLinkBtn');
+    el.copyOriginLinkText = document.getElementById('copyOriginLinkText');
 
     el.loginModal = document.getElementById('loginModal');
     el.loginForm = document.getElementById('loginForm');
@@ -415,6 +419,33 @@
     }
 
     if (el.fabTocBtn) el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
+    if (el.fabAiBtn) {
+      el.fabAiBtn.addEventListener('click', () => {
+        if (currentDoc) {
+          openAiTaskModal({ doc: currentDoc, defaultAction: 'append' });
+        }
+      });
+    }
+    if (el.mobileMindmapBtn) {
+      el.mobileMindmapBtn.addEventListener('click', () => {
+        if (el.mobileTocModal) closeModal(el.mobileTocModal);
+        if (currentDoc) {
+          openDocMindmap(currentDoc);
+        }
+      });
+    }
+    if (el.copyOriginDocLinkBtn) {
+      el.copyOriginDocLinkBtn.addEventListener('click', async () => {
+        await copyTextToClipboard(window.location.href);
+        const originalText = el.copyOriginLinkText ? el.copyOriginLinkText.textContent : '复制原链接';
+        if (el.copyOriginLinkText) el.copyOriginLinkText.textContent = '已复制！';
+        el.copyOriginDocLinkBtn.style.color = '#10b981';
+        setTimeout(() => {
+          if (el.copyOriginLinkText) el.copyOriginLinkText.textContent = originalText;
+          el.copyOriginDocLinkBtn.style.color = '';
+        }, 2000);
+      });
+    }
     if (el.loginForm) el.loginForm.addEventListener('submit', handleLoginSubmit);
     if (el.repoSelect) el.repoSelect.addEventListener('change', (e) => selectRepo(e.target.value));
     if (el.searchInput) el.searchInput.addEventListener('input', onSearchInput);
@@ -653,16 +684,18 @@
       });
     });
 
-    // 手机端大纲悬浮球微交互
+    // 手机端大纲与 AI 创作悬浮球微交互
     let lastScrollY = 0;
     el.contentArea.addEventListener('scroll', () => {
       const curY = el.contentArea.scrollTop;
-      if (curY > lastScrollY && curY > 120) {
-        el.fabTocBtn.style.opacity = '0.35';
-        el.fabTocBtn.style.transform = 'scale(0.86)';
-      } else {
-        el.fabTocBtn.style.opacity = '1';
-        el.fabTocBtn.style.transform = 'scale(1)';
+      const isScrolledDown = curY > lastScrollY && curY > 120;
+      if (el.fabTocBtn) {
+        el.fabTocBtn.style.opacity = isScrolledDown ? '0.35' : '1';
+        el.fabTocBtn.style.transform = isScrolledDown ? 'scale(0.86)' : 'scale(1)';
+      }
+      if (el.fabAiBtn) {
+        el.fabAiBtn.style.opacity = isScrolledDown ? '0.35' : '1';
+        el.fabAiBtn.style.transform = isScrolledDown ? 'scale(0.86)' : 'scale(1)';
       }
       lastScrollY = curY;
     }, { passive: true });
@@ -2819,6 +2852,10 @@
           openIncrementalDiffModal(doc);
         });
       }
+    }
+
+    if (el.mobileMindmapBtn) {
+      el.mobileMindmapBtn.style.display = isMarkdown ? 'inline-flex' : 'none';
     }
 
     document.getElementById('favoriteBtn').addEventListener('click', () => {

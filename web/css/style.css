@@ -4782,6 +4782,89 @@ body.modal-open {
   transform: scale(0.92);
 }
 
+.fab-ai-btn {
+  display: none;
+  position: fixed;
+  bottom: 78px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #8b5cf6, var(--accent-color));
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 90;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.fab-ai-btn:active {
+  transform: scale(0.92);
+}
+
+.btn-mobile-mindmap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--accent-color);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: var(--radius-full);
+  margin-left: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-mobile-mindmap:hover,
+.btn-mobile-mindmap:active {
+  background: var(--accent-color);
+  color: #ffffff;
+}
+
+.share-origin-link-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  margin-top: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-hover);
+  border: 1px dashed var(--border-default);
+  font-size: 12px;
+}
+
+.share-origin-link-text {
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.btn-copy-origin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-color);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.btn-copy-origin-link:hover,
+.btn-copy-origin-link:active {
+  background: var(--accent-color);
+  color: #ffffff;
+}
+
 .bottom-sheet-card {
   position: fixed;
   bottom: 0;
@@ -5133,7 +5216,8 @@ body.modal-open {
     display: none;
   }
 
-  .fab-toc-btn {
+  .fab-toc-btn,
+  .fab-ai-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -5307,7 +5391,7 @@ body.modal-open {
     justify-content: flex-end !important;
     flex-wrap: nowrap !important;
     width: 100% !important;
-    gap: 6px !important;
+    gap: 8px !important;
     box-sizing: border-box !important;
   }
 
@@ -5350,7 +5434,14 @@ body.modal-open {
     height: 13px !important;
   }
 
-  /* 手机端功能操作按钮（思维导图、收藏、复制链接、AI协作/解读）：纯图标展示，彻底避免文字挤爆截断 */
+  /* 手机端精简收纳：思维导图融入目录抽屉，复制链接融入分享面板，AI创作换为正文悬浮笔小圈圈 */
+  .article-actions > #docMindmapBtn,
+  .article-actions > #copyLinkBtn,
+  .article-actions > #aiDocTaskBtn {
+    display: none !important;
+  }
+
+  /* 手机端功能操作按钮（听文章、增量、收藏、分享）：纯图标展示，呼吸感更足且彻底避免误触 */
   .article-actions > .btn {
     flex: 0 0 34px !important;
     width: 34px !important;
