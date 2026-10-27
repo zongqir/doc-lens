@@ -428,7 +428,7 @@
     }
     if (el.fabAiBtn) {
       el.fabAiBtn.addEventListener('click', (e) => {
-        if (fabJustDragged) return;
+        if (fabJustDragged || state.isShareMode) return;
         e.preventDefault();
         e.stopPropagation();
         openAiTaskModal({
@@ -791,7 +791,7 @@
       if (e.cancelable) e.preventDefault();
 
       const btnW = container.offsetWidth || 44;
-      const btnH = container.offsetHeight || 98;
+      const btnH = container.offsetHeight || (state.isShareMode ? 44 : 98);
       const minX = 8;
       const maxX = Math.max(minX, window.innerWidth - btnW - 8);
       const minY = 56;
@@ -860,7 +860,7 @@
 
     const rect = container.getBoundingClientRect();
     const btnW = rect.width || 44;
-    const btnH = rect.height || 98;
+    const btnH = rect.height || (state.isShareMode ? 44 : 98);
     const centerX = rect.left + btnW / 2;
     const isLeft = centerX < (window.innerWidth / 2);
     const side = isLeft ? 'left' : 'right';
@@ -908,7 +908,7 @@
     } catch (_) {}
 
     const btnW = container.offsetWidth || 44;
-    const btnH = container.offsetHeight || 98;
+    const btnH = container.offsetHeight || (state.isShareMode ? 44 : 98);
     const marginX = 14;
     const minY = 56;
     const maxY = Math.max(minY, window.innerHeight - btnH - 20);
@@ -6813,6 +6813,7 @@
   }
 
   function openAiTaskModal(options = {}) {
+    if (state.isShareMode) return;
     const doc = options.doc || null;
     state.draftContextDoc = doc;
 

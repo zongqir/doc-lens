@@ -7114,7 +7114,8 @@ body.is-share-mode #aiTaskBtn,
 body.is-share-mode #aiDocTaskBtn,
 body.is-share-mode #docHistoryDiffBtn,
 body.is-share-mode #favoriteBtn,
-body.is-share-mode #docPagination {
+body.is-share-mode #docPagination,
+body.is-share-mode #fabAiBtn {
   display: none !important;
 }
 
