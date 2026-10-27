@@ -420,17 +420,22 @@
 
     if (el.fabTocBtn) el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
     if (el.fabAiBtn) {
-      el.fabAiBtn.addEventListener('click', () => {
-        if (currentDoc) {
-          openAiTaskModal({ doc: currentDoc, defaultAction: 'append' });
-        }
+      el.fabAiBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openAiTaskModal({
+          doc: state.currentDoc || null,
+          defaultAction: state.currentDoc ? 'append' : 'new'
+        });
       });
     }
     if (el.mobileMindmapBtn) {
-      el.mobileMindmapBtn.addEventListener('click', () => {
+      el.mobileMindmapBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (el.mobileTocModal) closeModal(el.mobileTocModal);
-        if (currentDoc) {
-          openDocMindmap(currentDoc);
+        if (state.currentDoc) {
+          openDocMindmap(state.currentDoc);
         }
       });
     }
