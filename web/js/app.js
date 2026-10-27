@@ -144,6 +144,7 @@
     initTocLevelControl();
     bindGlobalKeybindings();
     initAudioPlayer();
+    initFabDragAndPosition();
 
     initSidebarTabs();
     renderRecentReads();
@@ -255,6 +256,7 @@
     el.mobileTocLevelCtrl = document.getElementById('mobileTocLevelCtrl');
     el.fabTocBtn = document.getElementById('fabTocBtn');
     el.fabAiBtn = document.getElementById('fabAiBtn');
+    el.fabContainer = document.getElementById('fabContainer');
     el.mobileMindmapBtn = document.getElementById('mobileMindmapBtn');
     el.mobileTocModal = document.getElementById('mobileTocModal');
     el.copyOriginDocLinkBtn = document.getElementById('copyOriginDocLinkBtn');
@@ -418,9 +420,15 @@
       });
     }
 
-    if (el.fabTocBtn) el.fabTocBtn.addEventListener('click', () => openModal(el.mobileTocModal));
+    if (el.fabTocBtn) {
+      el.fabTocBtn.addEventListener('click', () => {
+        if (fabJustDragged) return;
+        openModal(el.mobileTocModal);
+      });
+    }
     if (el.fabAiBtn) {
       el.fabAiBtn.addEventListener('click', (e) => {
+        if (fabJustDragged) return;
         e.preventDefault();
         e.stopPropagation();
         openAiTaskModal({
@@ -689,18 +697,14 @@
       });
     });
 
-    // 手机端大纲与 AI 创作悬浮球微交互
+    // 手机端双悬浮球微交互 (向下翻阅时半透明微缩小避让正文，静止或向上回滚时恢复)
     let lastScrollY = 0;
     el.contentArea.addEventListener('scroll', () => {
       const curY = el.contentArea.scrollTop;
       const isScrolledDown = curY > lastScrollY && curY > 120;
-      if (el.fabTocBtn) {
-        el.fabTocBtn.style.opacity = isScrolledDown ? '0.35' : '1';
-        el.fabTocBtn.style.transform = isScrolledDown ? 'scale(0.86)' : 'scale(1)';
-      }
-      if (el.fabAiBtn) {
-        el.fabAiBtn.style.opacity = isScrolledDown ? '0.35' : '1';
-        el.fabAiBtn.style.transform = isScrolledDown ? 'scale(0.86)' : 'scale(1)';
+      if (el.fabContainer && !isFabDragging) {
+        el.fabContainer.style.opacity = isScrolledDown ? '0.38' : '1';
+        el.fabContainer.style.transform = isScrolledDown ? 'scale(0.88)' : 'scale(1)';
       }
       lastScrollY = curY;
     }, { passive: true });
@@ -717,6 +721,208 @@
     document.querySelectorAll('.close-modal-btn').forEach(btn => {
       btn.addEventListener('click', closeAllModals);
     });
+  }
+
+  // ==========================================
+  // 手机端双悬浮球 (AI创作 + 目录大纲) 拖拽、左右贴边吸附与位置持久化记忆
+  // ==========================================
+  let isFabDragging = false;
+  let fabJustDragged = false;
+
+  function initFabDragAndPosition() {
+    const container = el.fabContainer;
+    if (!container) return;
+
+    // 1. 恢复之前保存的位置或默认位置
+    restoreFabPosition();
+
+    // 2. 屏幕旋转或视口大小改变时自适应保持贴边与垂直比例
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(restoreFabPosition, 100);
+    });
+
+    // 3. 拖拽逻辑 (支持触控 Touch 与鼠标 Pointer)
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    const onPointerDown = (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      isFabDragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = container.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      container.classList.remove('is-snapping');
+
+      window.addEventListener('pointermove', onPointerMove, { passive: false });
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    };
+
+    const onPointerMove = (e) => {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const dist = Math.hypot(dx, dy);
+
+      if (!isFabDragging) {
+        if (dist > 6) {
+          isFabDragging = true;
+          container.classList.add('is-dragging');
+          container.classList.remove('is-snapping');
+          container.style.opacity = '1';
+          container.style.transform = 'scale(1.04)';
+          try {
+            if (e.pointerId !== undefined && container.setPointerCapture) {
+              container.setPointerCapture(e.pointerId);
+            }
+          } catch (_) {}
+        } else {
+          return;
+        }
+      }
+
+      if (e.cancelable) e.preventDefault();
+
+      const btnW = container.offsetWidth || 44;
+      const btnH = container.offsetHeight || 98;
+      const minX = 8;
+      const maxX = Math.max(minX, window.innerWidth - btnW - 8);
+      const minY = 56;
+      const maxY = Math.max(minY, window.innerHeight - btnH - 16);
+
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      newLeft = Math.max(minX, Math.min(maxX, newLeft));
+      newTop = Math.max(minY, Math.min(maxY, newTop));
+
+      container.style.left = `${newLeft}px`;
+      container.style.top = `${newTop}px`;
+      container.style.right = 'auto';
+      container.style.bottom = 'auto';
+    };
+
+    const onPointerUp = (e) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+
+      try {
+        if (e && e.pointerId !== undefined && container.releasePointerCapture) {
+          container.releasePointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+
+      if (isFabDragging) {
+        isFabDragging = false;
+        container.classList.remove('is-dragging');
+        container.classList.add('is-snapping');
+        container.style.transform = 'scale(1)';
+
+        snapToNearestEdgeAndSave();
+
+        fabJustDragged = true;
+        setTimeout(() => {
+          fabJustDragged = false;
+        }, 280);
+
+        setTimeout(() => {
+          container.classList.remove('is-snapping');
+        }, 360);
+      } else {
+        container.classList.remove('is-dragging');
+        container.style.transform = 'scale(1)';
+      }
+    };
+
+    container.addEventListener('pointerdown', onPointerDown);
+
+    // 捕获阶段拦截点击，严防拖拽松手时意外触发弹窗
+    container.addEventListener('click', (e) => {
+      if (fabJustDragged) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    }, true);
+  }
+
+  function snapToNearestEdgeAndSave() {
+    const container = el.fabContainer;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const btnW = rect.width || 44;
+    const btnH = rect.height || 98;
+    const centerX = rect.left + btnW / 2;
+    const isLeft = centerX < (window.innerWidth / 2);
+    const side = isLeft ? 'left' : 'right';
+    const marginX = 14;
+
+    const minY = 56;
+    const maxY = Math.max(minY, window.innerHeight - btnH - 20);
+    const clampedTop = Math.max(minY, Math.min(maxY, rect.top));
+
+    if (side === 'left') {
+      container.style.left = `${marginX}px`;
+      container.style.right = 'auto';
+    } else {
+      container.style.left = `${Math.max(marginX, window.innerWidth - btnW - marginX)}px`;
+      container.style.right = 'auto';
+    }
+    container.style.top = `${clampedTop}px`;
+    container.style.bottom = 'auto';
+
+    const verticalRatio = (clampedTop - minY) / Math.max(1, (maxY - minY));
+    try {
+      localStorage.setItem('doclens_fab_pos', JSON.stringify({
+        side: side,
+        ratio: Math.max(0, Math.min(1, verticalRatio))
+      }));
+    } catch (_) {}
+  }
+
+  function restoreFabPosition() {
+    const container = el.fabContainer;
+    if (!container) return;
+
+    let side = 'right';
+    let ratio = 0.85;
+
+    try {
+      const saved = localStorage.getItem('doclens_fab_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.side === 'left' || parsed.side === 'right') side = parsed.side;
+        if (typeof parsed.ratio === 'number' && !isNaN(parsed.ratio)) {
+          ratio = Math.max(0, Math.min(1, parsed.ratio));
+        }
+      }
+    } catch (_) {}
+
+    const btnW = container.offsetWidth || 44;
+    const btnH = container.offsetHeight || 98;
+    const marginX = 14;
+    const minY = 56;
+    const maxY = Math.max(minY, window.innerHeight - btnH - 20);
+    const targetTop = minY + ratio * (maxY - minY);
+
+    if (side === 'left') {
+      container.style.left = `${marginX}px`;
+      container.style.right = 'auto';
+    } else {
+      container.style.left = `${Math.max(marginX, window.innerWidth - btnW - marginX)}px`;
+      container.style.right = 'auto';
+    }
+    container.style.top = `${Math.max(minY, Math.min(maxY, targetTop))}px`;
+    container.style.bottom = 'auto';
   }
 
   function bindGlobalKeybindings() {

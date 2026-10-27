@@ -312,22 +312,22 @@
     </nav>
   </main>
 
-  <!-- 手机端浮动 AI 创作悬浮球 (FAB) -->
-  <button class="fab-ai-btn" id="fabAiBtn" aria-label="AI 创作协作" title="针对当前章节派发 AI 任务">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 20h9"></path>
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-    </svg>
-  </button>
-
-  <!-- 手机端浮动大纲悬浮球 (FAB) -->
-  <button class="fab-toc-btn" id="fabTocBtn" aria-label="查看大纲" title="文章大纲导轨">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="4" y1="6" x2="20" y2="6"></line>
-      <line x1="4" y1="12" x2="20" y2="12"></line>
-      <line x1="4" y1="18" x2="20" y2="18"></line>
-    </svg>
-  </button>
+  <!-- 手机端双悬浮球智能组合 (FAB Stack: 可拖动 + 左右贴边吸附 + 位置记忆) -->
+  <div class="fab-container" id="fabContainer">
+    <button class="fab-btn fab-ai-btn" id="fabAiBtn" aria-label="AI 创作协作" title="针对当前章节派发 AI 任务">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9"></path>
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+      </svg>
+    </button>
+    <button class="fab-btn fab-toc-btn" id="fabTocBtn" aria-label="查看大纲" title="文章大纲导轨">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="4" y1="6" x2="20" y2="6"></line>
+        <line x1="4" y1="12" x2="20" y2="12"></line>
+        <line x1="4" y1="18" x2="20" y2="18"></line>
+      </svg>
+    </button>
+  </div>
 
   <!-- 手机端大纲抽屉 (Bottom Sheet) -->
   <div class="modal-overlay" id="mobileTocModal">

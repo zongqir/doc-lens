@@ -4759,50 +4759,77 @@ body.modal-open {
 /* ==========================================================================
    移动端与触控交互 (Mobile & Tablet - 针对手机严重优化的核心样式)
    ========================================================================== */
-.fab-toc-btn {
+/* 手机端双悬浮球智能组合 (可拖拽 + 左右贴边吸附 + 位置记忆) */
+.fab-container {
   display: none;
   position: fixed;
   bottom: 24px;
-  right: 18px;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-  color: #ffffff;
-  border: none;
-  box-shadow: 0 4px 16px var(--accent-glow);
+  right: 16px;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  gap: 10px;
   z-index: 90;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
   transition: transform var(--transition-fast), opacity var(--transition-fast);
 }
 
-.fab-toc-btn:active {
+.fab-container.is-dragging {
+  cursor: grabbing !important;
+  transition: none !important;
+}
+
+.fab-container.is-dragging .fab-btn {
+  transform: none !important;
+}
+
+.fab-container.is-snapping {
+  transition: top 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+              left 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+              right 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+              transform 0.2s ease,
+              opacity 0.2s ease !important;
+}
+
+.fab-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  color: #ffffff;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.fab-btn:active {
   transform: scale(0.92);
 }
 
+/* ✏️ AI 创作笔小球：星芒灵感炫彩紫 */
 .fab-ai-btn {
-  display: none;
-  position: fixed;
-  bottom: 78px;
-  right: 18px;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #8b5cf6, var(--accent-color));
-  color: #ffffff;
-  border: none;
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 90;
-  transition: transform var(--transition-fast), opacity var(--transition-fast);
+  background: linear-gradient(135deg, #9333ea, #6366f1);
+  box-shadow: 0 4px 16px rgba(147, 51, 234, 0.42);
 }
 
-.fab-ai-btn:active {
-  transform: scale(0.92);
+.fab-ai-btn:hover {
+  box-shadow: 0 6px 20px rgba(147, 51, 234, 0.55);
+}
+
+/* 📖 目录大纲小球：沉稳科技深蓝 */
+.fab-toc-btn {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+}
+
+.fab-toc-btn:hover {
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.55);
 }
 
 .btn-mobile-mindmap {
@@ -5216,11 +5243,8 @@ body.modal-open {
     display: none;
   }
 
-  .fab-toc-btn,
-  .fab-ai-btn {
+  .fab-container {
     display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
   }
 
   .header-center {
