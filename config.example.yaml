@@ -1,0 +1,50 @@
+# ==============================================================================
+# DocLens 服务全局配置文件示例 (Configuration Template)
+# 使用说明：
+# 1. 复制本文件为 config.yaml: cp config.example.yaml config.yaml
+# 2. 根据实际需求修改监听端口、鉴权密码和挂载知识库路径
+# 3. 运行 ./doc-lens 即可启动服务
+# ==============================================================================
+
+# 服务网络监听配置
+port: 18086
+host: "0.0.0.0"
+
+# 鉴权与安全会话配置
+auth:
+  # 首次启动时的初始登录密码。启动后系统会自动将其转换为强加密哈希 (bcrypt)
+  initial_password: "admin888"
+  
+  # 会话签名密钥 (留空时系统会在首次启动时自动生成 32 字节高熵随机密钥)
+  session_secret: ""
+  
+  # 登录 Session Cookie 有效期（单位：天），支持超长免密保持
+  session_days: 180
+
+# 知识库 / 文档目录挂载列表 (支持挂载多个本地目录)
+repositories:
+  - id: docs
+    name: "技术知识库 (Docs)"
+    # 本地 Markdown/代码仓库的绝对路径或相对于二进制的相对路径
+    path: "./docs"
+    # Web 访问路由前缀 (如 /docs/xxx)
+    route_prefix: "/docs"
+    description: "团队内部核心技术架构与实战文档"
+    # 是否允许前端调用 AI 任务或保存修改 (true/false)
+    writable: true
+    # 忽略扫描的子目录（可选）
+    ignore_dirs:
+      - ".git"
+      - "node_modules"
+      - ".idea"
+
+# 后台异步 AI 写作与解剖引擎配置
+ai:
+  # 外部 AI 命令行调用执行器 (需在系统 PATH 中，或填写绝对路径)
+  runner_cmd: "dagu-ai"
+  # 最大并发排队任务数
+  max_queue: 10
+
+# 任务日志、分享记录与持久化状态存储目录
+# 默认存储在用户目录: ~/.local/state/doc-lens
+state_dir: ""

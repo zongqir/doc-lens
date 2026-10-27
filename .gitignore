@@ -1,6 +1,13 @@
+# Local production config (contain secrets & private paths)
+config.yaml
+
+# Build artifacts
 bin/
 *.tmp
 *.log
+coverage.out
+
+# IDE and OS
 .DS_Store
 .idea/
 .vscode/
