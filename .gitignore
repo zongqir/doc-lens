@@ -7,6 +7,9 @@ bin/
 *.log
 coverage.out
 
+# Local knowledge-base content
+docs/
+
 # IDE and OS
 .DS_Store
 .idea/
