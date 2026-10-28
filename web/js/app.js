@@ -8092,16 +8092,17 @@
         </div>
 
         <div class="share-card-url-bar">
-          <div class="share-card-url-left">
-            <span class="url-label">公开短链:</span>
-            <code class="url-text">${escapeHtml(shareUrl)}</code>
+          <div class="share-card-url-left" title="点击快速复制短链接" data-url="${escapeHtml(shareUrl)}">
+            <span class="url-label">短链:</span>
+            <input type="text" class="url-input-compact" value="${escapeHtml(shareUrl)}" readonly spellcheck="false">
           </div>
           <div class="share-card-url-right">
             <button type="button" class="btn btn-xs btn-primary btn-copy-share-card" data-url="${escapeHtml(shareUrl)}" title="复制完整分享链接">
-              <span>复制链接</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>复制</span>
             </button>
             <a href="/s/${escapeHtml(item.id)}" target="_blank" rel="noopener" class="btn btn-xs btn-open-share-card" title="在新标签页作为访客预览">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               <span>预览</span>
             </a>
           </div>
@@ -8173,7 +8174,7 @@
   function bindSharesListEvents(container) {
     if (!container) return;
 
-    // 1. 复制短链接
+    // 1. 复制短链接按钮
     container.querySelectorAll('.btn-copy-share-card').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -8184,6 +8185,30 @@
         if (ok) {
           btn.innerHTML = `<span style="color:#10b981;font-weight:600;">已复制!</span>`;
           setTimeout(() => { btn.innerHTML = origText; }, 1800);
+        }
+      });
+    });
+
+    // 点击输入框或左侧栏直接全选并复制
+    container.querySelectorAll('.share-card-url-left').forEach(box => {
+      box.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const input = box.querySelector('.url-input-compact');
+        if (input) {
+          input.focus();
+          input.select();
+          input.setSelectionRange(0, 99999);
+        }
+        const url = box.getAttribute('data-url');
+        if (!url) return;
+        const ok = await copyTextToClipboard(url);
+        if (ok) {
+          const btn = box.parentElement.querySelector('.btn-copy-share-card');
+          if (btn) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = `<span style="color:#10b981;font-weight:600;">已复制!</span>`;
+            setTimeout(() => { btn.innerHTML = orig; }, 1800);
+          }
         }
       });
     });
