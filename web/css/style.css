@@ -1967,7 +1967,8 @@ body.modal-open {
 }
 
 .welcome-chapters-grid.is-collapsed,
-.welcome-recent-grid.is-collapsed {
+.welcome-recent-grid.is-collapsed,
+.welcome-shares-body.is-collapsed {
   display: none !important;
 }
 
@@ -7129,7 +7130,8 @@ body.is-share-mode #aiDocTaskBtn,
 body.is-share-mode #docHistoryDiffBtn,
 body.is-share-mode #favoriteBtn,
 body.is-share-mode #docPagination,
-body.is-share-mode #fabAiBtn {
+body.is-share-mode #fabAiBtn,
+body.is-share-mode #sharesHubBtn {
   display: none !important;
 }
 
@@ -7536,9 +7538,8 @@ body.is-share-mode #contentArea {
   font-weight: 600;
   color: var(--text-primary);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .share-card-doc-link:hover {
@@ -7550,6 +7551,15 @@ body.is-share-mode #contentArea {
   display: inline-flex;
   align-items: center;
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.share-card-doc-link .doc-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 
 .share-card-meta-tags {
@@ -7582,6 +7592,18 @@ body.is-share-mode #contentArea {
   font-size: 11.5px;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.share-card-path-row svg {
+  flex-shrink: 0;
+}
+
+.share-card-path-row .path-text {
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7882,19 +7904,25 @@ body.is-share-mode #contentArea {
   }
 
   .shares-repo-filter {
-    flex: 1 1 50% !important;
+    flex: 1 1 0 !important;
     min-width: 0 !important;
-    max-width: 50% !important;
+    max-width: none !important;
     height: 34px !important;
     font-size: 12px !important;
+    padding: 0 22px 0 8px !important;
     box-sizing: border-box !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   .shares-status-filter {
-    flex: 1 1 36% !important;
+    flex: 1 1 0 !important;
     min-width: 0 !important;
+    max-width: none !important;
     height: 34px !important;
     font-size: 12px !important;
+    padding: 0 22px 0 8px !important;
     box-sizing: border-box !important;
   }
 
@@ -7902,6 +7930,10 @@ body.is-share-mode #contentArea {
     flex: 0 0 auto !important;
     height: 34px !important;
     padding: 0 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 12px !important;
   }
 
   /* 分享卡片在手机端重构防溢出 */
@@ -7910,14 +7942,17 @@ body.is-share-mode #contentArea {
     gap: 9px !important;
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
   }
 
   .share-card-top-row {
     flex-direction: column !important;
-    align-items: flex-start !important;
+    align-items: stretch !important;
     gap: 6px !important;
     width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-title-group {
@@ -7926,12 +7961,31 @@ body.is-share-mode #contentArea {
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  .share-status-tag {
+    flex-shrink: 0 !important;
   }
 
   .share-card-doc-link {
     flex: 1 1 0 !important;
     min-width: 0 !important;
     font-size: 13.5px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    box-sizing: border-box !important;
+  }
+
+  .share-card-doc-link .doc-icon {
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
+  }
+
+  .share-card-doc-link .doc-title-text {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
@@ -7942,15 +7996,21 @@ body.is-share-mode #contentArea {
     width: 100% !important;
     display: flex !important;
     align-items: center !important;
-    justify-content: flex-start !important;
+    justify-content: space-between !important;
     gap: 8px !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-repo-tag {
-    max-width: 160px !important;
+    max-width: 180px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+  }
+
+  .share-card-views-tag {
+    flex-shrink: 0 !important;
+    font-size: 11px !important;
   }
 
   .share-card-path-row {
@@ -7958,6 +8018,13 @@ body.is-share-mode #contentArea {
     max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+
+  .share-card-path-row svg {
+    flex-shrink: 0 !important;
   }
 
   .share-card-path-row .path-text {
@@ -7973,8 +8040,8 @@ body.is-share-mode #contentArea {
   .share-card-url-bar {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 7px !important;
-    padding: 7px 8px !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
@@ -7982,10 +8049,24 @@ body.is-share-mode #contentArea {
   .share-card-url-left {
     width: 100% !important;
     min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  .share-card-url-left .url-label {
+    flex-shrink: 0 !important;
+    font-size: 11px !important;
   }
 
   .url-input-compact {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: 100% !important;
     font-size: 11.5px !important;
+    padding: 2px 4px !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-url-right {
@@ -7993,6 +8074,7 @@ body.is-share-mode #contentArea {
     display: flex !important;
     align-items: center !important;
     gap: 6px !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-url-right .btn {
@@ -8001,6 +8083,7 @@ body.is-share-mode #contentArea {
     justify-content: center !important;
     font-size: 12px !important;
     padding: 0 6px !important;
+    box-sizing: border-box !important;
   }
 
   /* 底行参数与操作按钮组分层触控优化 */
@@ -8015,14 +8098,19 @@ body.is-share-mode #contentArea {
 
   .share-card-params {
     width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
     justify-content: space-between !important;
     font-size: 11.5px !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-actions {
     width: 100% !important;
     display: flex !important;
+    align-items: center !important;
     gap: 6px !important;
+    box-sizing: border-box !important;
   }
 
   .share-card-actions .btn {
@@ -8031,6 +8119,25 @@ body.is-share-mode #contentArea {
     justify-content: center !important;
     font-size: 12px !important;
     padding: 0 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 单篇分享弹窗的移动端保护 */
+  .share-active-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .share-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .btn-toggle-share-state,
+  .btn-revoke-link {
+    font-size: 11.5px !important;
+    padding: 3px 8px !important;
   }
 }
 
