@@ -3881,11 +3881,11 @@
                   <option value="disabled">仅看已关闭</option>
                   <option value="expired">仅看已过期</option>
                 </select>
-                <button type="button" class="btn btn-sm btn-refresh-shares" id="homeRefreshSharesBtn" title="刷新分享列表">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                  <span>刷新</span>
-                </button>
               </div>
+              <button type="button" class="btn btn-sm btn-refresh-shares" id="homeRefreshSharesBtn" title="刷新分享列表">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                <span>刷新</span>
+              </button>
             </div>
 
             <!-- 列表容器 -->
@@ -8428,7 +8428,12 @@
     // 刷新按钮
     const refreshBtn = document.getElementById('homeRefreshSharesBtn');
     if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => loadAllShares());
+      refreshBtn.addEventListener('click', async () => {
+        const svg = refreshBtn.querySelector('svg');
+        if (svg) svg.style.transform = 'rotate(360deg)';
+        await loadAllShares();
+        setTimeout(() => { if (svg) svg.style.transform = ''; }, 500);
+      });
     }
 
     // 初始渲染一次
@@ -8487,7 +8492,12 @@
     });
 
     if (el.refreshSharesBtn) {
-      el.refreshSharesBtn.addEventListener('click', () => loadAllShares());
+      el.refreshSharesBtn.addEventListener('click', async () => {
+        const svg = el.refreshSharesBtn.querySelector('svg');
+        if (svg) svg.style.transform = 'rotate(360deg)';
+        await loadAllShares();
+        setTimeout(() => { if (svg) svg.style.transform = ''; }, 500);
+      });
     }
   }
 
