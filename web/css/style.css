@@ -7152,5 +7152,626 @@ body.is-share-mode #contentArea {
   text-decoration: underline;
 }
 
+/* ==========================================================================
+   全局公开分享管理中心 (Public Shared Links Management Hub)
+   ========================================================================== */
+
+/* 顶部导航公开链接按钮 */
+.btn-shares-hub {
+  position: relative;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-shares-hub:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-hover);
+  color: var(--accent-color);
+}
+
+.shares-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #10b981;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+/* 首页高亮滚动动画 */
+@keyframes sectionHighlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.25); border-color: #3b82f6; }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.section-highlight-pulse {
+  animation: sectionHighlightPulse 1.5s ease-out;
+}
+
+/* 状态圆点增强 */
+.disabled-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.expired-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #f59e0b;
+}
+
+/* 单篇分享弹窗中的切换按钮与操作组 */
+.share-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-toggle-share-state {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.btn-toggle-share-state.is-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-toggle-share-state.is-reopen {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.35);
+  font-weight: 600;
+}
+
+.btn-toggle-share-state.is-reopen:hover {
+  background: #10b981;
+  color: #fff;
+}
+
+/* 指标统计卡片条 */
+.shares-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.share-metric-card {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.share-metric-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-subtle);
+  transform: translateY(-1px);
+}
+
+.share-metric-card.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.share-metric-card.metric-views {
+  cursor: default;
+}
+
+.share-metric-card.metric-views:hover {
+  transform: none;
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-default);
+}
+
+.share-metric-card .metric-num {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  font-family: var(--font-mono);
+}
+
+.share-metric-card .metric-label {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.text-success { color: #10b981 !important; }
+.text-warning { color: #f59e0b !important; }
+.text-primary { color: #3b82f6 !important; }
+
+/* 工具栏 */
+.shares-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shares-search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+}
+
+.shares-search-input-wrap .search-icon {
+  position: absolute;
+  left: 11px;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.shares-search-input {
+  width: 100%;
+  padding-left: 32px !important;
+  padding-right: 28px !important;
+  height: 34px !important;
+  font-size: 13px !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.shares-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shares-repo-filter,
+.shares-status-filter {
+  height: 34px !important;
+  font-size: 12.5px !important;
+  padding: 0 28px 0 10px !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.btn-refresh-shares {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  border-radius: var(--radius-md);
+}
+
+/* 分享记录卡片列表 */
+.shares-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.shares-loading-hint {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.shares-empty-state {
+  padding: 42px 20px;
+  text-align: center;
+  background: var(--bg-surface-elevated);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.shares-empty-state .empty-icon {
+  font-size: 32px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.shares-empty-state .empty-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shares-empty-state .empty-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+/* 单条公开分享卡片 */
+.share-card-item {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.share-card-item:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.share-card-item.status-active {
+  border-left: 3px solid #10b981;
+}
+
+.share-card-item.status-disabled {
+  border-left: 3px solid var(--text-muted);
+  opacity: 0.88;
+}
+
+.share-card-item.status-expired {
+  border-left: 3px solid #f59e0b;
+}
+
+.share-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.share-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.share-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.share-status-tag .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.share-status-tag.status-active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+.share-status-tag.status-active .dot {
+  background-color: #10b981;
+}
+
+.share-status-tag.status-disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.share-status-tag.status-disabled .dot {
+  background-color: var(--text-muted);
+}
+
+.share-status-tag.status-expired {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+.share-status-tag.status-expired .dot {
+  background-color: #f59e0b;
+}
+
+.share-card-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-card-doc-link:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+.share-card-doc-link .doc-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.share-card-meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.share-card-repo-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+
+.share-card-views-tag {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.share-card-path-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 短链接直读栏 */
+.share-card-url-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+}
+
+.share-card-url-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.share-card-url-left .url-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.share-card-url-left .url-text {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  padding: 0;
+}
+
+.share-card-url-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-open-share-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 卡片底行参数与操作 */
+.share-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.share-card-params {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.share-pass-pill {
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.share-pass-pill.free {
+  color: var(--text-muted);
+}
+
+.share-pass-pill.locked {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  cursor: pointer;
+}
+
+.share-pass-pill.locked:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.share-card-expire {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.expire-permanent {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.expire-soon {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.expire-expired {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.share-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-share-toggle.is-disable {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+.btn-share-toggle.is-disable:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-share-toggle.is-enable {
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+  font-weight: 600;
+}
+.btn-share-toggle.is-enable:hover {
+  background: #10b981;
+  color: #fff;
+}
+
+.btn-share-toggle.is-renew {
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+.btn-share-toggle.is-renew:hover {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.btn-share-del {
+  color: var(--text-muted);
+}
+.btn-share-del:hover {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* 弹窗专用卡片 */
+.modal-shares-hub-card {
+  max-width: 780px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shares-hub-modal-body {
+  overflow-y: auto;
+  max-height: calc(85vh - 70px);
+  padding: 18px 22px;
+}
+
+@media (max-width: 640px) {
+  .modal-shares-hub-card {
+    width: 96%;
+    max-height: 92vh;
+  }
+  .shares-hub-modal-body {
+    padding: 14px;
+  }
+  .shares-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .shares-filter-group {
+    width: 100%;
+  }
+  .shares-repo-filter,
+  .shares-status-filter {
+    flex: 1;
+  }
+  .share-card-url-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .share-card-url-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 
 

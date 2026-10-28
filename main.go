@@ -871,9 +871,10 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPut {
 		var req struct {
-			ShareID    string `json:"share_id"`
-			ExpireDays int    `json:"expire_days"`
-			Passcode   string `json:"passcode"`
+			ShareID    string  `json:"share_id"`
+			ExpireDays *int    `json:"expire_days"`
+			Passcode   *string `json:"passcode"`
+			Disabled   *bool   `json:"disabled"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
@@ -883,7 +884,7 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"share_id is required"}`, http.StatusBadRequest)
 			return
 		}
-		item, err := a.sm.UpdateShare(req.ShareID, req.ExpireDays, req.Passcode)
+		item, err := a.sm.UpdateShare(req.ShareID, req.ExpireDays, req.Passcode, req.Disabled)
 		if err != nil {
 			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 			return
@@ -934,6 +935,16 @@ func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
 
 	item, err := a.sm.GetShare(shareID)
 	if err != nil {
+		if errors.Is(err, ErrShareDisabled) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			title := ""
+			if item != nil {
+				title = item.DocTitle
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "disabled", "title": title})
+			return
+		}
 		if errors.Is(err, ErrShareExpired) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusGone)

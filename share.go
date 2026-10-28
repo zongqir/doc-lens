@@ -20,9 +20,11 @@ type ShareItem struct {
 	RelPath   string    `json:"rel_path"`   // 仓库内相对路径
 	DocTitle  string    `json:"doc_title"`  // 文档标题（冗余缓存，便于列表查看）
 	CreatedAt time.Time `json:"created_at"` // 创建时间
+	UpdatedAt time.Time `json:"updated_at"` // 更新或状态变更时间
 	ExpiresAt int64     `json:"expires_at"` // 过期时间戳（0 = 永久有效）
 	Passcode  string    `json:"passcode"`   // 可选的访问提取码（为空表示公开免密）
 	ViewCount int       `json:"view_count"` // 累计阅读次数统计
+	Disabled  bool      `json:"disabled"`   // 是否已被所有者停用/关闭
 }
 
 type ShareManager struct {
@@ -35,6 +37,7 @@ type ShareManager struct {
 var (
 	ErrShareNotFound = errors.New("share not found")
 	ErrShareExpired  = errors.New("share expired")
+	ErrShareDisabled = errors.New("share disabled")
 )
 
 const shareAlphabet = "23456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -156,15 +159,18 @@ func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays
 		title = filepath.Base(cleanRel)
 	}
 
+	now := time.Now()
 	item := &ShareItem{
 		ID:        newID,
 		RepoID:    repoID,
 		RelPath:   cleanRel,
 		DocTitle:  title,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		UpdatedAt: now,
 		ExpiresAt: expiresAt,
 		Passcode:  strings.TrimSpace(passcode),
 		ViewCount: 0,
+		Disabled:  false,
 	}
 
 	sm.shares[newID] = item
@@ -174,7 +180,7 @@ func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays
 	return &copyItem, nil
 }
 
-// GetDocShare 查询指定文档当前唯一的活跃分享（自动过滤已过期）
+// GetDocShare 查询指定文档当前的分享记录（包含已关闭或已过期记录，便于统一管理）
 func (sm *ShareManager) GetDocShare(repoID, relPath string) *ShareItem {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -182,12 +188,8 @@ func (sm *ShareManager) GetDocShare(repoID, relPath string) *ShareItem {
 	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
 	cleanRel = strings.TrimPrefix(cleanRel, "/")
 
-	now := time.Now().Unix()
 	for _, item := range sm.shares {
 		if item.RepoID == repoID && item.RelPath == cleanRel {
-			if item.ExpiresAt > 0 && now > item.ExpiresAt {
-				return nil
-			}
 			copyItem := *item
 			return &copyItem
 		}
@@ -195,8 +197,8 @@ func (sm *ShareManager) GetDocShare(repoID, relPath string) *ShareItem {
 	return nil
 }
 
-// UpdateShare 更新已存在的分享参数（修改有效期或密码，保留原短链接）
-func (sm *ShareManager) UpdateShare(id string, expireDays int, passcode string) (*ShareItem, error) {
+// UpdateShare 更新已存在的分享参数（修改有效期、提取码或切换停用/启用状态）
+func (sm *ShareManager) UpdateShare(id string, expireDays *int, passcode *string, disabled *bool) (*ShareItem, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -205,19 +207,27 @@ func (sm *ShareManager) UpdateShare(id string, expireDays int, passcode string) 
 		return nil, ErrShareNotFound
 	}
 
-	var expiresAt int64 = 0
-	if expireDays > 0 {
-		expiresAt = time.Now().AddDate(0, 0, expireDays).Unix()
+	if expireDays != nil {
+		if *expireDays > 0 {
+			item.ExpiresAt = time.Now().AddDate(0, 0, *expireDays).Unix()
+		} else {
+			item.ExpiresAt = 0 // 永久有效
+		}
 	}
-	item.ExpiresAt = expiresAt
-	item.Passcode = strings.TrimSpace(passcode)
+	if passcode != nil {
+		item.Passcode = strings.TrimSpace(*passcode)
+	}
+	if disabled != nil {
+		item.Disabled = *disabled
+	}
+	item.UpdatedAt = time.Now()
 	sm.saveShares()
 
 	copyItem := *item
 	return &copyItem, nil
 }
 
-// GetShare 获取分享记录（自动校验有效期）
+// GetShare 获取分享记录（自动校验停用与有效期）
 func (sm *ShareManager) GetShare(id string) (*ShareItem, error) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -225,6 +235,11 @@ func (sm *ShareManager) GetShare(id string) (*ShareItem, error) {
 	item, exists := sm.shares[id]
 	if !exists {
 		return nil, ErrShareNotFound
+	}
+
+	if item.Disabled {
+		copyItem := *item
+		return &copyItem, ErrShareDisabled
 	}
 
 	if item.ExpiresAt > 0 && time.Now().Unix() > item.ExpiresAt {
@@ -246,7 +261,7 @@ func (sm *ShareManager) IncrementViewCount(id string) {
 	}
 }
 
-// DeleteShare 撤销/删除分享链接
+// DeleteShare 彻底删除分享链接
 func (sm *ShareManager) DeleteShare(id string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -278,18 +293,47 @@ func (sm *ShareManager) ListShares(repoID, relPath string) []*ShareItem {
 		if relPath != "" && item.RelPath != cleanRel {
 			continue
 		}
-		// 复制对象，避免并发读写污染
 		copyItem := *item
-		// 标识是否已过期
-		if copyItem.ExpiresAt > 0 && now > copyItem.ExpiresAt {
-			// 仍然在管理端可见，方便知道已被过期
-		}
 		result = append(result, &copyItem)
 	}
 
-	// 按创建时间倒序排列（最新创建排在最前）
+	// 排序策略：
+	// 1. 活跃生效中 (未停用且未过期) 排在最前
+	// 2. 其次是已停用但未过期
+	// 3. 最后是已过期
+	// 同一状态下，按 UpdatedAt 或 CreatedAt 倒序排列
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].CreatedAt.After(result[j].CreatedAt)
+		s1 := result[i]
+		s2 := result[j]
+
+		isExpired1 := s1.ExpiresAt > 0 && now > s1.ExpiresAt
+		isExpired2 := s2.ExpiresAt > 0 && now > s2.ExpiresAt
+
+		statusRank := func(s *ShareItem, isExpired bool) int {
+			if !s.Disabled && !isExpired {
+				return 0 // 活跃生效
+			}
+			if s.Disabled && !isExpired {
+				return 1 // 已关闭/停用
+			}
+			return 2 // 已过期
+		}
+
+		r1 := statusRank(s1, isExpired1)
+		r2 := statusRank(s2, isExpired2)
+		if r1 != r2 {
+			return r1 < r2
+		}
+
+		t1 := s1.UpdatedAt
+		if t1.IsZero() {
+			t1 = s1.CreatedAt
+		}
+		t2 := s2.UpdatedAt
+		if t2.IsZero() {
+			t2 = s2.CreatedAt
+		}
+		return t1.After(t2)
 	})
 
 	return result

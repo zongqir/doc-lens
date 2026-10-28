@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261027_0010">
+  <link rel="stylesheet" href="/css/style.css?v=20261028_1250">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -110,6 +110,12 @@
       <button class="btn btn-primary btn-task-center" id="aiTaskBtn" title="查看后台持续运行的 AI 任务">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
         <span class="btn-text">任务控制台</span>
+      </button>
+
+      <button class="btn btn-shares-hub" id="sharesHubBtn" title="统一管理所有对外公开分享链接">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        <span class="btn-text">公开链接</span>
+        <span class="shares-count-badge" id="sharesCountBadge" style="display:none;">0</span>
       </button>
 
       <a href="/" class="btn btn-sm btn-outline shared-home-btn" id="sharedHomeBtn" style="display:none;" title="访问 DocLens 知识库首页">主知识库</a>
@@ -412,18 +418,23 @@
           </div>
         </div>
 
-        <!-- 场景 1：当前已存在生效中的专属分享卡片 (直觉化快捷修改，无冗余下半部分) -->
+        <!-- 场景 1：当前已存在生效/历史分享卡片 (直觉化快捷修改，无冗余下半部分) -->
         <div class="share-active-panel" id="shareActivePanel" style="display:none;">
           <div class="share-active-header">
-            <div class="share-live-status">
-              <span class="live-dot"></span>
-              <span class="share-live-text">分享中</span>
+            <div class="share-live-status" id="shareActiveStatusWrap">
+              <span class="live-dot" id="shareLiveDot"></span>
+              <span class="share-live-text" id="shareLiveText">分享中</span>
               <span class="share-dot-sep">·</span>
               <span class="share-view-counter" id="shareViewCounter">0 次浏览</span>
             </div>
-            <button type="button" class="btn-revoke-link" id="revokeActiveShareBtn" title="撤回后外部访客将立即无法阅读">
-              撤回分享
-            </button>
+            <div class="share-header-actions">
+              <button type="button" class="btn-toggle-share-state" id="toggleShareStateBtn" title="切换开启/关闭状态">
+                关闭分享
+              </button>
+              <button type="button" class="btn-revoke-link" id="revokeActiveShareBtn" title="彻底删除此分享记录">
+                彻底删除
+              </button>
+            </div>
           </div>
 
           <div class="share-url-container">
@@ -507,6 +518,81 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
             <span id="copyOriginLinkText">复制原链接</span>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局对外公开链接统一管理模态框 (Public Shared Links Hub) -->
+  <div class="modal-overlay" id="sharesHubModal">
+    <div class="modal-card modal-shares-hub-card">
+      <div class="modal-header">
+        <span class="modal-title-with-icon">
+          <div class="share-icon-box">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+          </div>
+          <span>公开分享统一管理中心</span>
+        </span>
+        <button type="button" class="btn btn-icon-only close-modal-btn">✕</button>
+      </div>
+
+      <div class="modal-body shares-hub-modal-body">
+        <!-- 统计面板 -->
+        <div class="shares-metrics-bar">
+          <div class="share-metric-card" data-filter="all">
+            <span class="metric-num" id="metricTotalShares">0</span>
+            <span class="metric-label">全部记录</span>
+          </div>
+          <div class="share-metric-card active" data-filter="active">
+            <span class="metric-num text-success" id="metricActiveShares">0</span>
+            <span class="metric-label">🟢 分享中</span>
+          </div>
+          <div class="share-metric-card" data-filter="disabled">
+            <span class="metric-num text-muted" id="metricDisabledShares">0</span>
+            <span class="metric-label">⏸️ 已关闭</span>
+          </div>
+          <div class="share-metric-card" data-filter="expired">
+            <span class="metric-num text-warning" id="metricExpiredShares">0</span>
+            <span class="metric-label">⏰ 已过期</span>
+          </div>
+          <div class="share-metric-card metric-views">
+            <span class="metric-num text-primary" id="metricTotalViews">0</span>
+            <span class="metric-label">累计访客阅读</span>
+          </div>
+        </div>
+
+        <!-- 过滤与搜索条 -->
+        <div class="shares-toolbar">
+          <div class="shares-search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="text-input shares-search-input" id="sharesSearchInput" placeholder="按文档标题、短链 ID 或路径过滤..." autocomplete="off">
+            <button type="button" class="clear-search-btn" id="sharesClearSearchBtn" style="display:none;">✕</button>
+          </div>
+          <div class="shares-filter-group">
+            <select class="custom-select shares-repo-filter" id="sharesRepoFilter">
+              <option value="">所有知识库空间</option>
+            </select>
+            <select class="custom-select shares-status-filter" id="sharesStatusFilter">
+              <option value="all">全部状态</option>
+              <option value="active" selected>仅看生效中</option>
+              <option value="disabled">仅看已关闭</option>
+              <option value="expired">仅看已过期</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-refresh-shares" id="refreshSharesBtn" title="刷新分享列表">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 分享记录列表 -->
+        <div class="shares-list-container" id="sharesListContainer">
+          <!-- 动态渲染 -->
         </div>
       </div>
     </div>
@@ -889,6 +975,6 @@
     <audio id="globalAudioPlayer" preload="auto" style="display:none;"></audio>
   </div>
 
-  <script src="/js/app.js?v=20261027_0010"></script>
+  <script src="/js/app.js?v=20261028_1250"></script>
 </body>
 </html>

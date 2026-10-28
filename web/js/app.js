@@ -62,7 +62,9 @@
     isShareMode: false,
     shareId: null,
     sharePasscode: '',
-    currentShareDoc: null
+    currentShareDoc: null,
+    allShares: [],
+    sharesFilter: { status: 'all', repo: '', search: '' }
   };
 
   const mermaidStore = new Map();
@@ -187,6 +189,7 @@
     await Promise.all([checkAuth(), loadRepos()]);
 
     if (state.authenticated) {
+      loadAllShares(); // 异步预加载公开链接数据与更新 Header 角标
       const initPath = window.location.pathname;
       if (initPath && initPath !== '/') {
         await routeTo(initPath, false);
@@ -293,9 +296,13 @@
     el.shareModalDocPath = document.getElementById('shareModalDocPath');
 
     el.shareActivePanel = document.getElementById('shareActivePanel');
+    el.shareActiveStatusWrap = document.getElementById('shareActiveStatusWrap');
+    el.shareLiveDot = document.getElementById('shareLiveDot');
+    el.shareLiveText = document.getElementById('shareLiveText');
     el.shareActiveUrlInput = document.getElementById('shareActiveUrlInput');
     el.mainCopyShareBtn = document.getElementById('mainCopyShareBtn');
     el.shareViewCounter = document.getElementById('shareViewCounter');
+    el.toggleShareStateBtn = document.getElementById('toggleShareStateBtn');
     el.revokeActiveShareBtn = document.getElementById('revokeActiveShareBtn');
 
     el.activeShareExpireSelect = document.getElementById('activeShareExpireSelect');
@@ -317,6 +324,17 @@
     el.newShareDiceBtn = document.getElementById('newShareDiceBtn');
     el.startShareBtn = document.getElementById('startShareBtn');
 
+    // 全局公开链接管理弹窗
+    el.sharesHubBtn = document.getElementById('sharesHubBtn');
+    el.sharesCountBadge = document.getElementById('sharesCountBadge');
+    el.sharesHubModal = document.getElementById('sharesHubModal');
+    el.sharesListContainer = document.getElementById('sharesListContainer');
+    el.sharesSearchInput = document.getElementById('sharesSearchInput');
+    el.sharesClearSearchBtn = document.getElementById('sharesClearSearchBtn');
+    el.sharesRepoFilter = document.getElementById('sharesRepoFilter');
+    el.sharesStatusFilter = document.getElementById('sharesStatusFilter');
+    el.refreshSharesBtn = document.getElementById('refreshSharesBtn');
+
     el.sharePasscodeModal = document.getElementById('sharePasscodeModal');
     el.sharePasscodeForm = document.getElementById('sharePasscodeForm');
     el.guestPasscodeInput = document.getElementById('guestPasscodeInput');
@@ -330,8 +348,16 @@
       el.mainCopyShareBtn.addEventListener('click', copyMainShareUrl);
     }
 
+    if (el.toggleShareStateBtn) {
+      el.toggleShareStateBtn.addEventListener('click', toggleCurrentDocShareState);
+    }
+
     if (el.revokeActiveShareBtn) {
       el.revokeActiveShareBtn.addEventListener('click', revokeCurrentActiveShare);
+    }
+
+    if (el.sharesHubBtn) {
+      el.sharesHubBtn.addEventListener('click', () => openSharesHub());
     }
 
     if (el.activeShareExpireSelect) {
@@ -3716,9 +3742,10 @@
       chaptersHtml = `<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">当前知识库正在整理中，暂未发现文档章节</div>`;
     }
 
-    // 检查章节分布与最近文章折叠偏好
+    // 检查章节分布、最近文章以及公开分享折叠偏好
     const isChaptersCollapsed = localStorage.getItem('doc_lens_chapters_collapsed_' + currentRepo.ID) === '1';
     const isRecentCollapsed = localStorage.getItem('doc_lens_recent_collapsed_' + currentRepo.ID) === '1';
+    const isSharesCollapsed = localStorage.getItem('doc_lens_shares_collapsed') === '1';
 
     // 6. 构建“快速切换知识库体系”（知识库集群空间树结构）
     let repoTreeBranchesHtml = '';
@@ -3747,7 +3774,7 @@
       `;
     });
 
-    // 7. 渲染页面（划分为三大部分：1. 最近阅读与动态，2. 章节导航，3. 快速切换知识库体系）
+    // 7. 渲染页面（划分为四大部分：1. 最近阅读与动态，2. 对外公开分享管理中心，3. 章节导航，4. 快速切换知识库体系）
     el.articleBody.innerHTML = `
       <div class="welcome-dashboard-container">
         <!-- 头部导读 -->
@@ -3790,7 +3817,85 @@
           </div>
         </div>
 
-        <!-- 第二部分：知识库完整章节分布与导航 -->
+        <!-- 第二部分：对外公开分享管理中心 (统一管理已生效、已停用或已过期的公开链接) -->
+        <div class="welcome-section welcome-shares-section" id="homeSectionShares">
+          <div class="welcome-section-header">
+            <div class="welcome-section-title-wrap">
+              <div class="welcome-section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                <span>对外公开分享管理中心</span>
+              </div>
+              <span class="welcome-section-subtitle">统一掌控所有对外只读公开链接 · 即使关掉也能随时查阅、一键重启或安全销毁</span>
+            </div>
+            <div class="welcome-section-actions">
+              <button type="button" class="btn-collapse-chapters" id="toggleHomeSharesBtn" title="点击收起或展开分享管理">
+                <span id="toggleHomeSharesText">${isSharesCollapsed ? '展开' : '收起'}</span>
+                <svg id="toggleHomeSharesIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:${isSharesCollapsed ? 'rotate(180deg)' : 'rotate(0deg)'};transition:transform 0.2s ease;"><polyline points="18 15 12 9 6 15"></polyline></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="welcome-chapters-collapsed-bar" id="homeSharesCollapsedBar" style="${isSharesCollapsed ? '' : 'display:none;'}">
+            <span id="homeSharesCollapsedText">已收起对外公开分享管理中心（点击展开）</span>
+          </div>
+
+          <div class="welcome-shares-body ${isSharesCollapsed ? 'is-collapsed' : ''}" id="homeSharesBody">
+            <!-- 统计指标 -->
+            <div class="shares-metrics-bar" id="homeSharesMetricsBar">
+              <div class="share-metric-card" data-filter="all">
+                <span class="metric-num" id="homeMetricTotalShares">0</span>
+                <span class="metric-label">全部记录</span>
+              </div>
+              <div class="share-metric-card active" data-filter="active">
+                <span class="metric-num text-success" id="homeMetricActiveShares">0</span>
+                <span class="metric-label">🟢 分享中</span>
+              </div>
+              <div class="share-metric-card" data-filter="disabled">
+                <span class="metric-num text-muted" id="homeMetricDisabledShares">0</span>
+                <span class="metric-label">⏸️ 已关闭</span>
+              </div>
+              <div class="share-metric-card" data-filter="expired">
+                <span class="metric-num text-warning" id="homeMetricExpiredShares">0</span>
+                <span class="metric-label">⏰ 已过期</span>
+              </div>
+              <div class="share-metric-card metric-views">
+                <span class="metric-num text-primary" id="homeMetricTotalViews">0</span>
+                <span class="metric-label">累计访客阅读</span>
+              </div>
+            </div>
+
+            <!-- 工具栏：搜索 + 过滤 -->
+            <div class="shares-toolbar" style="margin-top:14px;">
+              <div class="shares-search-input-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" class="text-input shares-search-input" id="homeSharesSearchInput" placeholder="按文档标题、短链 ID 或路径过滤..." autocomplete="off">
+                <button type="button" class="clear-search-btn" id="homeSharesClearSearchBtn" style="display:none;">✕</button>
+              </div>
+              <div class="shares-filter-group">
+                <select class="custom-select shares-repo-filter" id="homeSharesRepoFilter">
+                  <option value="">所有知识库空间</option>
+                </select>
+                <select class="custom-select shares-status-filter" id="homeSharesStatusFilter">
+                  <option value="all">全部状态</option>
+                  <option value="active" selected>仅看生效中</option>
+                  <option value="disabled">仅看已关闭</option>
+                  <option value="expired">仅看已过期</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-refresh-shares" id="homeRefreshSharesBtn" title="刷新分享列表">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  <span>刷新</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 列表容器 -->
+            <div class="shares-list-container" id="homeSharesListContainer">
+              <div class="shares-loading-hint">正在读取所有公开分享数据...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 第三部分：知识库完整章节分布与导航 -->
         <div class="welcome-section welcome-chapters-section" id="homeSectionChapters">
           <div class="welcome-section-header">
             <div class="welcome-section-title-wrap">
@@ -4030,6 +4135,9 @@
         }
       });
     });
+
+    // 绑定事件：对外公开分享管理中心交互
+    initHomeSharesSection();
 
     // 8. 构建并渲染主页专属本页导航（第一部分：最近阅读与动态，第二部分：章节导航，第三部分：快速切换知识库空间树）
     buildHomeToc(lastRead, recentDocs, chapters, currentRepo, state.repos);
@@ -6655,7 +6763,18 @@
       }
     );
 
-    // ====== 第二部分：知识库章节导航 ======
+    // ====== 第二部分：对外公开分享管理中心 ======
+    createHomeTocNode(
+      '公开分享管理',
+      '#homeSectionShares',
+      '1',
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>',
+      () => {
+        openSharesHub();
+      }
+    );
+
+    // ====== 第三部分：知识库章节导航 ======
     createHomeTocNode(
       '知识库章节导航',
       '#homeSectionChapters',
@@ -7566,6 +7685,28 @@
     // 格式化有效期选择框与描述
     const now = Math.floor(Date.now() / 1000);
     const isExpired = share.expires_at > 0 && now > share.expires_at;
+    const isDisabled = !!share.disabled;
+
+    if (el.shareLiveDot) {
+      if (isDisabled) el.shareLiveDot.className = 'disabled-dot';
+      else if (isExpired) el.shareLiveDot.className = 'expired-dot';
+      else el.shareLiveDot.className = 'live-dot';
+    }
+    if (el.shareLiveText) {
+      if (isDisabled) el.shareLiveText.textContent = '已关闭 (访客无法访问)';
+      else if (isExpired) el.shareLiveText.textContent = '已过期';
+      else el.shareLiveText.textContent = '分享中';
+    }
+    if (el.toggleShareStateBtn) {
+      if (isDisabled) {
+        el.toggleShareStateBtn.textContent = '▶️ 重新开启分享';
+        el.toggleShareStateBtn.className = 'btn-toggle-share-state is-reopen';
+      } else {
+        el.toggleShareStateBtn.textContent = '⏸️ 关闭分享';
+        el.toggleShareStateBtn.className = 'btn-toggle-share-state is-close';
+      }
+    }
+
     if (share.expires_at === 0) {
       if (el.activeShareExpireSelect) el.activeShareExpireSelect.value = '0';
       if (el.activeShareExpireDesc) {
@@ -7599,6 +7740,33 @@
     }
   }
 
+  // 切换单篇文档分享的停用/启用状态（关掉后依然保留记录，不丢失短链）
+  async function toggleCurrentDocShareState() {
+    if (!currentDocActiveShare) return;
+    const newDisabled = !currentDocActiveShare.disabled;
+    try {
+      const res = await fetch('/api/shares', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          share_id: currentDocActiveShare.id,
+          disabled: newDisabled
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentDocActiveShare = data.share;
+        renderActiveSharePanel(currentDocActiveShare);
+        loadAllShares(); // 同步刷新管理端
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || '切换分享状态失败');
+      }
+    } catch (e) {
+      alert('网络通信异常，请重试');
+    }
+  }
+
   // 直接更改现有分享的有效期，即改即生效
   async function handleActiveExpireChange() {
     if (!currentDocActiveShare) return;
@@ -7617,6 +7785,7 @@
         const data = await res.json();
         currentDocActiveShare = data.share;
         renderActiveSharePanel(currentDocActiveShare);
+        loadAllShares();
       }
     } catch (e) {}
   }
@@ -7642,6 +7811,7 @@
         currentDocActiveShare = data.share;
         if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
         renderActiveSharePanel(currentDocActiveShare);
+        loadAllShares();
       }
     } catch (e) {}
   }
@@ -7666,6 +7836,7 @@
         currentDocActiveShare = data.share;
         if (el.activeSharePassDrawer) el.activeSharePassDrawer.style.display = 'none';
         renderActiveSharePanel(currentDocActiveShare);
+        loadAllShares();
       }
     } catch (e) {}
   }
@@ -7706,6 +7877,7 @@
 
       currentDocActiveShare = data.share;
       renderActiveSharePanel(currentDocActiveShare);
+      loadAllShares(); // 同步刷新管理端
 
       // 自动复制链接到剪贴板
       const fullUrl = `${window.location.origin}/s/${data.share_id}`;
@@ -7752,7 +7924,7 @@
 
   async function revokeCurrentActiveShare() {
     if (!currentDocActiveShare) return;
-    if (!confirm(`确定撤回当前分享链接 (/s/${currentDocActiveShare.id}) 吗？撤回后外部访客将立即无法阅读。`)) {
+    if (!confirm(`确定彻底删除此分享记录 (/s/${currentDocActiveShare.id}) 吗？删除后此短链接将被彻底注销。建议优先使用【关闭分享】保留历史。`)) {
       return;
     }
 
@@ -7762,15 +7934,579 @@
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || '撤回失败');
+        alert(data.error || '删除失败');
         return;
       }
 
       currentDocActiveShare = null;
       renderActiveSharePanel(null);
+      loadAllShares(); // 同步刷新
     } catch (e) {
-      alert('撤回通信失败');
+      alert('删除通信失败');
     }
+  }
+
+  // =========================================================================
+  // 全局公开链接统一管理核心引擎 (Public Shares Management Hub)
+  // =========================================================================
+
+  // 格式化分享状态
+  function getShareStatus(item, nowSec) {
+    const isExpired = item.expires_at > 0 && nowSec > item.expires_at;
+    if (item.disabled) return { type: 'disabled', label: '已关闭', cls: 'status-disabled' };
+    if (isExpired) return { type: 'expired', label: '已过期', cls: 'status-expired' };
+    return { type: 'active', label: '分享中', cls: 'status-active' };
+  }
+
+  // 格式化有效期文本
+  function formatShareExpireText(expiresAt, nowSec) {
+    if (!expiresAt || expiresAt === 0) {
+      return '<span class="expire-permanent">永久有效</span>';
+    }
+    const diff = expiresAt - nowSec;
+    const dateStr = new Date(expiresAt * 1000).toLocaleDateString();
+    if (diff <= 0) {
+      return `<span class="expire-expired">已于 ${dateStr} 过期</span>`;
+    }
+    const days = Math.ceil(diff / 86400);
+    if (days <= 1) {
+      const hours = Math.max(1, Math.ceil(diff / 3600));
+      return `<span class="expire-soon">剩 ${hours} 小时 (截止今日)</span>`;
+    }
+    return `<span class="expire-valid">剩 ${days} 天 (截止 ${dateStr})</span>`;
+  }
+
+  // 统一异步拉取并分发分享数据
+  async function loadAllShares() {
+    try {
+      const res = await fetch('/api/shares');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.allShares = Array.isArray(data) ? data : [];
+      updateSharesMetricsAndBadges();
+      renderHomeSharesList();
+      renderModalSharesList();
+    } catch (e) {
+      console.warn('[Shares] Load all shares failed:', e);
+    }
+  }
+
+  // 更新指标卡片与 Header 上的计数徽章
+  function updateSharesMetricsAndBadges() {
+    const now = Math.floor(Date.now() / 1000);
+    const shares = state.allShares || [];
+
+    let total = shares.length;
+    let active = 0;
+    let disabled = 0;
+    let expired = 0;
+    let totalViews = 0;
+
+    shares.forEach(s => {
+      totalViews += (s.view_count || 0);
+      const isExp = s.expires_at > 0 && now > s.expires_at;
+      if (s.disabled) {
+        disabled++;
+      } else if (isExp) {
+        expired++;
+      } else {
+        active++;
+      }
+    });
+
+    // 1. 更新顶部 Header 角标
+    if (el.sharesCountBadge) {
+      if (active > 0) {
+        el.sharesCountBadge.textContent = active;
+        el.sharesCountBadge.style.display = 'inline-flex';
+      } else {
+        el.sharesCountBadge.style.display = 'none';
+      }
+    }
+
+    // 2. 更新首页指标卡片
+    const setNum = (id, val) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = val;
+    };
+    setNum('homeMetricTotalShares', total);
+    setNum('homeMetricActiveShares', active);
+    setNum('homeMetricDisabledShares', disabled);
+    setNum('homeMetricExpiredShares', expired);
+    setNum('homeMetricTotalViews', totalViews);
+
+    // 3. 更新弹窗指标卡片
+    setNum('metricTotalShares', total);
+    setNum('metricActiveShares', active);
+    setNum('metricDisabledShares', disabled);
+    setNum('metricExpiredShares', expired);
+    setNum('metricTotalViews', totalViews);
+  }
+
+  // 构建单条记录的 HTML 结构
+  function renderShareItemHtml(item, nowSec) {
+    const status = getShareStatus(item, nowSec);
+    const expireHtml = formatShareExpireText(item.expires_at, nowSec);
+    const repo = (state.repos || []).find(r => r.ID === item.repo_id);
+    const repoName = repo ? repo.Name : (item.repo_id || '知识库');
+    const fullDocRoute = '/' + (repo ? (repo.RoutePrefix || '').replace(/^\/+|\/+$/g, '') : '') + '/' + item.rel_path.replace(/^\/+/, '');
+    const shareUrl = `${window.location.origin}/s/${item.id}`;
+
+    let passHtml = '<span class="share-pass-pill free">🔓 免密公开</span>';
+    if (item.passcode) {
+      passHtml = `<span class="share-pass-pill locked" title="点击复制提取码" data-pass="${escapeHtml(item.passcode)}">🔑 提取码: <code>${escapeHtml(item.passcode)}</code></span>`;
+    }
+
+    // 状态切换按钮
+    let toggleBtnHtml = '';
+    if (status.type === 'active') {
+      toggleBtnHtml = `<button type="button" class="btn btn-xs btn-share-toggle is-disable" data-id="${item.id}" data-action="disable" title="暂时关闭此链接，访客将无法访问">⏸️ 关闭</button>`;
+    } else if (status.type === 'disabled') {
+      toggleBtnHtml = `<button type="button" class="btn btn-xs btn-share-toggle is-enable" data-id="${item.id}" data-action="enable" title="重新开启外部访问">▶️ 重新开启</button>`;
+    } else {
+      toggleBtnHtml = `<button type="button" class="btn btn-xs btn-share-toggle is-renew" data-id="${item.id}" data-action="renew" title="延长 7 天有效期并开启">⏰ 续期7天</button>`;
+    }
+
+    return `
+      <div class="share-card-item ${status.cls}" data-id="${escapeHtml(item.id)}" data-repo="${escapeHtml(item.repo_id)}" data-relpath="${escapeHtml(item.rel_path)}" data-title="${escapeHtml(item.doc_title.toLowerCase())}">
+        <div class="share-card-top-row">
+          <div class="share-card-title-group">
+            <span class="share-status-tag ${status.cls}">
+              <span class="dot"></span>
+              <span>${status.label}</span>
+            </span>
+            <a href="${escapeHtml(fullDocRoute)}" class="share-card-doc-link" title="点击在系统内直达阅读此文档" data-path="${escapeHtml(fullDocRoute)}">
+              <span class="doc-icon">${SVG_ICONS.markdown}</span>
+              <span class="doc-title-text">${escapeHtml(item.doc_title)}</span>
+            </a>
+          </div>
+          <div class="share-card-meta-tags">
+            <span class="share-card-repo-tag" title="所属知识库空间">${escapeHtml(repoName)}</span>
+            <span class="share-card-views-tag" title="累计访客阅读次数">👁️ ${item.view_count || 0} 次阅读</span>
+          </div>
+        </div>
+
+        <div class="share-card-path-row">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <span class="path-text" title="${escapeHtml(item.rel_path)}">${escapeHtml(item.rel_path)}</span>
+        </div>
+
+        <div class="share-card-url-bar">
+          <div class="share-card-url-left">
+            <span class="url-label">公开短链:</span>
+            <code class="url-text">${escapeHtml(shareUrl)}</code>
+          </div>
+          <div class="share-card-url-right">
+            <button type="button" class="btn btn-xs btn-primary btn-copy-share-card" data-url="${escapeHtml(shareUrl)}" title="复制完整分享链接">
+              <span>复制链接</span>
+            </button>
+            <a href="/s/${escapeHtml(item.id)}" target="_blank" rel="noopener" class="btn btn-xs btn-open-share-card" title="在新标签页作为访客预览">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              <span>预览</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="share-card-footer">
+          <div class="share-card-params">
+            ${passHtml}
+            <span class="share-card-expire">${expireHtml}</span>
+          </div>
+          <div class="share-card-actions">
+            ${toggleBtnHtml}
+            <button type="button" class="btn btn-xs btn-share-edit" data-id="${item.id}" title="修改有效期或提取码">设置</button>
+            <button type="button" class="btn btn-xs btn-share-del" data-id="${item.id}" title="彻底从系统删除此记录">删除</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 过滤并生成列表 HTML
+  function generateSharesListHtml(shares, filterRepo, filterStatus, searchQuery) {
+    if (!shares || shares.length === 0) {
+      return `
+        <div class="shares-empty-state">
+          <div class="empty-icon">🔗</div>
+          <div class="empty-title">当前暂无任何对外公开分享链接</div>
+          <div class="empty-desc">在任意文档阅读页面点击右上角【分享】按钮，即可快速生成专属只读短链接。</div>
+        </div>
+      `;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const q = (searchQuery || '').trim().toLowerCase();
+
+    const filtered = shares.filter(s => {
+      // 仓库过滤
+      if (filterRepo && s.repo_id !== filterRepo) return false;
+
+      // 状态过滤
+      const st = getShareStatus(s, now).type;
+      if (filterStatus && filterStatus !== 'all' && st !== filterStatus) return false;
+
+      // 文本搜索
+      if (q) {
+        const titleMatch = (s.doc_title || '').toLowerCase().includes(q);
+        const pathMatch = (s.rel_path || '').toLowerCase().includes(q);
+        const idMatch = (s.id || '').toLowerCase().includes(q);
+        if (!titleMatch && !pathMatch && !idMatch) return false;
+      }
+
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return `
+        <div class="shares-empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-title">未发现符合筛选条件的公开分享</div>
+          <div class="empty-desc">可尝试清空搜索关键字或切换状态筛选选项。</div>
+        </div>
+      `;
+    }
+
+    return filtered.map(item => renderShareItemHtml(item, now)).join('');
+  }
+
+  // 绑定分享列表内的所有交互动作
+  function bindSharesListEvents(container) {
+    if (!container) return;
+
+    // 1. 复制短链接
+    container.querySelectorAll('.btn-copy-share-card').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const url = btn.getAttribute('data-url');
+        if (!url) return;
+        const ok = await copyTextToClipboard(url);
+        const origText = btn.innerHTML;
+        if (ok) {
+          btn.innerHTML = `<span style="color:#10b981;font-weight:600;">已复制!</span>`;
+          setTimeout(() => { btn.innerHTML = origText; }, 1800);
+        }
+      });
+    });
+
+    // 2. 点击密码直接复制提取码
+    container.querySelectorAll('.share-pass-pill.locked').forEach(pill => {
+      pill.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pass = pill.getAttribute('data-pass');
+        if (!pass) return;
+        await copyTextToClipboard(pass);
+        const orig = pill.innerHTML;
+        pill.innerHTML = `🔑 已复制密码 ${pass}!`;
+        setTimeout(() => { pill.innerHTML = orig; }, 1500);
+      });
+    });
+
+    // 3. 点击文档标题直达系统内阅读
+    container.querySelectorAll('.share-card-doc-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const path = link.getAttribute('data-path');
+        if (path) {
+          closeModal(el.sharesHubModal);
+          routeTo(path);
+        }
+      });
+    });
+
+    // 4. 切换状态（关闭 / 重新开启 / 续期）
+    container.querySelectorAll('.btn-share-toggle').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const shareId = btn.getAttribute('data-id');
+        const action = btn.getAttribute('data-action');
+        if (!shareId) return;
+
+        btn.disabled = true;
+        try {
+          if (action === 'disable') {
+            await fetch('/api/shares', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ share_id: shareId, disabled: true })
+            });
+          } else if (action === 'enable') {
+            await fetch('/api/shares', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ share_id: shareId, disabled: false })
+            });
+          } else if (action === 'renew') {
+            await fetch('/api/shares', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ share_id: shareId, expire_days: 7, disabled: false })
+            });
+          }
+          await loadAllShares();
+        } catch (err) {
+          alert('操作失败，请重试');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // 5. 设置编辑（打开对应文档分享弹窗）
+    container.querySelectorAll('.btn-share-edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const shareId = btn.getAttribute('data-id');
+        const share = (state.allShares || []).find(s => s.id === shareId);
+        if (!share) return;
+        closeModal(el.sharesHubModal);
+        openShareModal({
+          name: share.doc_title,
+          rel_path: share.rel_path,
+          path: share.rel_path,
+          repo_id: share.repo_id
+        });
+      });
+    });
+
+    // 6. 彻底删除
+    container.querySelectorAll('.btn-share-del').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const shareId = btn.getAttribute('data-id');
+        if (!shareId) return;
+        if (!confirm(`确定彻底删除此分享记录 (/s/${shareId}) 吗？删除后链接将永久注销无法恢复。`)) {
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/shares/${encodeURIComponent(shareId)}`, { method: 'DELETE' });
+          if (res.ok) {
+            await loadAllShares();
+          } else {
+            alert('删除失败');
+          }
+        } catch (err) {
+          alert('网络异常');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  // 渲染首页分享板块
+  function renderHomeSharesList() {
+    const container = document.getElementById('homeSharesListContainer');
+    if (!container) return;
+
+    const repoFilter = document.getElementById('homeSharesRepoFilter') ? document.getElementById('homeSharesRepoFilter').value : '';
+    const statusFilter = document.getElementById('homeSharesStatusFilter') ? document.getElementById('homeSharesStatusFilter').value : 'active';
+    const searchQuery = document.getElementById('homeSharesSearchInput') ? document.getElementById('homeSharesSearchInput').value : '';
+
+    container.innerHTML = generateSharesListHtml(state.allShares, repoFilter, statusFilter, searchQuery);
+    bindSharesListEvents(container);
+  }
+
+  // 渲染弹窗分享板块
+  function renderModalSharesList() {
+    const container = el.sharesListContainer;
+    if (!container) return;
+
+    const repoFilter = el.sharesRepoFilter ? el.sharesRepoFilter.value : '';
+    const statusFilter = el.sharesStatusFilter ? el.sharesStatusFilter.value : 'active';
+    const searchQuery = el.sharesSearchInput ? el.sharesSearchInput.value : '';
+
+    container.innerHTML = generateSharesListHtml(state.allShares, repoFilter, statusFilter, searchQuery);
+    bindSharesListEvents(container);
+  }
+
+  // 初始化首页公开分享板块交互
+  function initHomeSharesSection() {
+    const toggleBtn = document.getElementById('toggleHomeSharesBtn');
+    const collapsedBar = document.getElementById('homeSharesCollapsedBar');
+    const body = document.getElementById('homeSharesBody');
+    const toggleText = document.getElementById('toggleHomeSharesText');
+    const toggleIcon = document.getElementById('toggleHomeSharesIcon');
+
+    // 折叠展开
+    const handleToggle = () => {
+      if (!body) return;
+      const willCollapse = !body.classList.contains('is-collapsed');
+      body.classList.toggle('is-collapsed', willCollapse);
+      if (collapsedBar) collapsedBar.style.display = willCollapse ? 'flex' : 'none';
+      if (toggleText) toggleText.textContent = willCollapse ? '展开' : '收起';
+      if (toggleIcon) toggleIcon.style.transform = willCollapse ? 'rotate(180deg)' : 'rotate(0deg)';
+      try {
+        localStorage.setItem('doc_lens_shares_collapsed', willCollapse ? '1' : '0');
+      } catch (e) {}
+    };
+
+    if (toggleBtn) toggleBtn.addEventListener('click', handleToggle);
+    if (collapsedBar) collapsedBar.addEventListener('click', handleToggle);
+
+    // 填充知识库仓库下拉选项
+    const repoSelect = document.getElementById('homeSharesRepoFilter');
+    if (repoSelect && state.repos) {
+      const curVal = repoSelect.value;
+      repoSelect.innerHTML = `<option value="">全部知识库空间</option>` + state.repos.map(r => `
+        <option value="${escapeHtml(r.ID)}">${escapeHtml(r.Name)}</option>
+      `).join('');
+      if (curVal) repoSelect.value = curVal;
+      repoSelect.addEventListener('change', () => renderHomeSharesList());
+    }
+
+    // 状态过滤下拉
+    const statusSelect = document.getElementById('homeSharesStatusFilter');
+    if (statusSelect) {
+      statusSelect.addEventListener('change', () => {
+        const val = statusSelect.value;
+        // 同步更新指标卡片的 active 高亮
+        document.querySelectorAll('#homeSharesMetricsBar .share-metric-card').forEach(card => {
+          card.classList.toggle('active', card.getAttribute('data-filter') === val);
+        });
+        renderHomeSharesList();
+      });
+    }
+
+    // 搜索过滤
+    const searchInput = document.getElementById('homeSharesSearchInput');
+    const clearBtn = document.getElementById('homeSharesClearSearchBtn');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim();
+        if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
+        renderHomeSharesList();
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.dispatchEvent(new Event('input'));
+          searchInput.focus();
+        }
+      });
+    }
+
+    // 统计指标卡片点击筛选
+    document.querySelectorAll('#homeSharesMetricsBar .share-metric-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const f = card.getAttribute('data-filter');
+        if (!f) return;
+        document.querySelectorAll('#homeSharesMetricsBar .share-metric-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        if (statusSelect) statusSelect.value = f;
+        renderHomeSharesList();
+      });
+    });
+
+    // 刷新按钮
+    const refreshBtn = document.getElementById('homeRefreshSharesBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => loadAllShares());
+    }
+
+    // 初始渲染一次
+    renderHomeSharesList();
+    updateSharesMetricsAndBadges();
+  }
+
+  // 初始化全局公开链接管理弹窗
+  function initSharesHubModal() {
+    if (el.sharesRepoFilter && state.repos) {
+      const curVal = el.sharesRepoFilter.value;
+      el.sharesRepoFilter.innerHTML = `<option value="">全部知识库空间</option>` + state.repos.map(r => `
+        <option value="${escapeHtml(r.ID)}">${escapeHtml(r.Name)}</option>
+      `).join('');
+      if (curVal) el.sharesRepoFilter.value = curVal;
+      el.sharesRepoFilter.addEventListener('change', () => renderModalSharesList());
+    }
+
+    if (el.sharesStatusFilter) {
+      el.sharesStatusFilter.addEventListener('change', () => {
+        const val = el.sharesStatusFilter.value;
+        document.querySelectorAll('#sharesHubModal .share-metric-card').forEach(card => {
+          card.classList.toggle('active', card.getAttribute('data-filter') === val);
+        });
+        renderModalSharesList();
+      });
+    }
+
+    if (el.sharesSearchInput) {
+      el.sharesSearchInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim();
+        if (el.sharesClearSearchBtn) el.sharesClearSearchBtn.style.display = q ? 'flex' : 'none';
+        renderModalSharesList();
+      });
+    }
+
+    if (el.sharesClearSearchBtn) {
+      el.sharesClearSearchBtn.addEventListener('click', () => {
+        if (el.sharesSearchInput) {
+          el.sharesSearchInput.value = '';
+          el.sharesSearchInput.dispatchEvent(new Event('input'));
+          el.sharesSearchInput.focus();
+        }
+      });
+    }
+
+    document.querySelectorAll('#sharesHubModal .share-metric-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const f = card.getAttribute('data-filter');
+        if (!f) return;
+        document.querySelectorAll('#sharesHubModal .share-metric-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        if (el.sharesStatusFilter) el.sharesStatusFilter.value = f;
+        renderModalSharesList();
+      });
+    });
+
+    if (el.refreshSharesBtn) {
+      el.refreshSharesBtn.addEventListener('click', () => loadAllShares());
+    }
+  }
+
+  // 打开公开分享管理中心 (支持首页智能直达与模态框两种场景)
+  function openSharesHub(targetFilter = null) {
+    if (!state.currentDoc) {
+      // 当前在首页：平滑滚动到首页公开分享板块
+      const homeSection = document.getElementById('homeSectionShares');
+      if (homeSection) {
+        const body = document.getElementById('homeSharesBody');
+        const collapsedBar = document.getElementById('homeSharesCollapsedBar');
+        const toggleText = document.getElementById('toggleHomeSharesText');
+        const toggleIcon = document.getElementById('toggleHomeSharesIcon');
+        if (body && body.classList.contains('is-collapsed')) {
+          body.classList.remove('is-collapsed');
+          if (collapsedBar) collapsedBar.style.display = 'none';
+          if (toggleText) toggleText.textContent = '收起';
+          if (toggleIcon) toggleIcon.style.transform = 'rotate(0deg)';
+        }
+        if (targetFilter) {
+          const statusSelect = document.getElementById('homeSharesStatusFilter');
+          if (statusSelect) statusSelect.value = targetFilter;
+          document.querySelectorAll('#homeSharesMetricsBar .share-metric-card').forEach(c => {
+            c.classList.toggle('active', c.getAttribute('data-filter') === targetFilter);
+          });
+          renderHomeSharesList();
+        }
+        homeSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        homeSection.classList.add('section-highlight-pulse');
+        setTimeout(() => homeSection.classList.remove('section-highlight-pulse'), 1500);
+        return;
+      }
+    }
+
+    // 在文档阅读页：弹出统一管理弹窗
+    initSharesHubModal();
+    if (targetFilter && el.sharesStatusFilter) {
+      el.sharesStatusFilter.value = targetFilter;
+      document.querySelectorAll('#sharesHubModal .share-metric-card').forEach(c => {
+        c.classList.toggle('active', c.getAttribute('data-filter') === targetFilter);
+      });
+    }
+    renderModalSharesList();
+    openModal(el.sharesHubModal);
   }
 
   // 访客端：加载分享文档内容
@@ -7801,7 +8537,9 @@
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         let errMsg = '该分享链接不存在、超出有效期限或已被作者撤销。';
-        if (errData.error === 'expired') {
+        if (errData.error === 'disabled') {
+          errMsg = '抱歉，此公开分享链接已被所有者暂时关闭。';
+        } else if (errData.error === 'expired') {
           errMsg = '抱歉，此分享链接已超出有效期限，无法继续阅读。';
         }
         renderShareErrorPage(errMsg);
