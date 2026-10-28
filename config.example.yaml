@@ -44,6 +44,12 @@ ai:
   runner_cmd: "dagu-ai"
   # 最大并发排队任务数
   max_queue: 10
+  # 保持历史默认行为：为 AI Runner 注入本机代理；不需要代理时设为 false
+  proxy:
+    enabled: true
+    http: "http://127.0.0.1:7890"
+    https: "http://127.0.0.1:7890"
+    all: "socks5://127.0.0.1:7891"
 
 # 任务日志、分享记录与持久化状态存储目录
 # 默认存储在用户目录: ~/.local/state/doc-lens

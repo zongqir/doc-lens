@@ -329,17 +329,20 @@ func (tm *TaskManager) executeTask(task *Task) {
 
 	cmd := exec.Command(runner, execArgs...)
 	cmd.Dir = repo.Path
-	// 继承物理用户的环境变量，保证 CLI 工具链与配额正常加载，并注入默认 NAS 代理环境
+	// 继承物理用户的环境变量；代理可在 config.yaml 中开关和配置。
 	env := os.Environ()
-	proxyDefaults := map[string]string{
-		"http_proxy":  "http://127.0.0.1:7890",
-		"https_proxy": "http://127.0.0.1:7890",
-		"all_proxy":   "socks5://127.0.0.1:7891",
-		"ALL_PROXY":   "socks5://127.0.0.1:7891",
-	}
-	for k, v := range proxyDefaults {
-		if os.Getenv(k) == "" {
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
+	proxy := tm.cfg.AI.Proxy
+	if proxy.Enabled != nil && *proxy.Enabled {
+		proxyEnv := map[string]string{
+			"http_proxy":  proxy.HTTP,
+			"https_proxy": proxy.HTTPS,
+			"all_proxy":   proxy.All,
+			"ALL_PROXY":   proxy.All,
+		}
+		for k, v := range proxyEnv {
+			if v != "" && os.Getenv(k) == "" {
+				env = append(env, fmt.Sprintf("%s=%s", k, v))
+			}
 		}
 	}
 	cmd.Env = env
