@@ -38,8 +38,16 @@ type RepoConfig struct {
 }
 
 type AIConfig struct {
-	RunnerCmd string `yaml:"runner_cmd"`
-	MaxQueue  int    `yaml:"max_queue"`
+	RunnerCmd string        `yaml:"runner_cmd"`
+	MaxQueue  int           `yaml:"max_queue"`
+	Proxy     AIProxyConfig `yaml:"proxy"`
+}
+
+type AIProxyConfig struct {
+	Enabled *bool  `yaml:"enabled"`
+	HTTP    string `yaml:"http"`
+	HTTPS   string `yaml:"https"`
+	All     string `yaml:"all"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {
@@ -78,9 +86,31 @@ func LoadConfig(configPath string) (*Config, error) {
 		home, _ := os.UserHomeDir()
 		cfg.StateDir = filepath.Join(home, ".local", "state", "doc-lens")
 	}
+	applyAIProxyDefaults(&cfg.AI.Proxy)
 	_ = os.MkdirAll(cfg.StateDir, 0755)
 
 	return &cfg, nil
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+// applyAIProxyDefaults preserves the historical proxy behavior for configs
+// that do not yet contain an ai.proxy block.
+func applyAIProxyDefaults(proxy *AIProxyConfig) {
+	if proxy.Enabled == nil {
+		proxy.Enabled = boolPtr(true)
+	}
+	if proxy.HTTP == "" {
+		proxy.HTTP = "http://127.0.0.1:7890"
+	}
+	if proxy.HTTPS == "" {
+		proxy.HTTPS = "http://127.0.0.1:7890"
+	}
+	if proxy.All == "" {
+		proxy.All = "socks5://127.0.0.1:7891"
+	}
 }
 
 func SaveConfig(configPath string, cfg *Config) error {
@@ -125,6 +155,12 @@ func createDefaultConfig() *Config {
 		AI: AIConfig{
 			RunnerCmd: "dagu-ai",
 			MaxQueue:  10,
+			Proxy: AIProxyConfig{
+				Enabled: boolPtr(true),
+				HTTP:    "http://127.0.0.1:7890",
+				HTTPS:   "http://127.0.0.1:7890",
+				All:     "socks5://127.0.0.1:7891",
+			},
 		},
 		StateDir: stateDir,
 	}
