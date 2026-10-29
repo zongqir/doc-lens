@@ -28,6 +28,7 @@ type App struct {
 	rm      *RepoManager
 	tm      *TaskManager
 	tts     *TTSManager
+	lq      *ListenQueueManager
 	sm      *ShareManager
 	cfgPath string
 }
@@ -42,8 +43,9 @@ func main() {
 	}
 
 	rm := NewRepoManager(cfg.Repositories)
-	tm := NewTaskManager(cfg, rm)
 	tts := NewTTSManager(cfg.StateDir)
+	lq := NewListenQueueManager(cfg.StateDir, rm, tts)
+	tm := NewTaskManager(cfg, rm, tts)
 	sm := NewShareManager(cfg.StateDir)
 
 	_ = os.MkdirAll(cfg.StateDir, 0755)
@@ -57,6 +59,7 @@ func main() {
 		rm:      rm,
 		tm:      tm,
 		tts:     tts,
+		lq:      lq,
 		sm:      sm,
 		cfgPath: *cfgPath,
 	}
@@ -105,6 +108,8 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/audio/voices", a.requireAuth(a.handleAudioVoices))
 	mux.HandleFunc("/api/audio/generate", a.requireAuth(a.handleAudioGenerate))
 	mux.HandleFunc("/api/audio", a.requireAuth(a.handleAudio))
+	mux.HandleFunc("/api/listen-queue", a.requireAuth(a.handleListenQueue))
+	mux.HandleFunc("/api/listen-progress", a.requireAuth(a.handleListenProgress))
 
 	// 3.6 单篇文档只读分享 API (管理需认证，访客读取免认证)
 	mux.HandleFunc("/api/shares", a.requireAuth(a.handleShares))
@@ -593,7 +598,7 @@ func (a *App) handleTasks(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 32*1024)
 
 		var req struct {
-			Type       string `json:"type"`        // "draft" | "explain"
+			Type       string `json:"type"` // "draft" | "explain"
 			RepoID     string `json:"repo_id"`
 			TargetFile string `json:"target_file"` // 相对路径，如 "2026-10-25-新研究.md"
 			Prompt     string `json:"prompt"`

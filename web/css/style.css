@@ -6437,6 +6437,28 @@ body.modal-open {
   background: rgba(16, 185, 129, 0.08) !important;
 }
 
+.listen-count-badge { min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#f59e0b;color:#111827;font-size:10px;font-weight:800;align-items:center;justify-content:center; }
+.btn-listen-queue > svg { display:block;flex:0 0 auto; }
+#addListenQueueBtn > svg { display:block;flex:0 0 auto; }
+.listen-queue-drawer { position:fixed;z-index:1000;right:18px;top:72px;bottom:96px;width:min(390px,calc(100vw - 24px));flex-direction:column;background:var(--bg-surface-elevated);border:1px solid var(--border-default);border-radius:16px;box-shadow:0 22px 60px rgba(0,0,0,.28);overflow:hidden; }
+.listen-queue-header { display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-default); }
+.listen-queue-header strong { display:block;font-size:16px; }
+.listen-queue-header small { display:block;margin-top:3px;color:var(--text-muted);font-size:11px; }
+.listen-queue-list { overflow:auto;padding:8px; }
+.listen-queue-empty { padding:36px 20px;text-align:center;color:var(--text-muted);line-height:1.7; }
+.listen-queue-item { display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;border:1px solid transparent; }
+.listen-queue-item:hover,.listen-queue-item.active { background:var(--bg-surface-hover);border-color:var(--border-default); }
+.listen-item-play,.listen-item-remove { border:0;background:transparent;color:var(--text-secondary);cursor:pointer;width:28px;height:28px;border-radius:50%; }
+.listen-item-play { background:var(--accent-color);color:white; }
+.listen-item-info { min-width:0;flex:1;cursor:pointer; }
+.listen-item-info strong,.listen-item-info small { display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.listen-item-info strong { font-size:13px;color:var(--text-primary); }
+.listen-item-info small { margin-top:4px;font-size:11px;color:var(--text-muted); }
+@media (max-width:640px) {
+  .listen-queue-drawer { left:10px;right:10px;top:auto;bottom:82px;width:auto;max-height:52vh;min-height:180px;border-radius:16px; }
+  .btn-listen-queue .btn-text { display:none; }
+}
+
 .doc-audio-bar {
   position: fixed;
   bottom: 24px;

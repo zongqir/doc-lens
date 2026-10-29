@@ -112,6 +112,10 @@
         <span class="btn-text">任务控制台</span>
       </button>
 
+      <button class="btn btn-listen-queue" id="listenQueueBtn" title="打开稍后听队列">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg><span class="btn-text">稍后听</span><span class="listen-count-badge" id="listenQueueCount" style="display:none;">0</span>
+      </button>
+
       <button class="btn btn-shares-hub" id="sharesHubBtn" title="统一管理所有对外公开分享链接">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
         <span class="btn-text">公开链接</span>
@@ -935,6 +939,7 @@
     <div class="audio-bar-inner">
       <!-- 左侧：播放按钮与曲目信息 -->
       <div class="audio-bar-left">
+        <button type="button" class="audio-tool-btn" id="audioPrevBtn" title="上一篇">‹</button>
         <button type="button" class="audio-play-btn" id="audioPlayToggleBtn" aria-label="播放或暂停" title="播放 / 暂停">
           <span id="audioPlayIcon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -958,6 +963,7 @@
 
       <!-- 右侧：音色切换、倍速切换、下载、关闭 -->
       <div class="audio-bar-right">
+        <button type="button" class="audio-tool-btn" id="audioNextBtn" title="下一篇">›</button>
         <div class="audio-voice-container">
           <select id="audioVoiceSelect" class="audio-select" title="切换解说音色">
             <option value="zh-CN-YunyangNeural">云扬 · 沉稳解说 (推荐)</option>
@@ -974,6 +980,11 @@
       </div>
     </div>
     <audio id="globalAudioPlayer" preload="auto" style="display:none;"></audio>
+  </div>
+
+  <div class="listen-queue-drawer" id="listenQueueDrawer" style="display:none;" aria-label="稍后听队列">
+    <div class="listen-queue-header"><div><strong>🎧 稍后听</strong><small>按顺序连续播放</small></div><button class="audio-tool-btn" id="listenQueueCloseBtn">✕</button></div>
+    <div class="listen-queue-list" id="listenQueueList"></div>
   </div>
 
   <script src="/js/app.js?v=20261028_1325"></script>
