@@ -1310,6 +1310,7 @@
 
   function populateRepoSelect() {
     if (!state.repos) return;
+    const curDraftVal = el.draftRepo ? el.draftRepo.value : '';
     if (el.repoSelect) el.repoSelect.innerHTML = '';
     if (el.draftRepo) el.draftRepo.innerHTML = '';
 
@@ -1328,6 +1329,14 @@
         el.draftRepo.appendChild(dOpt);
       }
     });
+
+    if (el.draftRepo) {
+      if (curDraftVal && state.repos.some(r => r.ID === curDraftVal)) {
+        el.draftRepo.value = curDraftVal;
+      } else if (state.currentRepo) {
+        el.draftRepo.value = state.currentRepo.ID;
+      }
+    }
 
     renderRepoDropdownMenu();
   }
@@ -6942,9 +6951,21 @@
     const doc = options.doc || null;
     state.draftContextDoc = doc;
 
-    const targetRepoId = doc ? doc.repo_id : (options.repoId || (state.currentRepo ? state.currentRepo.ID : ''));
+    // 容错兜底：确保 draftRepo 选项已填充
+    if (el.draftRepo && (!el.draftRepo.options || el.draftRepo.options.length === 0)) {
+      if (state.repos && state.repos.length > 0) {
+        populateRepoSelect();
+      } else if (typeof loadRepos === 'function') {
+        loadRepos();
+      }
+    }
+
+    const targetRepoId = doc ? doc.repo_id : (options.repoId || (state.currentRepo ? state.currentRepo.ID : (state.repos && state.repos[0] ? state.repos[0].ID : '')));
     if (targetRepoId && el.draftRepo) {
       el.draftRepo.value = targetRepoId;
+    }
+    if (el.draftRepo && !el.draftRepo.value && el.draftRepo.options && el.draftRepo.options.length > 0) {
+      el.draftRepo.selectedIndex = 0;
     }
 
     if (doc && (doc.rel_path || doc.path)) {

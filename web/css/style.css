@@ -618,9 +618,78 @@ body.modal-open {
   font-weight: 700;
 }
 
-/* 兼容隐藏与备用 select 样式 */
+/* 侧边栏旧式 select 隐藏 (已由自定义浮层下拉菜单接管) */
+#repoSelect {
+  display: none !important;
+}
+
+/* 自定义仓库选择器与表单通用下拉框样式 */
+.repo-selector-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.repo-select-icon {
+  position: absolute;
+  left: 11px;
+  pointer-events: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
 .custom-select {
-  display: none;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 30px 8px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1.4;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.repo-selector-wrapper .custom-select {
+  padding-left: 32px;
+}
+
+.custom-select:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-strong);
+}
+
+.custom-select:focus {
+  border-color: var(--border-focus);
+  background-color: var(--bg-surface);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.custom-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 6px 10px;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
 
 /* 搜索过滤框 */
@@ -6958,6 +7027,7 @@ body.modal-open {
 }
 
 .share-inline-select {
+  width: auto !important;
   font-size: 12px;
   padding: 3px 8px;
   height: 28px;
@@ -7401,6 +7471,7 @@ body.is-share-mode #contentArea {
 
 .shares-repo-filter,
 .shares-status-filter {
+  width: auto !important;
   height: 34px !important;
   font-size: 12.5px !important;
   padding: 0 28px 0 10px !important;
