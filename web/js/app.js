@@ -283,6 +283,14 @@
     el.aiDraftModal = document.getElementById('aiDraftModal');
     el.aiDraftForm = document.getElementById('aiDraftForm');
     el.draftRepo = document.getElementById('draftRepo');
+    el.draftRepoPicker = document.getElementById('draftRepoPicker');
+    el.draftRepoTriggerBtn = document.getElementById('draftRepoTriggerBtn');
+    el.draftRepoMenu = document.getElementById('draftRepoMenu');
+    el.draftRepoMenuList = document.getElementById('draftRepoMenuList');
+    el.draftRepoSelectedName = document.getElementById('draftRepoSelectedName');
+    el.draftRepoSelectedPrefix = document.getElementById('draftRepoSelectedPrefix');
+    el.draftRepoSelectedDesc = document.getElementById('draftRepoSelectedDesc');
+    el.draftRepoCount = document.getElementById('draftRepoCount');
     el.draftPrompt = document.getElementById('draftPrompt');
     el.draftTargetFile = document.getElementById('draftTargetFile');
     el.draftTaskType = document.getElementById('draftTaskType');
@@ -691,13 +699,28 @@
       el.clearDraftContextBtn.addEventListener('click', clearContextDoc);
     }
 
+    if (el.draftRepoTriggerBtn) {
+      el.draftRepoTriggerBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDraftRepoMenu();
+      });
+    }
+
     if (el.draftRepo) {
       el.draftRepo.addEventListener('change', () => {
+        syncDraftRepoUI(el.draftRepo.value);
         if (state.draftContextDoc && state.draftContextDoc.repo_id !== el.draftRepo.value) {
           clearContextDoc();
         }
       });
     }
+
+    document.addEventListener('click', (e) => {
+      if (el.draftRepoPicker && !el.draftRepoPicker.contains(e.target)) {
+        closeDraftRepoMenu();
+      }
+    });
 
     if (el.draftPrompt) {
       el.draftPrompt.addEventListener('keydown', (e) => {
@@ -1215,6 +1238,9 @@
   }
 
   function closeModal(modalEl) {
+    if (modalEl === el.aiDraftModal && typeof closeDraftRepoMenu === 'function') {
+      closeDraftRepoMenu();
+    }
     modalEl.classList.remove('open');
     if (typeof hideFocusPill === 'function') {
       hideFocusPill();
@@ -1225,6 +1251,9 @@
   }
 
   function closeAllModals() {
+    if (typeof closeDraftRepoMenu === 'function') {
+      closeDraftRepoMenu();
+    }
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
     document.body.classList.remove('modal-open');
     if (state.taskLogTimer) {
@@ -1336,6 +1365,7 @@
       } else if (state.currentRepo) {
         el.draftRepo.value = state.currentRepo.ID;
       }
+      syncDraftRepoUI(el.draftRepo.value);
     }
 
     renderRepoDropdownMenu();
@@ -6967,6 +6997,8 @@
     if (el.draftRepo && !el.draftRepo.value && el.draftRepo.options && el.draftRepo.options.length > 0) {
       el.draftRepo.selectedIndex = 0;
     }
+    syncDraftRepoUI(el.draftRepo ? el.draftRepo.value : targetRepoId);
+    closeDraftRepoMenu();
 
     if (doc && (doc.rel_path || doc.path)) {
       const rel = doc.rel_path || doc.path;
@@ -7030,6 +7062,98 @@
     if (el.draftTargetFile) el.draftTargetFile.value = '';
     if (el.draftDocContextGroup) el.draftDocContextGroup.style.display = 'none';
     setTaskActionType('new');
+  }
+
+  function toggleDraftRepoMenu() {
+    if (!el.draftRepoMenu || !el.draftRepoTriggerBtn) return;
+    const isVisible = el.draftRepoMenu.style.display !== 'none';
+    if (isVisible) {
+      closeDraftRepoMenu();
+    } else {
+      openDraftRepoMenu();
+    }
+  }
+
+  function openDraftRepoMenu() {
+    if (!el.draftRepoMenu || !el.draftRepoTriggerBtn) return;
+    renderDraftRepoMenuList();
+    el.draftRepoMenu.style.display = 'flex';
+    el.draftRepoTriggerBtn.classList.add('active');
+    el.draftRepoTriggerBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeDraftRepoMenu() {
+    if (!el.draftRepoMenu || !el.draftRepoTriggerBtn) return;
+    el.draftRepoMenu.style.display = 'none';
+    el.draftRepoTriggerBtn.classList.remove('active');
+    el.draftRepoTriggerBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectDraftRepo(repoId) {
+    if (!repoId) return;
+    if (el.draftRepo) {
+      const prevVal = el.draftRepo.value;
+      el.draftRepo.value = repoId;
+      if (prevVal !== repoId) {
+        el.draftRepo.dispatchEvent(new Event('change'));
+      }
+    }
+    syncDraftRepoUI(repoId);
+    closeDraftRepoMenu();
+  }
+
+  function syncDraftRepoUI(selectedRepoId) {
+    if (!state.repos || state.repos.length === 0) return;
+    const repo = state.repos.find(r => r.ID === selectedRepoId) || state.repos[0];
+    if (!repo) return;
+
+    if (el.draftRepoSelectedName) {
+      el.draftRepoSelectedName.textContent = repo.Name;
+    }
+    if (el.draftRepoSelectedPrefix) {
+      el.draftRepoSelectedPrefix.textContent = repo.RoutePrefix || '';
+      el.draftRepoSelectedPrefix.style.display = repo.RoutePrefix ? 'inline-block' : 'none';
+    }
+    if (el.draftRepoSelectedDesc) {
+      el.draftRepoSelectedDesc.textContent = repo.Description || '目标工作知识库';
+    }
+  }
+
+  function renderDraftRepoMenuList() {
+    if (!el.draftRepoMenuList || !state.repos) return;
+    el.draftRepoMenuList.innerHTML = '';
+    const currentVal = (el.draftRepo && el.draftRepo.value) || (state.currentRepo ? state.currentRepo.ID : (state.repos[0] ? state.repos[0].ID : ''));
+
+    if (el.draftRepoCount) {
+      el.draftRepoCount.textContent = `共 ${state.repos.length} 个空间`;
+    }
+
+    state.repos.forEach(r => {
+      const isCur = r.ID === currentVal;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `draft-repo-item ${isCur ? 'active' : ''}`;
+      btn.innerHTML = `
+        <div class="draft-repo-item-main">
+          <span class="draft-repo-item-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+          </span>
+          <div class="draft-repo-item-info">
+            <div class="draft-repo-item-title-row">
+              <span class="draft-repo-item-name">${escapeHtml(r.Name)}</span>
+              ${r.RoutePrefix ? `<span class="draft-repo-item-prefix">${escapeHtml(r.RoutePrefix)}</span>` : ''}
+            </div>
+            ${r.Description ? `<span class="draft-repo-item-desc">${escapeHtml(r.Description)}</span>` : ''}
+          </div>
+        </div>
+        ${isCur ? '<span class="draft-repo-item-check">✓</span>' : ''}
+      `;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectDraftRepo(r.ID);
+      });
+      el.draftRepoMenuList.appendChild(btn);
+    });
   }
 
   async function handleDraftSubmit(e) {

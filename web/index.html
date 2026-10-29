@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261029_0815">
+  <link rel="stylesheet" href="/css/style.css?v=20261029_0825">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -691,16 +691,37 @@
         <input type="hidden" id="draftTargetFile" value="">
         <input type="hidden" id="draftTaskType" value="new">
         <div class="modal-body draft-form-body">
-          <!-- 第一步：目标领域 / 知识库 (自动定位工作目录) -->
+          <!-- 第一步：目标领域 / 知识库 (自定义高质感浮层选择器) -->
           <div class="form-group">
             <label class="form-label">目标领域 / 知识库</label>
-            <div class="repo-selector-wrapper">
-              <div class="repo-select-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              </div>
-              <select class="custom-select" id="draftRepo"></select>
-              <div class="select-chevron">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <div class="draft-repo-picker" id="draftRepoPicker">
+              <!-- 保持原生字段兼容与静默回显 -->
+              <select id="draftRepo" class="custom-select" style="display:none;"></select>
+
+              <!-- 高质感自定义选择按钮 -->
+              <button type="button" class="draft-repo-trigger-btn" id="draftRepoTriggerBtn" aria-haspopup="true" aria-expanded="false">
+                <div class="draft-repo-trigger-main">
+                  <span class="draft-repo-trigger-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                  </span>
+                  <div class="draft-repo-trigger-text">
+                    <div class="draft-repo-trigger-title-row">
+                      <span class="draft-repo-trigger-name" id="draftRepoSelectedName">选择目标知识库</span>
+                      <span class="draft-repo-trigger-prefix" id="draftRepoSelectedPrefix" style="display:none;"></span>
+                    </div>
+                    <div class="draft-repo-trigger-desc" id="draftRepoSelectedDesc">点击选择此任务所属的领域知识库</div>
+                  </div>
+                </div>
+                <svg class="draft-repo-trigger-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+
+              <!-- 悬浮卡片下拉菜单 -->
+              <div class="draft-repo-menu" id="draftRepoMenu" style="display:none;">
+                <div class="draft-repo-menu-header">
+                  <span>选择目标领域知识库</span>
+                  <span class="draft-repo-count" id="draftRepoCount"></span>
+                </div>
+                <div class="draft-repo-menu-list" id="draftRepoMenuList"></div>
               </div>
             </div>
           </div>
