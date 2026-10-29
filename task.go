@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,9 +19,9 @@ import (
 
 type Task struct {
 	ID         string    `json:"id"`
-	Type       string    `json:"type"`       // "new" | "draft" | "append" | "modify" | "explain"
-	Status     string    `json:"status"`     // "queued" | "running" | "completed" | "failed"
-	Prompt     string    `json:"prompt"`     // 持久化存储的前 500 字符摘要
+	Type       string    `json:"type"`                  // "new" | "draft" | "append" | "modify" | "explain"
+	Status     string    `json:"status"`                // "queued" | "running" | "completed" | "failed"
+	Prompt     string    `json:"prompt"`                // 持久化存储的前 500 字符摘要
 	FullPrompt string    `json:"full_prompt,omitempty"` // 完整 Prompt (最大 5000 字符)，供重试与回填编辑
 	RepoID     string    `json:"repo_id"`
 	RepoName   string    `json:"repo_name"`
@@ -41,15 +43,17 @@ type TaskManager struct {
 	stateDir string
 	cfg      *Config
 	rm       *RepoManager
+	tts      *TTSManager
 }
 
-func NewTaskManager(cfg *Config, rm *RepoManager) *TaskManager {
+func NewTaskManager(cfg *Config, rm *RepoManager, tts *TTSManager) *TaskManager {
 	tm := &TaskManager{
 		tasks:    make([]*Task, 0),
 		queue:    make(chan *Task, 50),
 		stateDir: cfg.StateDir,
 		cfg:      cfg,
 		rm:       rm,
+		tts:      tts,
 	}
 
 	_ = os.MkdirAll(filepath.Join(tm.stateDir, "logs"), 0755)
@@ -381,10 +385,42 @@ func (tm *TaskManager) executeTask(task *Task) {
 				task.TargetFile = outputRelPath
 			}
 			_, _ = logF.WriteString(fmt.Sprintf("[doc-lens] Target document detected: %s (Route: %s)\n", outputRelPath, task.OutputFile))
+			tm.generateDefaultVoiceAsync(repo, outputRelPath)
 		}
 	}
 
 	tm.saveTasks()
+}
+
+// generateDefaultVoiceAsync prepares the default listening voice without
+// delaying or changing the result of the writing task.
+func (tm *TaskManager) generateDefaultVoiceAsync(repo *RepoConfig, relPath string) {
+	if tm.tts == nil || tm.rm == nil || repo == nil || strings.TrimSpace(relPath) == "" {
+		return
+	}
+
+	go func() {
+		cachedDoc, err := tm.rm.GetCachedFile(repo, relPath)
+		if err != nil {
+			log.Printf("[TTS] Auto-generation skipped for %s: failed to read document: %v", relPath, err)
+			return
+		}
+
+		log.Printf("[TTS] Auto-generating default voice for %s", relPath)
+		for attempt, delay := range []time.Duration{0, 5 * time.Second, 15 * time.Second} {
+			if delay > 0 {
+				time.Sleep(delay)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+			_, synthErr := tm.tts.Synthesize(ctx, repo.ID, relPath, defaultListenVoice, cachedDoc.ModTime, cachedDoc.Resp.Content)
+			cancel()
+			if synthErr == nil {
+				log.Printf("[TTS] Auto-generation ready for %s", relPath)
+				return
+			}
+			log.Printf("[TTS] Auto-generation attempt %d failed for %s: %v", attempt+1, relPath, synthErr)
+		}
+	}()
 }
 
 // detectOutputFile 自动探测任务生成或修改的 Markdown 文档相对路径

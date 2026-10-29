@@ -1269,6 +1269,7 @@
       state.authenticated = true;
       closeModal(el.loginModal);
       if (el.loginPass) el.loginPass.value = '';
+      await loadListenQueue();
       await loadRepos();
 
       const curPath = window.location.pathname;
@@ -3035,6 +3036,9 @@
         <span class="btn-text-full">听文章</span>
         <span class="btn-text-short">听书</span>
       </button>
+      <button class="btn" id="addListenQueueBtn" title="加入稍后听，通勤或睡前连续播放">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12V9a8 8 0 0 1 16 0v3"></path><path d="M4 12H3a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h2v-7zM20 12h1a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2v-7z"></path><line x1="12" y1="12" x2="12" y2="20"></line><line x1="8" y1="16" x2="16" y2="16"></line></svg><span class="btn-text-full">稍后听</span><span class="btn-text-short">稍后听</span>
+      </button>
       <button class="btn btn-mindmap" id="docMindmapBtn" title="查看文章思维导图（层级大纲脑图）">
         ${SVG_ICONS.mindmap}
         <span class="btn-text-full">思维导图</span>
@@ -3077,6 +3081,8 @@
           toggleDocAudio(doc);
         });
       }
+      const addListenBtn = document.getElementById('addListenQueueBtn');
+      if (addListenBtn) addListenBtn.addEventListener('click', () => addToListenQueue(doc));
       const mindmapBtn = document.getElementById('docMindmapBtn');
       if (mindmapBtn) {
         mindmapBtn.addEventListener('click', () => {
@@ -7335,7 +7341,11 @@
     voice: localStorage.getItem('doc_lens_tts_voice') || 'zh-CN-YunyangNeural',
     speed: parseFloat(localStorage.getItem('doc_lens_tts_speed') || '1.0'),
     isGenerating: false,
-    isPlaying: false
+    isPlaying: false,
+    queue: { current_id: '', items: [] },
+    queueItem: null,
+    restorePosition: 0,
+    lastProgressSave: 0
   };
 
   function initAudioPlayer() {
@@ -7351,9 +7361,27 @@
     el.audioSpeedBtn = document.getElementById('audioSpeedBtn');
     el.audioDownloadBtn = document.getElementById('audioDownloadBtn');
     el.audioCloseBtn = document.getElementById('audioCloseBtn');
+    el.audioPrevBtn = document.getElementById('audioPrevBtn');
+    el.audioNextBtn = document.getElementById('audioNextBtn');
+    el.listenQueueBtn = document.getElementById('listenQueueBtn');
+    el.listenQueueDrawer = document.getElementById('listenQueueDrawer');
+    el.listenQueueList = document.getElementById('listenQueueList');
+    el.listenQueueCloseBtn = document.getElementById('listenQueueCloseBtn');
     audioState.audio = document.getElementById('globalAudioPlayer');
 
     if (!audioState.audio) return;
+
+    if (el.listenQueueBtn) el.listenQueueBtn.addEventListener('click', toggleListenQueue);
+    if (el.listenQueueCloseBtn) el.listenQueueCloseBtn.addEventListener('click', closeListenQueue);
+    window.addEventListener('resize', positionListenQueue);
+    document.addEventListener('click', (event) => {
+      if (!el.listenQueueDrawer || el.listenQueueDrawer.style.display === 'none') return;
+      if (el.listenQueueDrawer.contains(event.target) || (el.listenQueueBtn && el.listenQueueBtn.contains(event.target))) return;
+      closeListenQueue();
+    });
+    if (el.audioPrevBtn) el.audioPrevBtn.addEventListener('click', () => playAdjacentQueueItem(-1));
+    if (el.audioNextBtn) el.audioNextBtn.addEventListener('click', () => playAdjacentQueueItem(1));
+    loadListenQueue().catch(() => {});
 
     // 恢复历史音色偏好
     if (el.audioVoiceSelect) {
@@ -7415,11 +7443,17 @@
       const pct = (audioState.audio.currentTime / audioState.audio.duration) * 100;
       el.audioProgressSlider.value = pct;
       el.audioCurrentTime.textContent = formatAudioTime(audioState.audio.currentTime);
+      if (audioState.queueItem && Date.now() - audioState.lastProgressSave > 10000) {
+        audioState.lastProgressSave = Date.now();
+        saveListenProgress(audioState.queueItem.id, audioState.audio.currentTime, 'playing');
+      }
     });
 
     audioState.audio.addEventListener('loadedmetadata', () => {
       el.audioDuration.textContent = formatAudioTime(audioState.audio.duration);
       audioState.audio.playbackRate = audioState.speed;
+      if (audioState.restorePosition > 0 && audioState.restorePosition < audioState.audio.duration - 5) audioState.audio.currentTime = audioState.restorePosition;
+      audioState.restorePosition = 0;
     });
 
     audioState.audio.addEventListener('play', () => {
@@ -7442,9 +7476,10 @@
       }
       const audioBtn = document.getElementById('docAudioBtn');
       if (audioBtn) audioBtn.classList.remove('is-playing');
+      if (audioState.queueItem && !audioState.audio.ended) saveListenProgress(audioState.queueItem.id, audioState.audio.currentTime, 'paused');
     });
 
-    audioState.audio.addEventListener('ended', () => {
+    audioState.audio.addEventListener('ended', async () => {
       audioState.isPlaying = false;
       updateAudioPlayButtonUI(false);
       el.audioProgressSlider.value = 0;
@@ -7455,6 +7490,22 @@
       }
       const audioBtn = document.getElementById('docAudioBtn');
       if (audioBtn) audioBtn.classList.remove('is-playing');
+      if (audioState.queueItem) {
+        const finishedID = audioState.queueItem.id;
+        const finishedIndex = audioState.queue.items.findIndex(item => item.id === finishedID);
+        const nextItem = finishedIndex >= 0 ? audioState.queue.items[finishedIndex + 1] : null;
+        try {
+          await fetch('/api/listen-queue?id=' + encodeURIComponent(finishedID), { method: 'DELETE' });
+          audioState.queueItem = null;
+          await loadListenQueue();
+        } catch (e) {
+          saveListenProgress(finishedID, 0, 'completed');
+        }
+        if (nextItem) {
+          const refreshedNext = audioState.queue.items.find(item => item.id === nextItem.id) || nextItem;
+          playListenItem(refreshedNext);
+        }
+      }
     });
 
     audioState.audio.addEventListener('error', () => {
@@ -7475,6 +7526,7 @@
         if (el.docAudioBar) {
           el.docAudioBar.style.display = 'none';
         }
+        positionListenQueue();
         const audioBtn = document.getElementById('docAudioBtn');
         if (audioBtn) audioBtn.classList.remove('is-playing');
       });
@@ -7521,6 +7573,7 @@
     const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
     const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
     const docTitle = relPath.split('/').pop().replace(/\.md$/i, '') || '文档音频';
+    audioState.queueItem = audioState.queue.items.find(item => item.repo_id === repoId && item.path === relPath) || null;
 
     if (el.docAudioBar) {
       el.docAudioBar.style.display = 'block';
@@ -7589,6 +7642,7 @@
 
   function startAudioPlayback(url, title) {
     if (!audioState.audio) return;
+    positionListenQueue();
     audioState.audio.src = url;
     audioState.audio.load();
     audioState.audio.playbackRate = audioState.speed;
@@ -7609,6 +7663,99 @@
       el.audioStatusPill.textContent = '已就绪';
       el.audioStatusPill.className = 'audio-status-pill playing';
     }
+  }
+
+  async function loadListenQueue() {
+    const res = await fetch('/api/listen-queue');
+    if (!res.ok) return;
+    audioState.queue = await res.json();
+    const badge = document.getElementById('listenQueueCount');
+    if (badge) {
+      badge.textContent = audioState.queue.items.length;
+      badge.style.display = audioState.queue.items.length ? 'inline-flex' : 'none';
+    }
+    renderListenQueue();
+  }
+
+  async function addToListenQueue(doc) {
+    const repoId = doc.repo_id || (state.currentRepo ? state.currentRepo.ID : '');
+    const relPath = (doc.rel_path || doc.path || '').replace(/^\/+/, '');
+    const title = relPath.split('/').pop().replace(/\.md$/i, '');
+    const res = await fetch('/api/listen-queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ RepoID: repoId, Path: relPath, Title: title }) });
+    if (!res.ok) { alert('加入稍后听失败'); return; }
+    const data = await res.json();
+    await loadListenQueue();
+    const btn = document.getElementById('addListenQueueBtn');
+    if (btn) btn.querySelector('.btn-text-full').textContent = data.added ? '已加入' : '已在队列';
+  }
+
+  async function toggleListenQueue() {
+    if (el.listenQueueDrawer && el.listenQueueDrawer.style.display !== 'none') {
+      closeListenQueue();
+      return;
+    }
+    await loadListenQueue();
+    if (el.listenQueueDrawer) {
+      el.listenQueueDrawer.style.display = 'flex';
+      if (el.listenQueueBtn) el.listenQueueBtn.setAttribute('aria-expanded', 'true');
+      positionListenQueue();
+    }
+  }
+
+  function closeListenQueue() {
+    if (el.listenQueueDrawer) el.listenQueueDrawer.style.display = 'none';
+    if (el.listenQueueBtn) el.listenQueueBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function positionListenQueue() {
+    if (!el.listenQueueDrawer || el.listenQueueDrawer.style.display === 'none') return;
+    const playerVisible = el.docAudioBar && el.docAudioBar.style.display !== 'none';
+    if (!playerVisible) {
+      el.listenQueueDrawer.style.removeProperty('bottom');
+      return;
+    }
+    const playerTop = el.docAudioBar.getBoundingClientRect().top;
+    el.listenQueueDrawer.style.bottom = Math.max(82, window.innerHeight - playerTop + 10) + 'px';
+  }
+
+  function renderListenQueue() {
+    if (!el.listenQueueList) return;
+    if (!audioState.queue.items.length) {
+      el.listenQueueList.innerHTML = '<div class="listen-queue-empty">队列还是空的，在文章页点击“稍后听”即可加入。</div>';
+      return;
+    }
+    el.listenQueueList.innerHTML = audioState.queue.items.map((item, index) => `<div class="listen-queue-item ${item.id === audioState.queue.current_id ? 'active' : ''}" data-id="${escapeHtml(item.id)}"><button class="listen-item-play">${item.status === 'completed' ? '✓' : '▶'}</button><div class="listen-item-info"><strong>${escapeHtml(item.title)}</strong><small>${index + 1} · ${item.position ? '已听 ' + formatAudioTime(item.position) : '未播放'}</small></div><button class="listen-item-remove">✕</button></div>`).join('');
+    el.listenQueueList.querySelectorAll('.listen-queue-item').forEach(row => {
+      const item = audioState.queue.items.find(v => v.id === row.dataset.id);
+      row.querySelector('.listen-item-play').addEventListener('click', () => playListenItem(item));
+      row.querySelector('.listen-item-info').addEventListener('click', () => playListenItem(item));
+      row.querySelector('.listen-item-remove').addEventListener('click', async () => { await fetch('/api/listen-queue?id=' + encodeURIComponent(item.id), { method: 'DELETE' }); await loadListenQueue(); });
+    });
+  }
+
+  function playListenItem(item) {
+    if (!item) return;
+    audioState.queue.current_id = item.id;
+    audioState.queueItem = item;
+    audioState.restorePosition = item.position || 0;
+    playDocAudio({ repo_id: item.repo_id, rel_path: item.path, path: item.path }, false);
+    renderListenQueue();
+  }
+
+  function playAdjacentQueueItem(direction) {
+    const items = audioState.queue.items || [];
+    if (!items.length) return;
+    let index = items.findIndex(item => item.id === (audioState.queueItem && audioState.queueItem.id));
+    if (index < 0) index = items.findIndex(item => item.id === audioState.queue.current_id);
+    const next = index + direction;
+    if (next >= 0 && next < items.length) playListenItem(items[next]);
+  }
+
+  function saveListenProgress(id, position, status) {
+    if (!id) return;
+    const item = audioState.queue.items.find(v => v.id === id);
+    if (item) { item.position = position; item.status = status; audioState.queue.current_id = id; }
+    fetch('/api/listen-progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, position, status }), keepalive: true }).catch(() => {});
   }
 
   // =========================================================================

@@ -170,7 +170,7 @@ func TestSecurity_TaskPromptTruncationAndLimits(t *testing.T) {
 			RunnerCmd: "echo",
 		},
 	}
-	tm := NewTaskManager(cfg, rm)
+	tm := NewTaskManager(cfg, rm, nil)
 
 	// 1. 空 Prompt 拒绝
 	if _, err := tm.SubmitTask("draft", "test_repo", "", "   "); err == nil {
@@ -215,7 +215,7 @@ func TestSecurity_ReadTaskLogTailLimit(t *testing.T) {
 	cfg := &Config{
 		StateDir: tempDir,
 	}
-	tm := NewTaskManager(cfg, rm)
+	tm := NewTaskManager(cfg, rm, nil)
 
 	// 创建一个测试日志文件 (1MB)
 	logDir := filepath.Join(tempDir, "logs")
@@ -262,7 +262,7 @@ func TestSecurity_HttpMaxBytesReader(t *testing.T) {
 			SessionDays:   1,
 		},
 	}
-	tm := NewTaskManager(cfg, rm)
+	tm := NewTaskManager(cfg, rm, nil)
 	app := &App{
 		cfg: cfg,
 		rm:  rm,
