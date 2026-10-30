@@ -6412,6 +6412,68 @@
     return code.replace(/^(\s*(?:graph|flowchart)\s+)[A-Za-z]+\b/im, `$1${targetDir}`);
   }
 
+  // ==========================================================================
+  // Mermaid 节点长文本智能软折行算法 (Auto Soft Wrap)
+  // 彻底解决节点包含长单句导致矩形框被撑成 800px 宽巨型带状、在手机上缩成蚂蚁字的问题
+  // ==========================================================================
+  function autoWrapLongMermaidLabels(code) {
+    if (!code || typeof code !== 'string') return code;
+
+    function wrapText(text, maxLen = 16) {
+      if (!text || text.length <= maxLen || text.includes('<br') || text.includes('\n')) {
+        return text;
+      }
+      
+      // 1. 优先按冒号（标题: 描述）断开首行
+      const colonMatch = text.match(/^([^:：]{2,10}[:：])\s*(.+)$/);
+      if (colonMatch) {
+        const title = colonMatch[1];
+        const rest = colonMatch[2];
+        return title + '<br/>' + wrapText(rest, maxLen);
+      }
+
+      // 2. 标点符号优先软断行（中文逗号、分号、顿号、空格等）
+      const breakPuncts = new Set(['，', ',', '；', ';', '、', ' ', '。', '！', '!']);
+      const lines = [];
+      let cur = '';
+      for (let i = 0; i < text.length; i++) {
+        cur += text[i];
+        if (cur.length >= maxLen && breakPuncts.has(text[i])) {
+          lines.push(cur.trim());
+          cur = '';
+        } else if (cur.length >= maxLen + 6) {
+          lines.push(cur.trim());
+          cur = '';
+        }
+      }
+      if (cur.trim()) lines.push(cur.trim());
+      return lines.join('<br/>');
+    }
+
+    let result = code;
+
+    // 1. 匹配带双引号的各类节点内容: ["..."], ("..."), {"..."}, (["..."]), [\"...\"]
+    result = result.replace(/(\[\"|\(\"|\{\")([^\"\r\n]+)(\"\]|\"\)|\"\})/g, (match, open, content, close) => {
+      return open + wrapText(content, 16) + close;
+    });
+
+    // 2. 匹配不带引号的长节点内容（且长度大于 18 个字符）
+    result = result.replace(/(\[|\()([^\r\n\[\]\(\)\{\}\"]{20,})(\]|\))/g, (match, open, content, close) => {
+      const trimmed = content.trim();
+      if (trimmed.startsWith('subgraph') || trimmed.startsWith('class') || trimmed.startsWith('style') || trimmed.startsWith('click')) {
+        return match;
+      }
+      return open + wrapText(content, 16) + close;
+    });
+
+    // 3. 匹配时序图 Note 文本: Note over X: ...
+    result = result.replace(/(\bNote\s+(?:over|left\s+of|right\s+of)\s+[^:\n]+:\s*)([^\r\n]{22,})/gi, (match, prefix, content) => {
+      return prefix + wrapText(content, 18);
+    });
+
+    return result;
+  }
+
   function isMermaidCodeTooWide(code) {
     const info = getMermaidFlowchartInfo(code);
     if (!info || !info.isLR) return false;
@@ -6508,6 +6570,8 @@
     if (flowInfo && targetDir && targetDir !== flowInfo.direction) {
       codeToRender = switchMermaidFlowchartDirection(rawCode, targetDir);
     }
+    // 关键优化：自动对长节点文本执行智能断行，从根源将巨型长条框缩至合身宽度
+    codeToRender = autoWrapLongMermaidLabels(codeToRender);
 
     const uniqueSvgId = `svg-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     let finalSvg = null;
@@ -6558,13 +6622,12 @@
         <div class="mermaid-toolbar">
           ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
           ${canToggleDirection ? `
-            <button type="button" class="mermaid-dir-toggle-btn" title="切换排版布局 (当前为${isCurrentlyTD ? '纵向瀑布流，字号更大更清晰' : '横向全景'})，点击切换" aria-label="切换排版方向">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" class="mermaid-tool-btn mermaid-dir-toggle-btn" title="切换排版：${isCurrentlyTD ? '当前为纵向瀑布流，点击切换为横排' : '当前为横排，点击切换为纵向瀑布流'}" aria-label="切换排版方向">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 ${isCurrentlyTD 
                   ? '<path d="M8 7l4-4 4 4M12 3v14M5 21h14"/>' 
                   : '<path d="M7 8l-4 4 4 4M3 12h14M21 5v14"/>'}
               </svg>
-              <span class="mermaid-dir-label">${isCurrentlyTD ? '切为横排' : '切为竖排'}</span>
             </button>
           ` : ''}
           <button type="button" class="mermaid-tool-btn mermaid-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
@@ -6576,6 +6639,20 @@
       wrapper.setAttribute('data-rendered', 'true');
       if (targetDir) {
         wrapper.setAttribute('data-direction', targetDir);
+      }
+
+      // 移动端字号防缩水保底：对于较宽的图（如时序图、复杂横向图），保底 min-width，避免强压成蚂蚁字
+      const svgEl = wrapper.querySelector('svg');
+      if (svgEl) {
+        let vbW = 0;
+        const vbAttr = svgEl.getAttribute('viewBox');
+        if (vbAttr) {
+          const parts = vbAttr.trim().split(/[\s,]+/).map(Number);
+          if (parts.length === 4) vbW = parts[2];
+        }
+        if (window.innerWidth <= 768 && vbW > 450) {
+          svgEl.style.minWidth = Math.min(vbW, 600) + 'px';
+        }
       }
 
       // 绑定方向切换按钮
