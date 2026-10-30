@@ -746,6 +746,19 @@
       });
     });
 
+    const terminalBackBtn = document.getElementById('terminalBackToListBtn');
+    if (terminalBackBtn) {
+      terminalBackBtn.addEventListener('click', () => {
+        const layoutBody = document.querySelector('.terminal-layout-body');
+        if (layoutBody) {
+          layoutBody.classList.remove('show-log');
+        }
+        document.querySelectorAll('.terminal-tab').forEach(t => {
+          t.classList.toggle('active', t.getAttribute('data-tab') === 'list');
+        });
+      });
+    }
+
     // 手机端双悬浮球微交互 (向下翻阅时半透明微缩小避让正文，静止或向上回滚时恢复)
     let lastScrollY = 0;
     el.contentArea.addEventListener('scroll', () => {
@@ -7607,15 +7620,32 @@
       const task = await res.json();
       closeModal(el.aiDraftModal);
       el.draftPrompt.value = '';
-      openTaskCenter();
+      openTaskCenter(task.id || task.ID);
       inspectTask(task.id || task.ID);
     } catch (err) {
       alert('网络请求失败，请检查服务状态');
     }
   }
 
-  function openTaskCenter() {
+  function openTaskCenter(targetTaskId) {
     openModal(el.taskCenterModal);
+    const layoutBody = document.querySelector('.terminal-layout-body');
+    if (window.innerWidth <= 768) {
+      if (targetTaskId) {
+        if (layoutBody) layoutBody.classList.add('show-log');
+        document.querySelectorAll('.terminal-tab').forEach(t => {
+          t.classList.toggle('active', t.getAttribute('data-tab') === 'log');
+        });
+      } else {
+        if (layoutBody) layoutBody.classList.remove('show-log');
+        document.querySelectorAll('.terminal-tab').forEach(t => {
+          t.classList.toggle('active', t.getAttribute('data-tab') === 'list');
+        });
+      }
+    } else {
+      // 电脑端：始终保证双栏就绪，彻底清理移动端残留的 show-log
+      if (layoutBody) layoutBody.classList.remove('show-log');
+    }
     loadTasks();
   }
 
@@ -7724,21 +7754,27 @@
     });
 
     if (!state.activeTaskId && state.tasks.length > 0) {
-      inspectTask(state.tasks[0].id || state.tasks[0].ID);
+      inspectTask(state.tasks[0].id || state.tasks[0].ID, true);
     }
   }
 
-  function inspectTask(taskId) {
+  function inspectTask(taskId, isInitialAutoSelect = false) {
     state.activeTaskId = taskId;
     if (state.taskLogTimer) clearInterval(state.taskLogTimer);
 
-    if (window.innerWidth <= 640) {
-      const layoutBody = document.querySelector('.terminal-layout-body');
-      if (layoutBody) layoutBody.classList.add('show-log');
-      const tabs = document.querySelectorAll('.terminal-tab');
-      tabs.forEach(t => {
-        t.classList.toggle('active', t.getAttribute('data-tab') === 'log');
-      });
+    const layoutBody = document.querySelector('.terminal-layout-body');
+    if (window.innerWidth <= 768) {
+      // 移动端：仅在用户主动点击具体任务（而非初始静默选中）时切入日志执行屏
+      if (!isInitialAutoSelect) {
+        if (layoutBody) layoutBody.classList.add('show-log');
+        const tabs = document.querySelectorAll('.terminal-tab');
+        tabs.forEach(t => {
+          t.classList.toggle('active', t.getAttribute('data-tab') === 'log');
+        });
+      }
+    } else {
+      // 电脑端：双栏常驻并排，彻底清除 show-log
+      if (layoutBody) layoutBody.classList.remove('show-log');
     }
 
     const task = state.tasks.find(t => (t.id || t.ID) === taskId);

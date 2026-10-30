@@ -3616,8 +3616,6 @@ body.modal-open {
   color: var(--accent-color);
   border-color: var(--accent-color);
 }
-  color: var(--accent-color);
-}
 
 @media (max-width: 768px) {
   .mermaid-toolbar {
@@ -4337,7 +4335,8 @@ body.modal-open {
 
 /* 终端控制台模态框 */
 .modal-terminal-card {
-  max-width: 820px;
+  width: 960px;
+  max-width: 92vw;
   height: 84vh;
   border: 1px solid var(--border-strong);
 }
@@ -4404,12 +4403,14 @@ body.modal-open {
 
 .terminal-sidebar {
   width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  flex-shrink: 0;
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   background-color: var(--bg-subtle);
   min-height: 0;
-  min-width: 0;
 }
 
 .terminal-list-header {
@@ -4503,9 +4504,11 @@ body.modal-open {
 
 .terminal-main-view {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background-color: var(--code-bg);
+  overflow: hidden;
 }
 
 .terminal-toolbar {
@@ -4514,7 +4517,13 @@ body.modal-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   background-color: var(--code-header-bg);
+  flex-shrink: 0;
+}
+
+.btn-terminal-back {
+  display: none !important;
 }
 
 .terminal-meta-label {
@@ -4531,7 +4540,31 @@ body.modal-open {
   color: var(--text-primary);
   overflow-y: auto;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.5;
+}
+
+/* 电脑端（>768px）保障双栏绝对常驻，杜绝误触发移动端单栏隐藏 */
+@media (min-width: 769px) {
+  .terminal-mobile-tabs {
+    display: none !important;
+  }
+  .terminal-layout-body {
+    flex-direction: row !important;
+  }
+  .terminal-layout-body .terminal-sidebar {
+    display: flex !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+    flex-shrink: 0 !important;
+  }
+  .terminal-layout-body .terminal-main-view {
+    display: flex !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
 }
 
 /* 全屏 Mermaid 查看器 (支持平移拖拽与平滑缩放) */
@@ -6149,7 +6182,9 @@ body.modal-open {
   }
 
   .terminal-sidebar {
-    width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     flex: 1;
     min-height: 0;
     border-right: none;
@@ -6157,7 +6192,9 @@ body.modal-open {
   }
 
   .terminal-main-view {
-    width: 100%;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     flex: 1;
     min-height: 0;
     display: none; /* 默认显示列表，点击或切换 tab 时显示日志 */
@@ -6165,10 +6202,26 @@ body.modal-open {
 
   /* 当终端主屏激活时 */
   .terminal-layout-body.show-log .terminal-sidebar {
-    display: none;
+    display: none !important;
   }
   .terminal-layout-body.show-log .terminal-main-view {
-    display: flex;
+    display: flex !important;
+  }
+
+  .btn-terminal-back {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
   /* 手机端输入框防止 iOS 自动变焦 (font-size 必须 >= 16px) */
