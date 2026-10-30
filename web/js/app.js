@@ -6599,15 +6599,36 @@
     if (!info) return null;
     if (!info.isLR && !info.isTD) return info.direction;
 
-    const edges = [];
-    const edgeRegex = /([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*(?:\[[^\]]*\]|\([^\)]*\)|\{[^\}]*\}|\([\[\{].*?[\}\]\)])?\s*(?:-->|---|==>|-\.->|--o|--x)\s*(?:\|[^\|]*\|\s*)?([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
     const lines = code.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph')) continue;
-      let m;
-      while ((m = edgeRegex.exec(trimmed)) !== null) {
-        edges.push([m[1], m[2]]);
+    const edges = [];
+    const arrowRegex = /(-->|---|==>|-\.->|-\.-x|--o|--x|-[^-]+-)/;
+
+    for (const rawLine of lines) {
+      const l = rawLine.trim();
+      if (!l || l.startsWith('%%') || l.startsWith('subgraph') || l.startsWith('end') || l.startsWith('class') || l.startsWith('style')) continue;
+      
+      const parts = l.split(arrowRegex);
+      if (parts.length >= 3) {
+        const leftPart = parts[0];
+        const rightPart = parts.slice(2).join('');
+        
+        // 兼容 A & B & C & D & E --> F 等多节点语法
+        const leftNodes = leftPart.split('&').map(s => {
+          const m = s.trim().match(/^([a-zA-Z0-9_\u4e00-\u9fa5]+)/);
+          return m ? m[1] : null;
+        }).filter(Boolean);
+
+        const cleanRight = rightPart.replace(/\|[^\|]*\|/g, '').trim();
+        const rightNodes = cleanRight.split('&').map(s => {
+          const m = s.trim().match(/^([a-zA-Z0-9_\u4e00-\u9fa5]+)/);
+          return m ? m[1] : null;
+        }).filter(Boolean);
+
+        for (const u of leftNodes) {
+          for (const v of rightNodes) {
+            edges.push([u, v]);
+          }
+        }
       }
     }
 
@@ -6642,10 +6663,10 @@
     const maxOut = Math.max(...Object.values(outDegree), 0);
     const maxIn = Math.max(...Object.values(inDegree), 0);
 
-    // 规则 1：如果存在一个节点分支出 >= 3 个子节点（如 A -> B, C, D, E）
-    // 在 TD 下子节点必定横排成多列！在移动端必须以 LR 渲染，让它们在右侧纵向排列成 4 排！
-    if (maxOut >= 3 || maxIn >= 3) {
-      return isMobile ? 'LR' : (maxOut >= 4 ? 'LR' : info.direction);
+    // 规则 1：如果存在一个节点分支出多个子节点，或多个父节点汇聚到一个节点（如 A & B & C & D & E -> F）
+    // 在 TD 下多个节点必定在同层横排成多列！在移动端必须以 LR 渲染，让它们在垂直方向依次堆叠排布！
+    if (maxOut >= 2 || maxIn >= 2) {
+      return isMobile ? 'LR' : (maxOut >= 4 || maxIn >= 4 ? 'LR' : info.direction);
     }
 
     // 规则 2：如果是连续链路（例如 A -> B -> C -> D）
@@ -6788,18 +6809,20 @@
         }
       }
 
-      // 绑定方向切换按钮（同时支持触屏与点击）
+      // 绑定方向切换按钮（同时支持触屏与点击，使用时间戳防抖避免死锁）
       const dirBtn = wrapper.querySelector('.mermaid-dir-toggle-btn');
       if (dirBtn) {
-        let toggleBusy = false;
+        let lastToggleTime = 0;
         const handleToggle = (e) => {
           if (e) {
             e.preventDefault();
             e.stopPropagation();
           }
-          if (toggleBusy) return;
-          toggleBusy = true;
-          const nextDir = isCurrentlyTD ? 'LR' : 'TD';
+          const now = Date.now();
+          if (now - lastToggleTime < 300) return;
+          lastToggleTime = now;
+          const currentDir = wrapper.getAttribute('data-direction') || targetDir;
+          const nextDir = (currentDir === 'TD' || currentDir === 'TB') ? 'LR' : 'TD';
           renderSingleMermaidChart(wrapper, nextDir);
         };
         dirBtn.addEventListener('click', handleToggle);
@@ -6809,11 +6832,15 @@
       // 绑定全屏按钮（同时支持触屏与点击）
       const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
       if (fullscreenBtn) {
+        let lastFsTime = 0;
         const handleFullscreen = (e) => {
           if (e) {
             e.preventDefault();
             e.stopPropagation();
           }
+          const now = Date.now();
+          if (now - lastFsTime < 300) return;
+          lastFsTime = now;
           const curSvg = wrapper.querySelector('svg');
           if (curSvg) openMermaidLightbox(curSvg.outerHTML);
         };
