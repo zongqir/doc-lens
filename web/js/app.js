@@ -6540,29 +6540,94 @@
     return false;
   }
 
+  // ==========================================================================
+  // Mermaid 移动端拓扑智能选向引擎 (Smart Auto Orientation)
+  // 核心逻辑：
+  // 1. 多分支发散结构 (1对多，例如 A 致命缺陷分支出 B, C, D, E 四个点)：
+  //    - 在 TD 下，4 个子节点会横排成 4 列，在手机上宽度 1300px 造成极度挤压！
+  //    - 在 LR 下，A 在左，4 个子节点在右侧从上到下垂直排成 4 排，完美贴合手机竖屏！
+  // 2. 连续长链条结构 (A --> B --> C --> D)：
+  //    - 在 LR 下会横排拉伸成长条；在 TD 下会从上到下垂直排列！
+  // ==========================================================================
+  function detectBestFlowchartDirection(code, isMobile = false) {
+    const info = getMermaidFlowchartInfo(code);
+    if (!info) return null;
+    if (!info.isLR && !info.isTD) return info.direction;
+
+    const edges = [];
+    const edgeRegex = /([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*(?:\[[^\]]*\]|\([^\)]*\)|\{[^\}]*\}|\([\[\{].*?[\}\]\)])?\s*(?:-->|---|==>|-\.->|--o|--x)\s*(?:\|[^\|]*\|\s*)?([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
+    const lines = code.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph')) continue;
+      let m;
+      while ((m = edgeRegex.exec(trimmed)) !== null) {
+        edges.push([m[1], m[2]]);
+      }
+    }
+
+    if (edges.length === 0) return info.direction;
+
+    const outDegree = {};
+    const inDegree = {};
+    for (const [u, v] of edges) {
+      outDegree[u] = (outDegree[u] || 0) + 1;
+      inDegree[v] = (inDegree[v] || 0) + 1;
+    }
+
+    const maxOut = Math.max(...Object.values(outDegree), 0);
+    const maxIn = Math.max(...Object.values(inDegree), 0);
+
+    // 规则 1：如果存在一个节点分支出 >= 3 个子节点（如 A -> B, C, D, E）
+    // 在 TD 下子节点必定横排成多列！在移动端必须以 LR 渲染，让它们在右侧纵向排列成 4 排！
+    if (maxOut >= 3 || maxIn >= 3) {
+      return isMobile ? 'LR' : (maxOut >= 4 ? 'LR' : info.direction);
+    }
+
+    // 规则 2：如果是连续链路（例如 A -> B -> C -> D）
+    let maxChain = 1;
+    const graph = {};
+    for (const [u, v] of edges) {
+      if (!graph[u]) graph[u] = [];
+      graph[u].push(v);
+    }
+    function dfs(n, visited, depth) {
+      if (depth > maxChain) maxChain = depth;
+      if (maxChain >= 3) return;
+      for (const nxt of (graph[n] || [])) {
+        if (!visited.has(nxt)) {
+          visited.add(nxt);
+          dfs(nxt, visited, depth + 1);
+          visited.delete(nxt);
+        }
+      }
+    }
+    for (const s of Object.keys(graph)) {
+      dfs(s, new Set([s]), 1);
+      if (maxChain >= 3) break;
+    }
+
+    if (maxChain >= 3) {
+      // 连续长链条用 TD 从上到下垂直瀑布流
+      return isMobile ? 'TD' : info.direction;
+    }
+
+    return info.direction;
+  }
+
   async function renderSingleMermaidChart(wrapper, forcedDirection = null) {
     if (!forcedDirection && wrapper.getAttribute('data-rendered') === 'true') return;
     const chartKey = wrapper.getAttribute('data-chart-key');
     const rawCode = mermaidStore.get(chartKey);
     if (!rawCode) return;
 
-    // 解析当前流程图方向与智能超长判断
+    // 解析当前流程图方向与智能拓扑选向
     const flowInfo = getMermaidFlowchartInfo(rawCode);
     let targetDir = forcedDirection || wrapper.getAttribute('data-direction');
 
     if (!targetDir && flowInfo) {
-      if (flowInfo.isLR) {
-        const isTooWide = isMermaidCodeTooWide(rawCode);
-        const isMobileScreen = window.innerWidth <= 768;
-        // 手机端只要 >= 3个框即转为竖排(TD)；桌面端若严重超宽也优先转竖排
-        if (isTooWide && (isMobileScreen || isMermaidCodeTooWide(rawCode))) {
-          targetDir = 'TD';
-        } else {
-          targetDir = flowInfo.direction;
-        }
-      } else {
-        targetDir = flowInfo.direction;
-      }
+      const isMobileScreen = window.innerWidth <= 768;
+      targetDir = detectBestFlowchartDirection(rawCode, isMobileScreen) || flowInfo.direction;
     }
 
     // 生成目标代码（如果需要方向转换）
@@ -6655,26 +6720,37 @@
         }
       }
 
-      // 绑定方向切换按钮
+      // 绑定方向切换按钮（同时支持触屏与点击）
       const dirBtn = wrapper.querySelector('.mermaid-dir-toggle-btn');
       if (dirBtn) {
-        dirBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+        let toggleBusy = false;
+        const handleToggle = (e) => {
+          if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          if (toggleBusy) return;
+          toggleBusy = true;
           const nextDir = isCurrentlyTD ? 'LR' : 'TD';
           renderSingleMermaidChart(wrapper, nextDir);
-        });
+        };
+        dirBtn.addEventListener('click', handleToggle);
+        dirBtn.addEventListener('touchend', handleToggle, { passive: false });
       }
 
-      // 绑定全屏按钮
+      // 绑定全屏按钮（同时支持触屏与点击）
       const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
       if (fullscreenBtn) {
-        fullscreenBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+        const handleFullscreen = (e) => {
+          if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
           const curSvg = wrapper.querySelector('svg');
           if (curSvg) openMermaidLightbox(curSvg.outerHTML);
-        });
+        };
+        fullscreenBtn.addEventListener('click', handleFullscreen);
+        fullscreenBtn.addEventListener('touchend', handleFullscreen, { passive: false });
       }
 
       // 绑定图表主体点击全屏查看（只绑定一次）
