@@ -6549,6 +6549,51 @@
   // 2. 连续长链条结构 (A --> B --> C --> D)：
   //    - 在 LR 下会横排拉伸成长条；在 TD 下会从上到下垂直排列！
   // ==========================================================================
+  // ==========================================================================
+  // 对无连线独立卡片组（如三大历史统治实验）追加隐形连线，确保在 TD 模式下垂直堆叠
+  // ==========================================================================
+  function ensureVerticalStackForIsolatedNodes(code) {
+    const lines = code.split('\n');
+    const edgeRegex = /-->|---|==>|-\.->|--o|--x|~~~/;
+    
+    let hasEdges = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('%%')) continue;
+      if (edgeRegex.test(trimmed)) {
+        hasEdges = true;
+        break;
+      }
+    }
+
+    if (!hasEdges) {
+      const nodeDefRegex = /^\s*([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*(?:\[[^\]]*\]|\([^\)]*\)|\{[^\}]*\})/g;
+      const nodeIds = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph') || trimmed.startsWith('end') || trimmed.startsWith('class') || trimmed.startsWith('style')) continue;
+        let m;
+        while ((m = nodeDefRegex.exec(trimmed)) !== null) {
+          if (!['subgraph', 'end', 'graph', 'flowchart'].includes(m[1].toLowerCase())) {
+            nodeIds.push(m[1]);
+          }
+        }
+      }
+
+      if (nodeIds.length >= 2) {
+        const invisibleChain = nodeIds.join(' ~~~ ');
+        if (code.includes('end')) {
+          const lastEndIdx = code.lastIndexOf('end');
+          return code.slice(0, lastEndIdx) + `        ${invisibleChain}\n    ` + code.slice(lastEndIdx);
+        } else {
+          return code + `\n${invisibleChain}\n`;
+        }
+      }
+    }
+
+    return code;
+  }
+
   function detectBestFlowchartDirection(code, isMobile = false) {
     const info = getMermaidFlowchartInfo(code);
     if (!info) return null;
@@ -6566,7 +6611,26 @@
       }
     }
 
-    if (edges.length === 0) return info.direction;
+    if (edges.length === 0) {
+      // 提取无连线的独立节点数量（如三大历史统治实验）
+      const nodeDefRegex = /^\s*([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*(?:\[[^\]]*\]|\([^\)]*\)|\{[^\}]*\})/g;
+      const isolatedNodes = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph') || trimmed.startsWith('end')) continue;
+        let m;
+        while ((m = nodeDefRegex.exec(trimmed)) !== null) {
+          if (!['subgraph', 'end', 'graph', 'flowchart'].includes(m[1].toLowerCase())) {
+            isolatedNodes.push(m[1]);
+          }
+        }
+      }
+      if (isolatedNodes.length >= 2) {
+        // 在移动端，多个独立卡片必须用 TD 从上到下垂直堆叠！
+        return isMobile ? 'TD' : info.direction;
+      }
+      return info.direction;
+    }
 
     const outDegree = {};
     const inDegree = {};
@@ -6634,6 +6698,10 @@
     let codeToRender = rawCode;
     if (flowInfo && targetDir && targetDir !== flowInfo.direction) {
       codeToRender = switchMermaidFlowchartDirection(rawCode, targetDir);
+    }
+    // 如果当前采用的是 TD，并且是无连线多卡片，追加隐形连线强制垂直瀑布流
+    if (targetDir === 'TD' || targetDir === 'TB') {
+      codeToRender = ensureVerticalStackForIsolatedNodes(codeToRender);
     }
     // 关键优化：自动对长节点文本执行智能断行，从根源将巨型长条框缩至合身宽度
     codeToRender = autoWrapLongMermaidLabels(codeToRender);
