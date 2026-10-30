@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -135,16 +136,19 @@ func (tm *TaskManager) loadTasks() {
 			if rPrompt := []rune(t.Prompt); len(rPrompt) > 500 {
 				t.Prompt = string(rPrompt[:500]) + "..."
 			}
-			// 自动回填已完成任务的 OutputFile，保障历史任务即刻可跳转
-			if t.Status == "completed" && t.OutputFile == "" && tm.rm != nil && t.RepoID != "" {
+			// 自动回填或矫正已完成任务的 OutputFile（修复历史误判为 AGENTS.md / README.md / index.html 的路线）
+			isMetaOutput := (t.Type == "new" || t.Type == "draft") && isMetaDoc(filepath.Base(t.OutputFile))
+			if t.Status == "completed" && (t.OutputFile == "" || isMetaOutput) && tm.rm != nil && t.RepoID != "" {
 				if repo, err := tm.rm.GetRepoByID(t.RepoID); err == nil {
 					out := tm.detectOutputFile(repo, t, t.StartedAt)
 					if out != "" {
 						cleanPrefix := "/" + strings.Trim(repo.RoutePrefix, "/")
 						t.OutputFile = cleanPrefix + "/" + strings.TrimPrefix(out, "/")
-						if t.TargetFile == "" {
+						if t.TargetFile == "" || isMetaDoc(filepath.Base(t.TargetFile)) {
 							t.TargetFile = out
 						}
+					} else if isMetaOutput {
+						t.OutputFile = ""
 					}
 				}
 			}
@@ -423,6 +427,16 @@ func (tm *TaskManager) generateDefaultVoiceAsync(repo *RepoConfig, relPath strin
 	}()
 }
 
+// isMetaDoc 判断是否为系统规范、索引或模板类元文件，防止 AI 写作任务错误识别
+func isMetaDoc(pathStr string) bool {
+	base := strings.ToLower(filepath.Base(pathStr))
+	switch base {
+	case "agents.md", "readme.md", "summary.md", "index.md", "changelog.md", "license.md", "todo.md", "index.html":
+		return true
+	}
+	return false
+}
+
 // detectOutputFile 自动探测任务生成或修改的 Markdown 文档相对路径
 func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime time.Time) string {
 	// 1. 如果是追加/修改模式且指定了存在的 TargetFile，直接使用 TargetFile
@@ -442,13 +456,30 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 			re := regexp.MustCompile(`(?:file:/*)?` + regexp.QuoteMeta(strings.TrimPrefix(cleanRepoPath, "/")) + `/([^\s\)\"\'>]+?\.(?:md|markdown|html))`)
 			matches := re.FindAllStringSubmatch(content, -1)
 			for i := len(matches) - 1; i >= 0; i-- {
-				relPath := matches[i][1]
+				rawRelPath := matches[i][1]
+				relPath := rawRelPath
+				// 关键修复：模型（如 a4y / Gemini 等）输出的 URL 通常带有 Percent-Encoding 转义（如 %E4%B8%93%E9%A2%98），必须反转义才能正确定位物理磁盘文件
+				if unescaped, err := url.PathUnescape(rawRelPath); err == nil && unescaped != "" {
+					relPath = unescaped
+				} else if unescaped, err := url.QueryUnescape(rawRelPath); err == nil && unescaped != "" {
+					relPath = unescaped
+				}
+				relPath = strings.TrimPrefix(relPath, "/")
+
+				// 针对 new 或 draft 任务，严格排除 meta 文档（如 AGENTS.md, README.md, index.html 等）
+				if (task.Type == "new" || task.Type == "draft") && isMetaDoc(relPath) {
+					continue
+				}
+
 				candidate := filepath.Join(repo.Path, relPath)
 				if fInfo, err := os.Stat(candidate); err == nil && !fInfo.IsDir() {
 					return filepath.ToSlash(relPath)
 				}
 				// 容错：如果日志打印的相对路径在多层子目录下发生了归档偏移，根据基础文件名在仓库内精确定位
 				baseName := filepath.Base(relPath)
+				if (task.Type == "new" || task.Type == "draft") && isMetaDoc(baseName) {
+					continue
+				}
 				cleanBase := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}-`).ReplaceAllString(baseName, "")
 				var matchedRel string
 				_ = filepath.WalkDir(repo.Path, func(path string, d os.DirEntry, err error) error {
@@ -456,9 +487,12 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 						return nil
 					}
 					if d.IsDir() {
-						if strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "logs" || d.Name() == "bin" {
+						if strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || d.Name() == "logs" || d.Name() == "bin" || d.Name() == "dist" || d.Name() == "build" || d.Name() == "web" {
 							return filepath.SkipDir
 						}
+						return nil
+					}
+					if (task.Type == "new" || task.Type == "draft") && isMetaDoc(d.Name()) {
 						return nil
 					}
 					if d.Name() == baseName || (cleanBase != "" && d.Name() == cleanBase) {
@@ -480,19 +514,45 @@ func (tm *TaskManager) detectOutputFile(repo *RepoConfig, task *Task, startTime 
 	var newestMod time.Time
 	searchThreshold := startTime.Add(-10 * time.Second)
 
+	ignoreMap := make(map[string]bool)
+	for _, ign := range repo.IgnoreDirs {
+		clean := filepath.ToSlash(filepath.Clean(ign))
+		clean = strings.Trim(clean, "/")
+		if clean != "" {
+			ignoreMap[clean] = true
+		}
+	}
+
 	_ = filepath.WalkDir(repo.Path, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "logs" || name == "bin" {
+			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "logs" || name == "bin" || name == "dist" || name == "build" || name == "target" || name == "vendor" || name == "web" {
 				return filepath.SkipDir
+			}
+			if relDir, err := filepath.Rel(repo.Path, path); err == nil {
+				cleanRelDir := strings.Trim(filepath.ToSlash(relDir), "/")
+				if ignoreMap[cleanRelDir] {
+					return filepath.SkipDir
+				}
 			}
 			return nil
 		}
+
+		// 针对 new 或 draft 任务，严格排除 meta 文档（如 README.md, AGENTS.md, SUMMARY.md, index.html 等）
+		if (task.Type == "new" || task.Type == "draft") && isMetaDoc(name) {
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(name))
-		if ext == ".md" || ext == ".markdown" || ext == ".html" {
+		isDocExt := ext == ".md" || ext == ".markdown"
+		if task.Type != "new" && task.Type != "draft" {
+			isDocExt = isDocExt || ext == ".html"
+		}
+
+		if isDocExt {
 			info, err := d.Info()
 			if err != nil {
 				return nil
