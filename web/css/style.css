@@ -3478,9 +3478,14 @@ body.modal-open {
   -webkit-overflow-scrolling: touch;
   padding: 38px 20px 22px 20px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   cursor: zoom-in;
+}
+
+.mermaid-viewport svg {
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .mermaid-wrapper a,
@@ -3564,6 +3569,16 @@ body.modal-open {
   backdrop-filter: blur(8px);
   touch-action: manipulation;
   user-select: none;
+  position: relative;
+}
+
+.mermaid-tool-btn::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
 }
 
 .mermaid-tool-btn:hover {
@@ -3587,7 +3602,20 @@ body.modal-open {
   color: var(--text-muted);
 }
 
-.mermaid-dir-toggle-btn:hover {
+.mermaid-dir-toggle-btn svg {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mermaid-dir-toggle-btn.toggling svg {
+  transform: rotate(180deg) scale(0.9);
+}
+
+.mermaid-dir-toggle-btn:active,
+.mermaid-dir-toggle-btn.toggling {
+  background: var(--bg-surface-hover);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
   color: var(--accent-color);
 }
 
@@ -6088,14 +6116,13 @@ body.modal-open {
   }
 
   .mermaid-wrapper {
-    padding: 12px 14px 16px 14px;
+    padding: 0;
     margin: 16px 0;
-    align-items: normal;
   }
 
   .mermaid-tool-btn {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     touch-action: manipulation;
   }
 

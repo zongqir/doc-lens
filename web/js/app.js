@@ -6815,26 +6815,59 @@
         }
       }
 
-      // 绑定方向切换按钮（标准单一 click 事件，避免移动端 touchend+click 导致双重翻转复位）
+      // 绑定方向切换按钮（多端原子级防幽灵点击与即时响应引擎）
       const dirBtn = wrapper.querySelector('.mermaid-dir-toggle-btn');
       if (dirBtn) {
-        dirBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+        const doToggle = () => {
+          const now = Date.now();
+          if (wrapper._lastToggleTime && now - wrapper._lastToggleTime < 450) return;
+          wrapper._lastToggleTime = now;
+          dirBtn.classList.add('toggling');
           const currentDir = wrapper.getAttribute('data-direction') || targetDir;
           const nextDir = (currentDir === 'TD' || currentDir === 'TB') ? 'LR' : 'TD';
           renderSingleMermaidChart(wrapper, nextDir);
+        };
+
+        dirBtn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          wrapper._touchHandled = true;
+          setTimeout(() => { wrapper._touchHandled = false; }, 500);
+          doToggle();
+        }, { passive: false });
+
+        dirBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (wrapper._touchHandled) return;
+          doToggle();
         });
       }
 
-      // 绑定全屏按钮（标准单一 click 事件，精准放大图表主体 SVG 而非工具栏自身图标）
+      // 绑定全屏按钮（多端原子级防幽灵点击与精准放大图表主体 SVG）
       const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
       if (fullscreenBtn) {
+        const handleFs = () => {
+          const now = Date.now();
+          if (wrapper._lastFsTime && now - wrapper._lastFsTime < 450) return;
+          wrapper._lastFsTime = now;
+          const curSvg = viewportEl ? viewportEl.querySelector('svg') : null;
+          if (curSvg) openMermaidLightbox(curSvg.outerHTML);
+        };
+
+        fullscreenBtn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          wrapper._fsTouchHandled = true;
+          setTimeout(() => { wrapper._fsTouchHandled = false; }, 500);
+          handleFs();
+        }, { passive: false });
+
         fullscreenBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const curSvg = viewportEl ? viewportEl.querySelector('svg') : null;
-          if (curSvg) openMermaidLightbox(curSvg.outerHTML);
+          if (wrapper._fsTouchHandled) return;
+          handleFs();
         });
       }
 
