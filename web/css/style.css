@@ -3447,24 +3447,40 @@ body.modal-open {
 /* Mermaid 容器与微工具条 (极简现代高质感) */
 .mermaid-wrapper {
   margin: 28px 0;
-  padding: 28px 24px 20px 24px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   box-shadow: var(--shadow-xs);
   position: relative;
-  -webkit-overflow-scrolling: touch;
-  cursor: zoom-in;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  overflow: hidden;
 }
 
 .mermaid-wrapper:hover {
   border-color: var(--border-focus, #3b82f6);
   box-shadow: var(--shadow-sm);
+}
+
+.mermaid-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.mermaid-viewport {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 38px 20px 22px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: zoom-in;
 }
 
 .mermaid-wrapper a,
@@ -3493,6 +3509,15 @@ body.modal-open {
   stroke-width: 1.75px !important;
 }
 
+/* 隐形连线双重兜底隐藏：确保任何情况下连线完全隐形不可见 */
+.mermaid-wrapper svg .edgePath path[style*="transparent"],
+.mermaid-wrapper svg .edgePath path[style*="stroke: transparent"],
+.mermaid-wrapper svg .edgePath path[style*="stroke-width: 0"],
+.mermaid-wrapper svg .edgePath path[style*="stroke-width:0"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 .mermaid-wrapper svg .edgeLabel {
   background-color: var(--bg-surface) !important;
   border-radius: 4px;
@@ -3505,19 +3530,6 @@ body.modal-open {
   ry: 12px !important;
   stroke-width: 1.25px !important;
   stroke-dasharray: 4 4;
-}
-
-.mermaid-toolbar {
-  position: sticky;
-  top: 8px;
-  right: 8px;
-  align-self: flex-end;
-  margin-left: auto;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: auto;
 }
 
 .mermaid-heal-badge {
@@ -3540,8 +3552,8 @@ body.modal-open {
   border: 1px solid var(--border-default);
   color: var(--text-muted);
   cursor: pointer;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border-radius: var(--radius-sm);
   display: inline-flex;
@@ -3550,6 +3562,8 @@ body.modal-open {
   box-shadow: var(--shadow-xs);
   transition: all var(--transition-fast);
   backdrop-filter: blur(8px);
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .mermaid-tool-btn:hover {
@@ -3575,6 +3589,21 @@ body.modal-open {
 
 .mermaid-dir-toggle-btn:hover {
   color: var(--accent-color);
+}
+
+@media (max-width: 768px) {
+  .mermaid-toolbar {
+    top: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+  .mermaid-viewport {
+    padding: 42px 12px 18px 12px;
+  }
+  .mermaid-tool-btn {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 /* ==========================================================================

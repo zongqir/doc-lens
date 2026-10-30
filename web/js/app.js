@@ -6779,7 +6779,7 @@
           ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
           ${canToggleDirection ? `
             <button type="button" class="mermaid-tool-btn mermaid-dir-toggle-btn" title="切换排版：${isCurrentlyTD ? '当前为纵向瀑布流，点击切换为横排' : '当前为横排，点击切换为纵向瀑布流'}" aria-label="切换排版方向">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 ${isCurrentlyTD 
                   ? '<path d="M8 7l4-4 4 4M12 3v14M5 21h14"/>' 
                   : '<path d="M7 8l-4 4 4 4M3 12h14M21 5v14"/>'}
@@ -6787,10 +6787,12 @@
             </button>
           ` : ''}
           <button type="button" class="mermaid-tool-btn mermaid-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         </div>
-        ${finalSvg}
+        <div class="mermaid-viewport">
+          ${finalSvg}
+        </div>
       `;
       wrapper.setAttribute('data-rendered', 'true');
       if (targetDir) {
@@ -6834,18 +6836,16 @@
         });
       }
 
-      // 绑定图表主体点击全屏查看（只绑定一次）
-      if (!wrapper.__mermaidClickBound) {
-        wrapper.__mermaidClickBound = true;
-        wrapper.addEventListener('click', (e) => {
+      // 绑定图表视口主体点击全屏查看（只绑定在 .mermaid-viewport 上，与工具栏物理隔离）
+      const viewportEl = wrapper.querySelector('.mermaid-viewport');
+      if (viewportEl) {
+        viewportEl.addEventListener('click', (e) => {
           // 如果点击的是节点内部可能存在的外部链接超链接，放行跳转
           if (e.target.closest('a')) return;
-          // 如果点击的是工具栏或自愈提示，不触发全屏
-          if (e.target.closest('.mermaid-toolbar')) return;
           // 如果用户正在划词选择文本，不误触发全屏
           const selection = window.getSelection();
           if (selection && selection.toString().trim().length > 0) return;
-          const curSvg = wrapper.querySelector('svg');
+          const curSvg = viewportEl.querySelector('svg');
           if (curSvg) openMermaidLightbox(curSvg.outerHTML);
         });
       }
