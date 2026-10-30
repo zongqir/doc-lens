@@ -6799,17 +6799,19 @@
         wrapper.setAttribute('data-direction', targetDir);
       }
 
+      const viewportEl = wrapper.querySelector('.mermaid-viewport');
+      const chartSvgEl = viewportEl ? viewportEl.querySelector('svg') : null;
+
       // 移动端字号防缩水保底：对于较宽的图（如时序图、复杂横向图），保底 min-width，避免强压成蚂蚁字
-      const svgEl = wrapper.querySelector('svg');
-      if (svgEl) {
+      if (chartSvgEl) {
         let vbW = 0;
-        const vbAttr = svgEl.getAttribute('viewBox');
+        const vbAttr = chartSvgEl.getAttribute('viewBox');
         if (vbAttr) {
           const parts = vbAttr.trim().split(/[\s,]+/).map(Number);
           if (parts.length === 4) vbW = parts[2];
         }
         if (window.innerWidth <= 768 && vbW > 450) {
-          svgEl.style.minWidth = Math.min(vbW, 600) + 'px';
+          chartSvgEl.style.minWidth = Math.min(vbW, 600) + 'px';
         }
       }
 
@@ -6825,19 +6827,18 @@
         });
       }
 
-      // 绑定全屏按钮（标准单一 click 事件）
+      // 绑定全屏按钮（标准单一 click 事件，精准放大图表主体 SVG 而非工具栏自身图标）
       const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
       if (fullscreenBtn) {
         fullscreenBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const curSvg = wrapper.querySelector('svg');
+          const curSvg = viewportEl ? viewportEl.querySelector('svg') : null;
           if (curSvg) openMermaidLightbox(curSvg.outerHTML);
         });
       }
 
       // 绑定图表视口主体点击全屏查看（只绑定在 .mermaid-viewport 上，与工具栏物理隔离）
-      const viewportEl = wrapper.querySelector('.mermaid-viewport');
       if (viewportEl) {
         viewportEl.addEventListener('click', (e) => {
           // 如果点击的是节点内部可能存在的外部链接超链接，放行跳转
