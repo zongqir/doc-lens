@@ -6554,7 +6554,7 @@
   // ==========================================================================
   function ensureVerticalStackForIsolatedNodes(code) {
     const lines = code.split('\n');
-    const edgeRegex = /-->|---|==>|-\.->|--o|--x|~~~/;
+    const edgeRegex = /-->|---|==>|-\.->|-\.-x|--o|--x/;
     
     let hasEdges = false;
     for (const line of lines) {
@@ -6581,12 +6581,14 @@
       }
 
       if (nodeIds.length >= 2) {
-        const invisibleChain = nodeIds.join(' ~~~ ');
+        // 使用全版本 Mermaid 绝对兼容的标准透明隐形连线，强制分层纵向排布，零解析报错
+        const invisibleChain = nodeIds.join(' --- ');
+        const invisibleStyle = 'linkStyle default stroke:transparent,stroke-width:0px;';
         if (code.includes('end')) {
           const lastEndIdx = code.lastIndexOf('end');
-          return code.slice(0, lastEndIdx) + `        ${invisibleChain}\n    ` + code.slice(lastEndIdx);
+          return code.slice(0, lastEndIdx) + `        ${invisibleChain}\n        ${invisibleStyle}\n    ` + code.slice(lastEndIdx);
         } else {
-          return code + `\n${invisibleChain}\n`;
+          return code + `\n${invisibleChain}\n${invisibleStyle}\n`;
         }
       }
     }
