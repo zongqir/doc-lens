@@ -3556,6 +3556,36 @@ body.modal-open {
   box-shadow: var(--shadow-sm);
 }
 
+.mermaid-dir-toggle-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: var(--shadow-xs);
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(8px);
+  user-select: none;
+}
+
+.mermaid-dir-toggle-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.mermaid-dir-toggle-btn svg {
+  flex-shrink: 0;
+}
+
 /* ==========================================================================
    右侧大纲导轨 (Floating TOC Desktop)
    ========================================================================== */
@@ -6038,7 +6068,7 @@ body.modal-open {
   }
 
   .mermaid-wrapper {
-    padding: 14px;
+    padding: 38px 14px 16px 14px;
     margin: 16px 0;
   }
 

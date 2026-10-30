@@ -6390,11 +6390,124 @@
     return healed;
   }
 
-  async function renderSingleMermaidChart(wrapper) {
-    if (wrapper.getAttribute('data-rendered') === 'true') return;
+  // ==========================================================================
+  // Mermaid 智能布局方向检测与自适应重排引擎 (LR ⇄ TD)
+  // 核心解决：3个及以上并排节点横向太长导致字号严重缩水成蚂蚁字的问题
+  // ==========================================================================
+  function getMermaidFlowchartInfo(code) {
+    if (!code || typeof code !== 'string') return null;
+    const match = code.match(/^\s*(graph|flowchart)\s+([A-Za-z]+)\b/im);
+    if (!match) return null;
+    const dir = match[2].toUpperCase();
+    return {
+      type: match[1],
+      direction: dir, // 'LR', 'RL', 'TD', 'TB', 'BT'
+      isLR: dir === 'LR' || dir === 'RL',
+      isTD: dir === 'TD' || dir === 'TB'
+    };
+  }
+
+  function switchMermaidFlowchartDirection(code, targetDir) {
+    if (!code || typeof code !== 'string') return code;
+    return code.replace(/^(\s*(?:graph|flowchart)\s+)[A-Za-z]+\b/im, `$1${targetDir}`);
+  }
+
+  function isMermaidCodeTooWide(code) {
+    const info = getMermaidFlowchartInfo(code);
+    if (!info || !info.isLR) return false;
+
+    const lines = code.split('\n');
+    const arrowRegex = /(-->|---|==>|-\.->|--o|--x|-\.-)/g;
+
+    // 1. 检查单行是否存在 2 个及以上连线（例如 A --> B --> C，即 3 个及以上框）
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph')) continue;
+      const arrows = trimmed.match(arrowRegex);
+      if (arrows && arrows.length >= 2) {
+        return true;
+      }
+    }
+
+    // 2. 检查多行拓扑链路深度与分支节点规模
+    const edges = [];
+    const edgeRegex = /([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*(?:\[[^\]]*\]|\([^\)]*\)|\{[^\}]*\}|\([\[\{].*?[\}\]\)])?\s*(?:-->|---|==>|-\.->|--o|--x)\s*(?:\|[^\|]*\|\s*)?([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('%%') || trimmed.startsWith('subgraph')) continue;
+      let match;
+      while ((match = edgeRegex.exec(trimmed)) !== null) {
+        edges.push([match[1], match[2]]);
+      }
+    }
+
+    if (edges.length >= 2) {
+      const graph = {};
+      const uniqueNodes = new Set();
+      for (const [u, v] of edges) {
+        uniqueNodes.add(u);
+        uniqueNodes.add(v);
+        if (!graph[u]) graph[u] = [];
+        graph[u].push(v);
+      }
+
+      // 独立节点总数较多（>= 4 个）在横排下必然拉宽
+      if (uniqueNodes.size >= 4) return true;
+
+      // 检测前驱-后继最长链条深度是否 >= 3 个节点
+      let maxDepth = 1;
+      function dfs(node, visited, depth) {
+        if (depth > maxDepth) maxDepth = depth;
+        if (maxDepth >= 3) return;
+        const neighbors = graph[node] || [];
+        for (const nxt of neighbors) {
+          if (!visited.has(nxt)) {
+            visited.add(nxt);
+            dfs(nxt, visited, depth + 1);
+            visited.delete(nxt);
+          }
+        }
+      }
+
+      for (const start of Object.keys(graph)) {
+        dfs(start, new Set([start]), 1);
+        if (maxDepth >= 3) return true;
+      }
+    }
+
+    return false;
+  }
+
+  async function renderSingleMermaidChart(wrapper, forcedDirection = null) {
+    if (!forcedDirection && wrapper.getAttribute('data-rendered') === 'true') return;
     const chartKey = wrapper.getAttribute('data-chart-key');
     const rawCode = mermaidStore.get(chartKey);
     if (!rawCode) return;
+
+    // 解析当前流程图方向与智能超长判断
+    const flowInfo = getMermaidFlowchartInfo(rawCode);
+    let targetDir = forcedDirection || wrapper.getAttribute('data-direction');
+
+    if (!targetDir && flowInfo) {
+      if (flowInfo.isLR) {
+        const isTooWide = isMermaidCodeTooWide(rawCode);
+        const isMobileScreen = window.innerWidth <= 768;
+        // 手机端只要 >= 3个框即转为竖排(TD)；桌面端若严重超宽也优先转竖排
+        if (isTooWide && (isMobileScreen || isMermaidCodeTooWide(rawCode))) {
+          targetDir = 'TD';
+        } else {
+          targetDir = flowInfo.direction;
+        }
+      } else {
+        targetDir = flowInfo.direction;
+      }
+    }
+
+    // 生成目标代码（如果需要方向转换）
+    let codeToRender = rawCode;
+    if (flowInfo && targetDir && targetDir !== flowInfo.direction) {
+      codeToRender = switchMermaidFlowchartDirection(rawCode, targetDir);
+    }
 
     const uniqueSvgId = `svg-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     let finalSvg = null;
@@ -6405,19 +6518,19 @@
       await ensureMermaidLoaded();
       await new Promise(r => setTimeout(r, 16));
       // 阶段一：首选原样标准渲染（Fast Path，零额外开销）
-      const res = await window.mermaid.render(uniqueSvgId, rawCode);
+      const res = await window.mermaid.render(uniqueSvgId, codeToRender);
       finalSvg = res.svg;
     } catch (primaryErr) {
       renderError = primaryErr;
-      // 清除 Mermaid 可能在 DOM 中残留的未捕获错误节点（如 #d + uniqueSvgId）
+      // 清除 Mermaid 可能在 DOM 中残留的未捕获错误节点
       try {
         const strays = document.querySelectorAll(`[id*="${uniqueSvgId}"]`);
         strays.forEach(n => { if (n !== wrapper && !wrapper.contains(n)) n.remove(); });
       } catch (_) {}
 
       // 阶段二：宽容渲染自愈尝试（Self-Healing Recovery Path）
-      const healedCode = autoHealMermaidSyntax(rawCode);
-      if (healedCode && healedCode !== rawCode) {
+      const healedCode = autoHealMermaidSyntax(codeToRender);
+      if (healedCode && healedCode !== codeToRender) {
         const retrySvgId = `svg-heal-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         try {
           const retryRes = await window.mermaid.render(retrySvgId, healedCode);
@@ -6438,28 +6551,70 @@
     }
 
     if (finalSvg) {
+      const isCurrentlyTD = targetDir === 'TD' || targetDir === 'TB';
+      const canToggleDirection = flowInfo !== null;
+
       wrapper.innerHTML = `
         <div class="mermaid-toolbar">
-          ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含括号等非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
-          <button type="button" class="mermaid-tool-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
+          ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
+          ${canToggleDirection ? `
+            <button type="button" class="mermaid-dir-toggle-btn" title="切换排版布局 (当前为${isCurrentlyTD ? '纵向瀑布流，字号更大更清晰' : '横向全景'})，点击切换" aria-label="切换排版方向">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                ${isCurrentlyTD 
+                  ? '<path d="M8 7l4-4 4 4M12 3v14M5 21h14"/>' 
+                  : '<path d="M7 8l-4 4 4 4M3 12h14M21 5v14"/>'}
+              </svg>
+              <span class="mermaid-dir-label">${isCurrentlyTD ? '切为横排' : '切为竖排'}</span>
+            </button>
+          ` : ''}
+          <button type="button" class="mermaid-tool-btn mermaid-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         </div>
         ${finalSvg}
       `;
       wrapper.setAttribute('data-rendered', 'true');
+      if (targetDir) {
+        wrapper.setAttribute('data-direction', targetDir);
+      }
 
-      // 支持：1. 点击右上角纯符号按钮全屏；2. 点击图表主体任意区域自动全屏
-      wrapper.addEventListener('click', (e) => {
-        // 如果点击的是节点内部可能存在的外部链接超链接，放行跳转
-        if (e.target.closest('a')) return;
-        // 如果点击的是自愈标签提示，不触发全屏
-        if (e.target.closest('.mermaid-heal-badge')) return;
-        // 如果用户正在划词选择文本，不误触发全屏
-        const selection = window.getSelection();
-        if (selection && selection.toString().trim().length > 0) return;
-        openMermaidLightbox(finalSvg);
-      });
+      // 绑定方向切换按钮
+      const dirBtn = wrapper.querySelector('.mermaid-dir-toggle-btn');
+      if (dirBtn) {
+        dirBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const nextDir = isCurrentlyTD ? 'LR' : 'TD';
+          renderSingleMermaidChart(wrapper, nextDir);
+        });
+      }
+
+      // 绑定全屏按钮
+      const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
+      if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const curSvg = wrapper.querySelector('svg');
+          if (curSvg) openMermaidLightbox(curSvg.outerHTML);
+        });
+      }
+
+      // 绑定图表主体点击全屏查看（只绑定一次）
+      if (!wrapper.__mermaidClickBound) {
+        wrapper.__mermaidClickBound = true;
+        wrapper.addEventListener('click', (e) => {
+          // 如果点击的是节点内部可能存在的外部链接超链接，放行跳转
+          if (e.target.closest('a')) return;
+          // 如果点击的是工具栏或自愈提示，不触发全屏
+          if (e.target.closest('.mermaid-toolbar')) return;
+          // 如果用户正在划词选择文本，不误触发全屏
+          const selection = window.getSelection();
+          if (selection && selection.toString().trim().length > 0) return;
+          const curSvg = wrapper.querySelector('svg');
+          if (curSvg) openMermaidLightbox(curSvg.outerHTML);
+        });
+      }
     } else {
       // 降级兜底显示
       const errMsg = renderError ? (renderError.message || String(renderError)) : '未知解析错误';
