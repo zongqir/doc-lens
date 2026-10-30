@@ -6809,43 +6809,27 @@
         }
       }
 
-      // 绑定方向切换按钮（同时支持触屏与点击，使用时间戳防抖避免死锁）
+      // 绑定方向切换按钮（标准单一 click 事件，避免移动端 touchend+click 导致双重翻转复位）
       const dirBtn = wrapper.querySelector('.mermaid-dir-toggle-btn');
       if (dirBtn) {
-        let lastToggleTime = 0;
-        const handleToggle = (e) => {
-          if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          const now = Date.now();
-          if (now - lastToggleTime < 300) return;
-          lastToggleTime = now;
+        dirBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const currentDir = wrapper.getAttribute('data-direction') || targetDir;
           const nextDir = (currentDir === 'TD' || currentDir === 'TB') ? 'LR' : 'TD';
           renderSingleMermaidChart(wrapper, nextDir);
-        };
-        dirBtn.addEventListener('click', handleToggle);
-        dirBtn.addEventListener('touchend', handleToggle, { passive: false });
+        });
       }
 
-      // 绑定全屏按钮（同时支持触屏与点击）
+      // 绑定全屏按钮（标准单一 click 事件）
       const fullscreenBtn = wrapper.querySelector('.mermaid-fullscreen-btn');
       if (fullscreenBtn) {
-        let lastFsTime = 0;
-        const handleFullscreen = (e) => {
-          if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          const now = Date.now();
-          if (now - lastFsTime < 300) return;
-          lastFsTime = now;
+        fullscreenBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const curSvg = wrapper.querySelector('svg');
           if (curSvg) openMermaidLightbox(curSvg.outerHTML);
-        };
-        fullscreenBtn.addEventListener('click', handleFullscreen);
-        fullscreenBtn.addEventListener('touchend', handleFullscreen, { passive: false });
+        });
       }
 
       // 绑定图表主体点击全屏查看（只绑定一次）

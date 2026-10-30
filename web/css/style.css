@@ -3560,6 +3560,15 @@ body.modal-open {
   box-shadow: var(--shadow-sm);
 }
 
+.mermaid-tool-btn:active {
+  transform: scale(0.92);
+}
+
+.mermaid-tool-btn svg,
+.mermaid-tool-btn path {
+  pointer-events: none;
+}
+
 .mermaid-dir-toggle-btn {
   color: var(--text-muted);
 }
