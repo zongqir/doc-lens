@@ -3615,8 +3615,8 @@ body.modal-open {
   border: 1px solid var(--border-default);
   color: var(--text-muted);
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border-radius: var(--radius-sm);
   display: inline-flex;
@@ -3625,18 +3625,14 @@ body.modal-open {
   box-shadow: var(--shadow-xs);
   transition: all var(--transition-fast);
   backdrop-filter: blur(8px);
-  touch-action: manipulation;
+  touch-action: none !important;
+  -webkit-tap-highlight-color: transparent;
   user-select: none;
   position: relative;
 }
 
 .mermaid-tool-btn::after {
-  content: '';
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  right: -6px;
-  bottom: -6px;
+  display: none;
 }
 
 .mermaid-tool-btn:hover {
@@ -3679,14 +3675,20 @@ body.modal-open {
   .mermaid-toolbar {
     top: 8px;
     right: 8px;
-    gap: 6px;
+    gap: 8px;
   }
   .mermaid-viewport {
     padding: 42px 12px 18px 12px;
   }
   .mermaid-tool-btn {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
+    touch-action: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mermaid-tool-btn svg {
+    width: 16px;
+    height: 16px;
   }
 }
 
@@ -6208,14 +6210,15 @@ body.modal-open {
   }
 
   .mermaid-tool-btn {
-    width: 34px;
-    height: 34px;
-    touch-action: manipulation;
+    width: 36px;
+    height: 36px;
+    touch-action: none !important;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mermaid-tool-btn svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
 
   /* 手机端任务终端 (彻底解决 100px 挤扁的硬伤) */
