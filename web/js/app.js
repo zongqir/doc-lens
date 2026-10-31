@@ -85,6 +85,8 @@
     } catch (e) {
       return 'dark';
     }
+  }
+
   // 安全的 URL 解码器，彻底解决文件名包含 %（如 100%完成.md）、非法转义字符时抛出 URI malformed 导致页面无响应的问题
   function safeDecodeURIComponent(str) {
     if (!str || typeof str !== 'string') return str || '';
