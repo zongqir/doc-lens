@@ -117,6 +117,9 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/share/content", a.handleShareContent)
 	mux.HandleFunc("/api/share/raw", a.handleShareRaw)
 
+	// 3.7 矢量图表引擎 API (D2 毫秒级内存渲染，支持免登预览)
+	mux.HandleFunc("/api/diagram/d2", a.handleDiagramD2)
+
 	// 4. 原始文件直读 (供 HTML 沙箱 Iframe 读取，需要认证)
 	mux.HandleFunc("/raw/", a.requireAuth(a.handleRaw))
 
@@ -1319,4 +1322,56 @@ func (a *App) handleShareRaw(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.ServeFile(w, r, absPath)
+}
+
+type diagramD2Request struct {
+	Code   string `json:"code"`
+	Dark   bool   `json:"dark"`
+	Sketch bool   `json:"sketch"`
+}
+
+type diagramD2Response struct {
+	Success bool   `json:"success"`
+	SVG     string `json:"svg,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+func (a *App) handleDiagramD2(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "method not allowed"})
+		return
+	}
+
+	var req diagramD2Request
+	r.Body = http.MaxBytesReader(w, r.Body, 512*1024)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "invalid json request: " + err.Error()})
+		return
+	}
+
+	req.Code = strings.TrimSpace(req.Code)
+	if req.Code == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "empty D2 diagram code"})
+		return
+	}
+
+	engine, err := GetD2Engine()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "D2 engine init failed: " + err.Error()})
+		return
+	}
+
+	svg, err := engine.Render(r.Context(), req.Code, req.Dark, req.Sketch)
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(diagramD2Response{Success: true, SVG: svg})
 }

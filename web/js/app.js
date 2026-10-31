@@ -71,8 +71,10 @@
   };
 
   const mermaidStore = new Map();
+  const d2Store = new Map();
   const el = {};
   let mermaidObserver = null;
+  let d2Observer = null;
   let scrollSpyObserver = null;
   let searchDebounceTimer = null;
   let modalSearchDebounceTimer = null;
@@ -1121,6 +1123,11 @@
         renderSingleMermaidChart(wrapper);
       });
     }
+
+    document.querySelectorAll('.d2-wrapper').forEach(wrapper => {
+      wrapper.removeAttribute('data-rendered');
+      renderSingleD2Chart(wrapper);
+    });
 
     updateMindmapTheme();
   }
@@ -4360,7 +4367,7 @@
         fontFamily: 'var(--font-sans)',
         suppressErrorRendering: true,
         flowchart: {
-          curve: 'basis',
+          curve: 'linear',
           htmlLabels: true,
           padding: 16,
           nodeSpacing: 45,
@@ -5272,6 +5279,7 @@
 
   function renderMarkdownDoc(rawMarkdown) {
     mermaidStore.clear();
+    d2Store.clear();
 
     const { frontmatter, rawYaml, body } = parseYamlFrontmatter(rawMarkdown);
     const propertiesHtml = buildPropertiesCardHtml(frontmatter, rawYaml);
@@ -5296,6 +5304,23 @@
       `;
     });
 
+    let d2Counter = 0;
+    html = html.replace(/<pre><code class="language-d2">([\s\S]*?)<\/code><\/pre>/gi, (match, code) => {
+      d2Counter++;
+      const uniqueKey = `d2-${Date.now()}-${d2Counter}`;
+      const cleanCode = unescapeHtml(code.trim());
+      d2Store.set(uniqueKey, cleanCode);
+
+      return `
+        <div class="d2-wrapper" data-chart-key="${uniqueKey}">
+          <div style="color:var(--text-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;padding:20px 0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+            <span>D2 现代架构图渲染中...</span>
+          </div>
+        </div>
+      `;
+    });
+
     el.articleBody.innerHTML = `<div class="markdown-body">${propertiesHtml}${html}</div>`;
 
     bindPropertiesCardEvents();
@@ -5303,6 +5328,7 @@
     interceptMarkdownLinks();
     enhanceCodeBlocksAsync();
     setupLazyMermaidObserver();
+    setupLazyD2Observer();
 
     requestAnimationFrame(() => {
       generateTOC();
@@ -7030,6 +7056,125 @@
       }
     } finally {
       wrapper._isToggling = false;
+    }
+  }
+
+  // ==========================================================================
+  // D2 现代矢量架构图渲染引擎控制器 (双轨制核心，Go 原生内存秒级出图)
+  // ==========================================================================
+  function setupLazyD2Observer() {
+    if (d2Observer) {
+      d2Observer.disconnect();
+    }
+
+    const wrappers = el.articleBody.querySelectorAll('.d2-wrapper[data-chart-key]');
+    if (wrappers.length === 0) return;
+
+    d2Observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const wrapper = entry.target;
+          d2Observer.unobserve(wrapper);
+          renderSingleD2Chart(wrapper);
+        }
+      });
+    }, { rootMargin: '300px 0px 300px 0px' });
+
+    wrappers.forEach(w => d2Observer.observe(w));
+  }
+
+  async function renderSingleD2Chart(wrapper) {
+    if (wrapper.getAttribute('data-rendered') === 'true') return;
+    const chartKey = wrapper.getAttribute('data-chart-key');
+    const rawCode = d2Store.get(chartKey);
+    if (!rawCode) return;
+
+    const isDark = state.theme === 'dark';
+
+    try {
+      const resp = await fetch('/api/diagram/d2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: rawCode,
+          dark: isDark,
+          sketch: false
+        })
+      });
+
+      const res = await resp.json();
+      if (!res.success || !res.svg) {
+        throw new Error(res.error || 'D2 渲染响应异常');
+      }
+
+      wrapper.innerHTML = `
+        <div class="d2-toolbar">
+          <span class="d2-badge" title="D2 现代矢量架构图 (原生高精度)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            D2 现代图表
+          </span>
+          <button type="button" class="mermaid-tool-btn d2-copy-svg-btn" title="复制矢量 SVG (可直接无损粘贴进 Word/PPT 转换为形状)" aria-label="复制矢量 SVG">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+          <button type="button" class="mermaid-tool-btn d2-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+          </button>
+        </div>
+        <div class="d2-viewport">
+          ${res.svg}
+        </div>
+      `;
+
+      wrapper.setAttribute('data-rendered', 'true');
+
+      const viewportEl = wrapper.querySelector('.d2-viewport');
+      const copyBtn = wrapper.querySelector('.d2-copy-svg-btn');
+      const fullscreenBtn = wrapper.querySelector('.d2-fullscreen-btn');
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const ok = await copyTextToClipboard(res.svg);
+          if (ok) {
+            copyBtn.innerHTML = `${SVG_ICONS.check}`;
+            copyBtn.title = '已复制矢量 SVG，可直接粘贴进 Word / PPT！';
+            setTimeout(() => {
+              copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+              copyBtn.title = '复制矢量 SVG (可直接无损粘贴进 Word/PPT 转换为形状)';
+            }, 2000);
+          }
+        });
+      }
+
+      if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openMermaidLightbox(res.svg);
+        });
+      }
+
+      if (viewportEl) {
+        viewportEl.addEventListener('click', (e) => {
+          if (e.target.closest('a') || e.target.closest('.d2-toolbar')) return;
+          const selection = window.getSelection();
+          if (selection && selection.toString().trim().length > 0) return;
+          openMermaidLightbox(res.svg);
+        });
+      }
+
+    } catch (err) {
+      console.warn('D2 render error, graceful fallback:', err);
+      wrapper.innerHTML = `
+        <div style="width:100%;font-size:12px;color:var(--text-secondary);background:var(--bg-surface-hover);padding:14px;border-radius:var(--radius-md);border:1px solid var(--border-default);">
+          <div style="font-weight:600;margin-bottom:6px;color:#f59e0b;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>D2 架构图解析微瑕，已优雅折叠源码显示：</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-family:var(--font-mono);">${escapeHtml(err.message || String(err))}</div>
+          <pre style="margin:0;background:transparent;border:none;padding:0;font-size:11.5px;color:var(--text-muted);overflow-x:auto;">${escapeHtml(rawCode)}</pre>
+        </div>
+      `;
+      wrapper.setAttribute('data-rendered', 'true');
     }
   }
 

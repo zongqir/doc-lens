@@ -3676,8 +3676,9 @@ body.is-resizing-sidebar .sidebar {
   background-color: var(--bg-surface-hover);
 }
 
-/* Mermaid 容器与微工具条 (极简现代高质感) */
-.mermaid-wrapper {
+/* Mermaid & D2 现代容器与微工具条 (极简现代高质感) */
+.mermaid-wrapper,
+.d2-wrapper {
   margin: 28px 0;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
@@ -3688,12 +3689,14 @@ body.is-resizing-sidebar .sidebar {
   overflow: hidden;
 }
 
-.mermaid-wrapper:hover {
+.mermaid-wrapper:hover,
+.d2-wrapper:hover {
   border-color: var(--border-focus, #3b82f6);
   box-shadow: var(--shadow-sm);
 }
 
-.mermaid-toolbar {
+.mermaid-toolbar,
+.d2-toolbar {
   position: absolute;
   top: 10px;
   right: 12px;
@@ -3704,7 +3707,8 @@ body.is-resizing-sidebar .sidebar {
   pointer-events: auto;
 }
 
-.mermaid-viewport {
+.mermaid-viewport,
+.d2-viewport {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -3715,20 +3719,39 @@ body.is-resizing-sidebar .sidebar {
   cursor: zoom-in;
 }
 
-.mermaid-viewport svg {
+.mermaid-viewport svg,
+.d2-viewport svg {
   margin: 0 auto;
   flex-shrink: 0;
 }
 
 .mermaid-wrapper a,
-.mermaid-wrapper .mermaid-toolbar {
+.mermaid-wrapper .mermaid-toolbar,
+.d2-wrapper a,
+.d2-wrapper .d2-toolbar {
   cursor: default;
 }
 
-.mermaid-wrapper svg {
+.mermaid-wrapper svg,
+.d2-wrapper svg {
   max-width: 100%;
   height: auto;
   font-family: var(--font-sans) !important;
+}
+
+.d2-badge {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: var(--accent-color, #3b82f6);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  line-height: 1.2;
 }
 
 /* 现代圆角节点与高质感连线 */
