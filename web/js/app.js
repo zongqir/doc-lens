@@ -353,6 +353,8 @@
     el.activeShareCopyPassBtn = document.getElementById('activeShareCopyPassBtn');
     el.shareViewCounter = document.getElementById('shareViewCounter');
     el.cancelShareBtn = document.getElementById('cancelShareBtn');
+    el.shareChannelPills = document.getElementById('shareChannelPills');
+    el.shareChannelTip = document.getElementById('shareChannelTip');
 
     el.activeShareExpireSelect = document.getElementById('activeShareExpireSelect');
     el.activeShareExpireDesc = document.getElementById('activeShareExpireDesc');
@@ -407,6 +409,15 @@
 
     if (el.cancelShareBtn) {
       el.cancelShareBtn.addEventListener('click', handleCancelShare);
+    }
+
+    if (el.shareChannelPills) {
+      el.shareChannelPills.querySelectorAll('.share-channel-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ch = btn.getAttribute('data-channel');
+          setShareChannel(ch);
+        });
+      });
     }
 
     if (el.sharesHubBtn) {
@@ -8485,6 +8496,70 @@
     }
   }
 
+  // =========================================================================
+  // 多通道分享核心：支持 Cloudflare 隧道公网域名与 IPv6 DDNS 直连通道自由切换
+  // =========================================================================
+  const SHARE_CHANNEL_CONFIGS = {
+    doc: {
+      origin: 'https://doc.zongqir.com',
+      tip: '外网通用 (免端口·全网通，推荐用于微信与外网好友分享)'
+    },
+    fn: {
+      origin: 'http://fn.zongqir.com:18086',
+      tip: '直连通道 (IPv6 DDNS直连，国内大带宽极速直通)'
+    },
+    current: {
+      origin: () => window.location.origin,
+      tip: '当前网络 (以当前浏览器地址栏所在的网址为准)'
+    }
+  };
+
+  function getActiveShareChannel() {
+    return localStorage.getItem('doc_lens_share_channel') || 'doc';
+  }
+
+  function getSelectedShareOrigin() {
+    const ch = getActiveShareChannel();
+    const cfg = SHARE_CHANNEL_CONFIGS[ch] || SHARE_CHANNEL_CONFIGS.doc;
+    return typeof cfg.origin === 'function' ? cfg.origin() : cfg.origin;
+  }
+
+  function getShareUrl(shareId, withPasscode = false, passcode = '') {
+    const base = getSelectedShareOrigin();
+    let url = `${base}/s/${shareId}`;
+    if (withPasscode && passcode) {
+      url += `?pwd=${encodeURIComponent(passcode)}`;
+    }
+    return url;
+  }
+
+  function setShareChannel(channelKey) {
+    if (!SHARE_CHANNEL_CONFIGS[channelKey]) channelKey = 'doc';
+    try {
+      localStorage.setItem('doc_lens_share_channel', channelKey);
+    } catch (e) {}
+
+    updateShareChannelUI(channelKey);
+
+    if (currentDocActiveShare && el.shareActiveUrlInput) {
+      el.shareActiveUrlInput.value = getShareUrl(currentDocActiveShare.id);
+    }
+  }
+
+  function updateShareChannelUI(activeChannel) {
+    if (!activeChannel) activeChannel = getActiveShareChannel();
+    if (el.shareChannelPills) {
+      el.shareChannelPills.querySelectorAll('.share-channel-pill').forEach(btn => {
+        const ch = btn.getAttribute('data-channel');
+        btn.classList.toggle('active', ch === activeChannel);
+      });
+    }
+    if (el.shareChannelTip) {
+      const cfg = SHARE_CHANNEL_CONFIGS[activeChannel] || SHARE_CHANNEL_CONFIGS.doc;
+      el.shareChannelTip.textContent = `已选：${cfg.tip}`;
+    }
+  }
+
   function renderActiveSharePanel(share) {
     if (!share) {
       if (el.shareActivePanel) el.shareActivePanel.style.display = 'none';
@@ -8495,7 +8570,8 @@
     if (el.shareCreatePanel) el.shareCreatePanel.style.display = 'none';
     if (el.shareActivePanel) el.shareActivePanel.style.display = 'flex';
 
-    const cleanUrl = `${window.location.origin}/s/${share.id}`;
+    updateShareChannelUI(getActiveShareChannel());
+    const cleanUrl = getShareUrl(share.id);
     if (el.shareActiveUrlInput) el.shareActiveUrlInput.value = cleanUrl;
     if (el.shareViewCounter) el.shareViewCounter.textContent = `${share.view_count || 0} 次浏览`;
 
@@ -8705,11 +8781,8 @@
       renderActiveSharePanel(currentDocActiveShare);
       loadAllShares(); // 同步刷新管理端
 
-      // 自动复制链接到剪贴板（若设置密码则自动附带 ?pwd= 直达免输参数）
-      let fullUrl = `${window.location.origin}/s/${data.share_id}`;
-      if (pass) {
-        fullUrl += `?pwd=${encodeURIComponent(pass)}`;
-      }
+      // 自动复制链接到剪贴板（使用所选通道的直达免输链接）
+      const fullUrl = getShareUrl(data.share_id, !!pass, pass);
       const copied = await copyTextToClipboard(fullUrl);
       if (el.mainCopyShareBtn && copied) {
         const origHtml = el.mainCopyShareBtn.innerHTML;
@@ -8733,10 +8806,7 @@
 
   async function copyMainShareUrl() {
     if (!currentDocActiveShare) return;
-    const cleanUrl = `${window.location.origin}/s/${currentDocActiveShare.id}`;
-    const urlToCopy = currentDocActiveShare.passcode
-      ? `${cleanUrl}?pwd=${encodeURIComponent(currentDocActiveShare.passcode)}`
-      : cleanUrl;
+    const urlToCopy = getShareUrl(currentDocActiveShare.id, true, currentDocActiveShare.passcode);
 
     const ok = await copyTextToClipboard(urlToCopy);
     const copyBtn = el.mainCopyShareBtn;
@@ -8759,7 +8829,7 @@
 
   async function copySafeShareUrl() {
     if (!currentDocActiveShare) return;
-    const cleanUrl = `${window.location.origin}/s/${currentDocActiveShare.id}`;
+    const cleanUrl = getShareUrl(currentDocActiveShare.id, false);
     const ok = await copyTextToClipboard(cleanUrl);
     const safeBtn = el.safeCopyShareBtn;
     if (safeBtn) {
@@ -8895,10 +8965,7 @@
     const repo = (state.repos || []).find(r => r.ID === item.repo_id);
     const repoName = repo ? repo.Name : (item.repo_id || '知识库');
     const fullDocRoute = '/' + (repo ? (repo.RoutePrefix || '').replace(/^\/+|\/+$/g, '') : '') + '/' + item.rel_path.replace(/^\/+/, '');
-    let shareUrl = `${window.location.origin}/s/${item.id}`;
-    if (item.passcode) {
-      shareUrl += `?pwd=${encodeURIComponent(item.passcode)}`;
-    }
+    const shareUrl = getShareUrl(item.id, !!item.passcode, item.passcode);
 
     let passHtml = '<span class="share-pass-pill free">🔓 免密公开</span>';
     if (item.passcode) {

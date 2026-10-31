@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261031_1130">
+  <link rel="stylesheet" href="/css/style.css?v=20261031_1150">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -434,6 +434,28 @@
             <div class="share-header-actions">
               <button type="button" class="btn-cancel-share" id="cancelShareBtn" title="取消公开分享，外部链接将立即失效">
                 取消分享
+              </button>
+            </div>
+          </div>
+
+          <!-- 分享通道选择器：随时切换外网通用与直连加速通道 -->
+          <div class="share-channel-bar">
+            <div class="share-channel-header">
+              <span class="share-channel-label">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                分享通道
+              </span>
+              <span class="share-channel-tip" id="shareChannelTip">已选：外网通用 (免端口·全网通)</span>
+            </div>
+            <div class="share-channel-pills" id="shareChannelPills">
+              <button type="button" class="share-channel-pill active" data-channel="doc" title="Cloudflare全球隧道加速通道，免端口号，最适合微信与外部好友阅读">
+                🌐 外网通用 (doc.zongqir.com)
+              </button>
+              <button type="button" class="share-channel-pill" data-channel="fn" title="IPv6 DDNS直连通道，国内直连高速传输">
+                ⚡ 直连通道 (fn.zongqir.com)
+              </button>
+              <button type="button" class="share-channel-pill" data-channel="current" title="使用当前网页所在的域名地址">
+                📍 当前网络
               </button>
             </div>
           </div>
@@ -1015,6 +1037,6 @@
     <div class="listen-queue-list" id="listenQueueList"></div>
   </div>
 
-  <script src="/js/app.js?v=20261031_1130"></script>
+  <script src="/js/app.js?v=20261031_1150"></script>
 </body>
 </html>
