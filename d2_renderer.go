@@ -14,6 +14,7 @@ import (
 	"oss.terrastruct.com/d2/d2layouts/d2dagrelayout"
 	"oss.terrastruct.com/d2/d2lib"
 	"oss.terrastruct.com/d2/d2renderers/d2svg"
+	"oss.terrastruct.com/d2/d2target"
 	"oss.terrastruct.com/d2/d2themes/d2themescatalog"
 	d2log "oss.terrastruct.com/d2/lib/log"
 	"oss.terrastruct.com/d2/lib/textmeasure"
@@ -57,28 +58,22 @@ func GetD2Engine() (*D2Engine, error) {
 	return globalD2Engine, nil
 }
 
-func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch bool, themeIDOpt *int64) (string, error) {
+func strPtr(s string) *string {
+	return &s
+}
+
+func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (string, error) {
 	if len(code) == 0 {
 		return "", fmt.Errorf("empty D2 code")
 	}
 
-	// 1. 确定实际使用的 Theme ID
-	// 默认采用高颜值现代旗舰配色 (Flagship Terrastruct ID: 3 / Dark Flagship ID: 201)
-	themeID := int64(d2themescatalog.FlagshipTerrastruct.ID)
-	if isDark {
-		themeID = d2themescatalog.DarkFlagshipTerrastruct.ID
-	}
-	if themeIDOpt != nil && *themeIDOpt >= 0 {
-		themeID = *themeIDOpt
-	}
-
-	// 2. 生成唯一缓存 Key (代码哈希 + 暗黑 + 草图 + 主题)
+	// 1. 生成唯一缓存 Key (代码哈希 + 暗黑模式)
 	h := sha256.New()
 	h.Write([]byte(code))
-	h.Write([]byte(fmt.Sprintf("|dark=%v|sketch=%v|theme=%d", isDark, sketch, themeID)))
+	h.Write([]byte(fmt.Sprintf("|dark=%v", isDark)))
 	cacheKey := hex.EncodeToString(h.Sum(nil))
 
-	// 3. 尝试读取内存缓存 (微秒级)
+	// 2. 尝试读取内存缓存 (微秒级)
 	e.mu.RLock()
 	if entry, found := e.cache[cacheKey]; found {
 		e.mu.RUnlock()
@@ -86,7 +81,7 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch 
 	}
 	e.mu.RUnlock()
 
-	// 4. 安全超时限制 (防止死循环或极端异常语法)
+	// 3. 安全超时限制 (防止死循环或极端异常语法)
 	calcCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -100,14 +95,43 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch 
 		},
 	}
 
-	pad := int64(24) // 优化的内边距，提供舒适呼吸感
-	renderOpts := &d2svg.RenderOpts{
-		Pad:     &pad,
-		ThemeID: &themeID,
+	pad := int64(24)
+	themeID := d2themescatalog.NeutralGrey.ID
+
+	// 统一与 Mermaid 视觉调色板保持 100% 一致：
+	// 浅色模式：节点柔和浅灰底 (#f8fafc) + 现代科技蓝边框 (#3b82f6) + 深灰文字 (#0f172a) + 雅致连线 (#64748b)
+	// 深色模式：深沉面板底 (#1c1e24) + 精致蓝/灰边框 (#3b82f6/#374151) + 浅灰白字 (#ededf0) + 灰调连线 (#9ca3af)
+	var themeOverrides *d2target.ThemeOverrides
+	if isDark {
+		themeOverrides = &d2target.ThemeOverrides{
+			B1: strPtr("#3b82f6"), // 核心边框 / 连线主色 (Tailwind Blue)
+			B2: strPtr("#9ca3af"), // 连线 / 次要边框 (Slate 400)
+			B3: strPtr("#6b7280"),
+			B4: strPtr("#374151"), // 节点边框 (Gray 700)
+			B5: strPtr("#121316"), // 容器分组底色
+			B6: strPtr("#1c1e24"), // 节点主底色 (与 Mermaid dark 主底色一致)
+			N1: strPtr("#ededf0"), // 主标题与文本 (与 Mermaid dark 文字一致)
+			N2: strPtr("#9ca3af"), // 连线标签与辅助文本
+			N7: strPtr("#18191e"), // 画布底
+		}
+	} else {
+		themeOverrides = &d2target.ThemeOverrides{
+			B1: strPtr("#3b82f6"), // 核心边框 / 连线主色 (Tailwind Blue)
+			B2: strPtr("#64748b"), // 连线 / 次要边框 (Slate 500)
+			B3: strPtr("#94a3b8"),
+			B4: strPtr("#cbd5e1"), // 分组容器边框 (Slate 300)
+			B5: strPtr("#f1f5f9"), // 分组容器底色 (Slate 100)
+			B6: strPtr("#f8fafc"), // 节点主底色 (Slate 50，与 Mermaid light 一致)
+			N1: strPtr("#0f172a"), // 主标题与文本 (Slate 900)
+			N2: strPtr("#64748b"), // 连线标签与辅助文本 (Slate 500)
+			N7: strPtr("#ffffff"), // 纯白底
+		}
 	}
-	if sketch {
-		isSketch := true
-		renderOpts.Sketch = &isSketch
+
+	renderOpts := &d2svg.RenderOpts{
+		Pad:            &pad,
+		ThemeID:        &themeID,
+		ThemeOverrides: themeOverrides,
 	}
 
 	diagram, _, err := d2lib.Compile(calcCtx, code, opts, renderOpts)

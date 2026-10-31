@@ -3677,7 +3677,8 @@ body.is-resizing-sidebar .sidebar {
 }
 
 /* Mermaid & D2 现代容器与微工具条 (极简现代高质感) */
-.mermaid-wrapper {
+.mermaid-wrapper,
+.d2-wrapper {
   margin: 28px 0;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
@@ -3688,31 +3689,14 @@ body.is-resizing-sidebar .sidebar {
   overflow: hidden;
 }
 
-/* D2 现代工程架构图容器 (工程蓝图/画板底纹 + 景深微质感) */
-.d2-wrapper {
-  margin: 28px 0;
-  background-color: var(--bg-surface);
-  background-image: radial-gradient(var(--border-default) 1.25px, transparent 1.25px);
-  background-size: 18px 18px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-  position: relative;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-  overflow: visible;
-}
-
 .mermaid-wrapper:hover,
 .d2-wrapper:hover {
   border-color: var(--border-focus, #3b82f6);
   box-shadow: var(--shadow-sm);
 }
 
-.d2-wrapper.d2-sketch {
-  background-image: radial-gradient(rgba(245, 158, 11, 0.16) 1.2px, transparent 1.2px);
-}
-
-.mermaid-toolbar {
+.mermaid-toolbar,
+.d2-toolbar {
   position: absolute;
   top: 10px;
   right: 12px;
@@ -3721,23 +3705,6 @@ body.is-resizing-sidebar .sidebar {
   align-items: center;
   gap: 8px;
   pointer-events: auto;
-}
-
-.d2-toolbar {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  pointer-events: auto;
-  background: var(--bg-surface);
-  padding: 3px 6px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-default);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  backdrop-filter: blur(8px);
 }
 
 .mermaid-viewport,
@@ -3750,40 +3717,6 @@ body.is-resizing-sidebar .sidebar {
   justify-content: flex-start;
   align-items: center;
   cursor: zoom-in;
-  border-radius: var(--radius-lg);
-}
-
-.d2-viewport {
-  padding: 44px 24px 26px 24px;
-}
-
-.d2-code-viewport {
-  width: 100%;
-  display: none;
-  padding: 46px 16px 16px 16px;
-  background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-}
-
-.d2-code-viewport pre {
-  margin: 0;
-  padding: 14px 16px;
-  background: var(--bg-surface-hover);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text-primary);
-  overflow-x: auto;
-}
-
-.d2-wrapper.show-code .d2-viewport {
-  display: none;
-}
-
-.d2-wrapper.show-code .d2-code-viewport {
-  display: block;
 }
 
 .mermaid-viewport svg,
@@ -3806,131 +3739,6 @@ body.is-resizing-sidebar .sidebar {
   font-family: var(--font-sans) !important;
 }
 
-.d2-badge {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  color: var(--accent-color, #3b82f6);
-  padding: 3px 8px;
-  border-radius: var(--radius-xs);
-  font-size: 11px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  user-select: none;
-  line-height: 1.2;
-}
-
-.d2-wrapper.d2-sketch .d2-badge {
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.35);
-  color: #f59e0b;
-}
-
-/* D2 工具条专用按钮与激活态 */
-.mermaid-tool-btn.d2-sketch-btn.active,
-.mermaid-tool-btn.d2-code-btn.active {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--accent-color, #3b82f6);
-  border-color: rgba(59, 130, 246, 0.35);
-}
-
-.d2-theme-wrapper {
-  position: relative;
-}
-
-.d2-theme-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 176px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
-  padding: 6px;
-  display: none;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 100;
-  animation: d2FadeIn 0.15s ease-out;
-}
-
-.d2-theme-dropdown.show {
-  display: flex;
-}
-
-@keyframes d2FadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.d2-theme-opt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  font-size: 11.5px;
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-}
-
-.d2-theme-opt:hover {
-  background-color: var(--bg-surface-hover);
-  color: var(--accent-color, #3b82f6);
-}
-
-.d2-theme-opt.active {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: var(--accent-color, #3b82f6);
-  font-weight: 600;
-}
-
-.d2-theme-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: 8px;
-}
-
-.d2-theme-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-/* D2 现代圆角节点与立体微阴影 */
-.d2-wrapper:not(.d2-sketch) svg .shape > rect:not(mask rect) {
-  rx: 8px !important;
-  ry: 8px !important;
-  transition: filter 0.2s cubic-bezier(0.4, 0, 0.2, 1), stroke-width 0.2s ease;
-}
-
-.d2-wrapper:not(.d2-sketch) svg .shape > rect:not(mask rect),
-.d2-wrapper:not(.d2-sketch) svg .shape > polygon,
-.d2-wrapper:not(.d2-sketch) svg .shape > circle {
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.05));
-}
-
-[data-theme="dark"] .d2-wrapper:not(.d2-sketch) svg .shape > rect:not(mask rect),
-[data-theme="dark"] .d2-wrapper:not(.d2-sketch) svg .shape > polygon,
-[data-theme="dark"] .d2-wrapper:not(.d2-sketch) svg .shape > circle {
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
-}
-
-.d2-wrapper:not(.d2-sketch) svg .shape:hover > rect:not(mask rect),
-.d2-wrapper:not(.d2-sketch) svg .shape:hover > polygon,
-.d2-wrapper:not(.d2-sketch) svg .shape:hover > circle {
-  filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.18));
-}
-
 .d2-wrapper svg text {
   font-family: var(--font-sans) !important;
   letter-spacing: -0.01em;
@@ -3941,24 +3749,25 @@ body.is-resizing-sidebar .sidebar {
   font-weight: 600 !important;
 }
 
-.d2-wrapper svg .connection {
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* 现代圆角节点与高质感连线 */
+/* Mermaid & D2 统一现代圆角节点与高质感连线 */
 .mermaid-wrapper svg .node rect,
 .mermaid-wrapper svg .node polygon,
 .mermaid-wrapper svg .node circle,
-.mermaid-wrapper svg .node path {
+.mermaid-wrapper svg .node path,
+.d2-wrapper svg .shape > rect:not(mask rect),
+.d2-wrapper svg .shape > polygon,
+.d2-wrapper svg .shape > circle {
   rx: 8px !important;
   ry: 8px !important;
   stroke-width: 1.5px !important;
   transition: all 0.2s ease;
 }
 
-.mermaid-wrapper svg .edgePath path.path {
+.mermaid-wrapper svg .edgePath path.path,
+.d2-wrapper svg .connection {
   stroke-width: 1.75px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* 隐形连线双重兜底隐藏：确保任何情况下连线完全隐形不可见 */
