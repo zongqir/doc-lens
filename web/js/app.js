@@ -7146,6 +7146,22 @@
       wrapper.setAttribute('data-rendered', 'true');
 
       const viewportEl = wrapper.querySelector('.d2-viewport');
+      const chartSvgEl = viewportEl ? viewportEl.querySelector('svg') : null;
+
+      // 密度与字号防过度等比压缩保底：对于较宽的 D2 图表，适度保底 min-width，避免强压成 8px 蚂蚁字，确保文字维持在 12.5px-14px 黄金舒适阅读尺寸
+      if (chartSvgEl) {
+        let vbW = 0;
+        const vbAttr = chartSvgEl.getAttribute('viewBox');
+        if (vbAttr) {
+          const parts = vbAttr.trim().split(/[\s,]+/).map(Number);
+          if (parts.length === 4) vbW = parts[2];
+        }
+        if (vbW > 680) {
+          const targetMinW = Math.min(vbW * 0.82, 1000);
+          chartSvgEl.style.minWidth = `${Math.round(targetMinW)}px`;
+        }
+      }
+
       const copyBtn = wrapper.querySelector('.d2-copy-svg-btn');
       const fullscreenBtn = wrapper.querySelector('.d2-fullscreen-btn');
 

@@ -3749,7 +3749,14 @@ body.is-resizing-sidebar .sidebar {
   font-weight: 600 !important;
 }
 
-/* Mermaid & D2 统一现代圆角节点与高质感连线 */
+/* D2 画布透明化：去除硬边缘白色/深色底框，无缝融入 DocLens 阅读卡片 */
+.d2-wrapper svg rect.fill-N7,
+.d2-wrapper svg rect[fill="transparent"] {
+  fill: transparent !important;
+  stroke: none !important;
+}
+
+/* Mermaid & D2 现代扁平化主角卡片 */
 .mermaid-wrapper svg .node rect,
 .mermaid-wrapper svg .node polygon,
 .mermaid-wrapper svg .node circle,
@@ -3757,17 +3764,40 @@ body.is-resizing-sidebar .sidebar {
 .d2-wrapper svg .shape > rect:not(mask rect),
 .d2-wrapper svg .shape > polygon,
 .d2-wrapper svg .shape > circle {
-  rx: 8px !important;
-  ry: 8px !important;
-  stroke-width: 1.5px !important;
+  rx: 10px !important;
+  ry: 10px !important;
+  stroke-width: 1.25px !important;
   transition: all 0.2s ease;
+}
+
+/* 扁平化行徽章条目：将容器内的子节点转变为优雅的内容行，而非抢夺主角地位的厚重边框箱 */
+.d2-wrapper svg .shape > rect.fill-B5,
+.d2-wrapper svg .shape > rect.fill-B4 {
+  rx: 6px !important;
+  ry: 6px !important;
+  stroke-width: 1px !important;
+  stroke: var(--border-subtle, rgba(0, 0, 0, 0.08)) !important;
+  fill: var(--bg-surface-hover, rgba(255, 255, 255, 0.9)) !important;
+}
+
+[data-theme="dark"] .d2-wrapper svg .shape > rect.fill-B5,
+[data-theme="dark"] .d2-wrapper svg .shape > rect.fill-B4 {
+  stroke: var(--border-subtle, rgba(255, 255, 255, 0.08)) !important;
+  fill: var(--bg-surface-hover, rgba(255, 255, 255, 0.04)) !important;
 }
 
 .mermaid-wrapper svg .edgePath path.path,
 .d2-wrapper svg .connection {
-  stroke-width: 1.75px !important;
+  stroke-width: 1.5px !important;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* 连线与标签文本排版 */
+.d2-wrapper svg .text-italic {
+  font-style: normal !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
 
 /* 隐形连线双重兜底隐藏：确保任何情况下连线完全隐形不可见 */

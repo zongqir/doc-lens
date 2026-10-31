@@ -121,40 +121,57 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (resSVG
 	opts := &d2lib.CompileOptions{
 		Ruler: ruler,
 		LayoutResolver: func(engine string) (d2graph.LayoutGraph, error) {
-			return d2dagrelayout.DefaultLayout, nil
+			return func(ctx context.Context, g *d2graph.Graph) error {
+				for _, obj := range g.Objects {
+					// 针对嵌套子节点：大幅收紧内边距，提升信息密度，使容器呈现扁平卡片主角质感
+					if obj.Parent != g.Root && !obj.IsContainer() {
+						if obj.Height > 32 {
+							obj.Height = float64(obj.LabelDimensions.Height + 12)
+						}
+						if obj.Width > 40 {
+							obj.Width = float64(obj.LabelDimensions.Width + 20)
+						}
+					}
+				}
+				return d2dagrelayout.Layout(ctx, g, &d2dagrelayout.ConfigurableOpts{
+					NodeSep: 18,
+					EdgeSep: 8,
+				})
+			}, nil
 		},
 	}
 
-	pad := int64(24)
+	pad := int64(14)
 	themeID := d2themescatalog.NeutralGrey.ID
 
-	// 统一与 Mermaid 视觉调色板保持 100% 一致：
+	// 统一与 Mermaid 现代扁平设计风格保持一致：
 	// 浅色模式：节点柔和浅灰底 (#f8fafc) + 现代科技蓝边框 (#3b82f6) + 深灰文字 (#0f172a) + 雅致连线 (#64748b)
-	// 深色模式：深沉面板底 (#1c1e24) + 精致蓝/灰边框 (#3b82f6/#374151) + 浅灰白字 (#ededf0) + 灰调连线 (#9ca3af)
+	// 深色模式：深沉面板底 (#1c1e24) + 精致蓝/灰边框 (#3b82f6/#2d3139) + 浅灰白字 (#ededf0) + 灰调连线 (#9ca3af)
+	// 画布底 (N7) 全透明，无缝融入 DocLens 阅读器卡片
 	var themeOverrides *d2target.ThemeOverrides
 	if isDark {
 		themeOverrides = &d2target.ThemeOverrides{
-			B1: strPtr("#3b82f6"), // 核心边框 / 连线主色 (Tailwind Blue)
-			B2: strPtr("#9ca3af"), // 连线 / 次要边框 (Slate 400)
+			B1: strPtr("#3b82f6"),     // 核心高亮色 / 箭头色 (Tailwind Blue)
+			B2: strPtr("#9ca3af"),     // 连线色 (Slate 400)
 			B3: strPtr("#6b7280"),
-			B4: strPtr("#374151"), // 节点边框 (Gray 700)
-			B5: strPtr("#121316"), // 容器分组底色
-			B6: strPtr("#1c1e24"), // 节点主底色 (与 Mermaid dark 主底色一致)
-			N1: strPtr("#ededf0"), // 主标题与文本 (与 Mermaid dark 文字一致)
-			N2: strPtr("#9ca3af"), // 连线标签与辅助文本
-			N7: strPtr("#18191e"), // 画布底
+			B4: strPtr("#2d3139"),     // 容器边框 (Subtle Slate)
+			B5: strPtr("#14161a"),     // 内部条目背景 (沉底微透)
+			B6: strPtr("#1c1e24"),     // 节点主卡片底色 (Mermaid dark)
+			N1: strPtr("#ededf0"),     // 主文本 (白灰)
+			N2: strPtr("#9ca3af"),     // 次要/连线标签 (淡灰)
+			N7: strPtr("transparent"), // 画布全透，无缝贴合 DocLens 卡片
 		}
 	} else {
 		themeOverrides = &d2target.ThemeOverrides{
-			B1: strPtr("#3b82f6"), // 核心边框 / 连线主色 (Tailwind Blue)
-			B2: strPtr("#64748b"), // 连线 / 次要边框 (Slate 500)
+			B1: strPtr("#3b82f6"),     // 核心高亮色 / 箭头色 (Tailwind Blue)
+			B2: strPtr("#64748b"),     // 连线色 (Slate 500)
 			B3: strPtr("#94a3b8"),
-			B4: strPtr("#cbd5e1"), // 分组容器边框 (Slate 300)
-			B5: strPtr("#f1f5f9"), // 分组容器底色 (Slate 100)
-			B6: strPtr("#f8fafc"), // 节点主底色 (Slate 50，与 Mermaid light 一致)
-			N1: strPtr("#0f172a"), // 主标题与文本 (Slate 900)
-			N2: strPtr("#64748b"), // 连线标签与辅助文本 (Slate 500)
-			N7: strPtr("#ffffff"), // 纯白底
+			B4: strPtr("#e2e8f0"),     // 容器边框 (Subtle Slate 200)
+			B5: strPtr("#ffffff"),     // 内部条目背景 (纯净白底)
+			B6: strPtr("#f8fafc"),     // 节点主卡片底色 (Slate 50)
+			N1: strPtr("#0f172a"),     // 主文本 (Slate 900)
+			N2: strPtr("#64748b"),     // 次要/连线标签 (Slate 500)
+			N7: strPtr("transparent"), // 画布全透，无缝贴合 DocLens 卡片
 		}
 	}
 
