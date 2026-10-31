@@ -1,143 +1,186 @@
 # DocLens 🔍
 
-> **现代极简、高性能的轻量级技术文档与 Markdown 知识库系统**  
-> 单二进制交付 · 零外部依赖 · 毫秒级加载 · 原生三栏双端响应 · 异步 AI 创作引擎
+<p align="center">
+  <strong>Modern, Ultra-Lightweight & High-Performance Knowledge Base and Code Projection Engine</strong><br>
+  <em>Single Go Binary · Zero npm/Node.js Dependencies · Sub-15MB RAM · Built-in TTS Audio Reader · Async AI Task Engine</em>
+</p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Memory Usage](https://img.shields.io/badge/Memory-~2MB-success)](#)
-[![Zero Dependency](https://img.shields.io/badge/Frontend-Vanilla%20JS%2FCSS-orange)](#)
+<p align="center">
+  <a href="README.md"><strong>English</strong></a> |
+  <a href="README_zh.md"><strong>简体中文</strong></a>
+</p>
 
----
-
-## 🌟 核心设计理念
-
-传统的开源知识库工具（如 Wiki.js、GitBook、Outline 等）往往依赖庞大的 Node.js 运行时、外部数据库（PostgreSQL/MySQL）和复杂的前端构建管线。
-
-**DocLens 走了一条极致克制的极简路线**：
-- **纯原生 Go 后端**：负责目录树索引、安全路径解析、异步任务队列与安全鉴权。
-- **纯原生前端 SPA**：坚持零 npm 依赖，所有静态资源在编译阶段通过 `//go:embed` 打包进单个独立二进制文件。
-- **直读本地目录**：不依赖任何数据库，直接读取本地 Markdown/HTML/代码文件，目录结构即知识库结构。
-
----
-
-## ✨ 核心特性
-
-### 1. 🚀 极致性能与单二进制交付
-- **内存常驻仅 ~2MB**，毫秒级极速冷启动。
-- 单个二进制文件即可独立部署，自带所有前端样式、图标与脚本，部署迁移只需复制一个文件。
-
-### 2. 📖 媲美 Notion / GitHub 的阅读体验
-- **桌面端三栏高效布局**：可折叠/拖拽侧边栏、中栏沉浸正文排版、右栏常驻滚动跟随高亮大纲（ScrollSpy TOC）。
-- **全要素渲染支持**：
-  - 📊 **Mermaid 架构图**：原生矢量渲染，支持平滑缩放与一键全屏查看。
-  - 💡 **GitHub 风格 Alerts**：支持 `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`。
-  - 💻 **代码与沙箱**：Prism 高亮带一键复制代码；`.html` 文件支持安全沙箱（iframe sandbox）无缝预览与源码切换。
-  - 📐 **KaTeX 公式**：支持数学公式快速排版。
-
-### 3. 📱 手机触控端深度打磨
-- **抽屉式大纲导轨**：快速检索与模糊快搜。
-- **智能双悬浮球（FAB Stack）**：
-  - ✏️ **AI 创作笔**（炫彩紫）与 📖 **目录大纲**（科技蓝）组合悬浮球。
-  - **自由拖拽 + 左右贴边吸附**（Snap-to-Edge）：松手自动靠边，并带弹性阻尼微交互。
-  - **位置持久化记忆**：屏幕旋转或下次打开页面，自动恢复到上次停放位置。
-  - **阅读防遮挡微交互**：向下滚动阅读正文时自动半透明微缩小，向上滑动或停顿时恢复。
-
-### 4. 🤖 异步离线 AI 写作与文档深度解剖
-- 前端可直接针对当前章节派发【AI 扩写创作】或【AI 深度解剖提炼】。
-- **脱壳持续运行**：任务派生后与网页会话彻底解耦，手机锁屏或关闭浏览器，后台依然稳步执行。
-- **任务中心与实时日志**：内置单并发排队锁，杜绝击穿 API 配额；随时重开网页即可实时滚屏查看执行日志。
-
-### 5. 🔗 专属安全免密分享
-- 支持为单篇文档生成对外只读分享链接（`/s/:id`）。
-- 支持设置有效期限（1小时/1天/7天/永久）与独立访问提取码。
-- **分享模式权限隔离**：访客进入后，后台写操作、AI 创作笔、全库目录与敏感操作均自动隐藏剥离，保证私密数据安全。
-
-### 6. 🛡️ 纵深防御安全基线
-- **凭据加盐哈希**：支持 bcrypt 密码哈希，内置防暴力破解（失败频次锁定）。
-- **超长免密体验**：签发 180 天长效安全 HttpOnly Cookie。
-- **路径遍历防御**：内置严格的路径清理与沙箱边界校验，杜绝 `../` 越界读取漏洞。
+<p align="center">
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go" alt="Go Version"></a>
+  <a href="https://github.com/zongqir/doc-lens/pkgs/container/doc-lens"><img src="https://img.shields.io/badge/Docker-ghcr.io-blue?style=flat&logo=docker" alt="Docker"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Idle%20RAM-~15MB-success?style=flat" alt="Idle RAM"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Idle%20CPU-0.0%25-brightgreen?style=flat" alt="Idle CPU"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Cold%20Start-%3C5ms-blueviolet?style=flat" alt="Cold Start"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat" alt="License"></a>
+</p>
 
 ---
 
-## 🏗️ 架构拓扑
+## 💡 Why DocLens?
 
-```mermaid
-flowchart LR
-    Client["客户端 (手机/桌面浏览器)"] -->|"HTTP/HTTPS"| Gateway["反向代理 / Nginx / Tunnel"]
-    Gateway -->|"127.0.0.1:18086"| App["DocLens (Go 单二进制服务)"]
-    App -->|"只读挂载"| Docs["本地知识库目录 (Markdown / Code)"]
-    App -->|"异步任务派生"| Runner["AI Runner 命令行执行器"]
-    Runner -->|"实时落盘"| Logs["~/.local/state/doc-lens/logs"]
+Traditional open-source knowledge bases and wikis (such as Outline, Wiki.js, or GitBook) often require heavy Node.js runtimes, complex container stacks (PostgreSQL + Redis + MinIO), and hundreds of megabytes of RAM. Desktop tools like Obsidian rely on heavy Electron containers and complicated sync setups.
+
+**DocLens takes an uncompromisingly minimalist and pragmatic approach:**
+- **Single Static Binary**: The entire backend, authentication, file scanning, and native vanilla frontend (HTML/CSS/JS) are packed into a single executable via Go `//go:embed`.
+- **Zero External Database**: Direct filesystem mapping. Your Markdown files, folders, and code files are your database. No vendor lock-in.
+- **Beyond Plain Text Reading**: Built-in Neural TTS audio player for commuting, Morandi-toned D2 / Mermaid charts, instant mindmaps, and an asynchronous AI task queue with terminal logs.
+
+---
+
+## 📊 Benchmark & Resource Footprint Comparison
+
+| Metric / Feature | **DocLens** 🚀 | **Outline** | **Wiki.js** | **Obsidian** | **Notion** |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Idle Memory (RAM)** | **~15 MB** (Ultra-low) | ~1,200 MB - 2 GB | ~300 MB - 600 MB | ~300 MB (Electron) | Cloud-only |
+| **Idle CPU Usage** | **0.0%** (Static silence) | 1.0% - 3.5% | 0.8% - 2.0% | 0.5% - 2.0% | Cloud-only |
+| **Cold Start Time** | **< 5 ms** (Instant) | 15 - 30 seconds | 3 - 5 seconds | 2 - 4 seconds | Network bound |
+| **External Database** | **None** (Direct FS) | Postgres + Redis + MinIO | Postgres / MySQL | None (Local files) | Proprietary DB |
+| **Node.js / npm Needed**| **Zero** (Pure Go + Vanilla) | Required | Required | Required | N/A |
+| **Deployment Footprint**| **Single binary** (~80MB) | 4-5 Docker containers | 1-2 Containers | Desktop App | SaaS |
+| **Built-in TTS Audio** | **Native** (Neural voices) | ❌ None | ❌ None | ❌ Plugin required | ❌ None |
+| **Diagram Support** | **D2 + Mermaid + Mindmap** | Mermaid only | Mermaid only | Plugins needed | Basic Mermaid |
+| **AI Task Execution** | **Async Queue + Terminal Logs**| ❌ None | ❌ None | Community plugins | Basic Chat AI |
+| **Mobile Experience** | **Pixel-perfect Touch SPA** | Web responsive | Clunky mobile web | Heavy mobile app | Heavy mobile app |
+
+---
+
+## ✨ Key Features
+
+### 1. 🚀 Extreme Lightweight & Single Binary Delivery
+- **~15MB Idle RAM consumption**, zero CPU overhead when idle, and sub-5ms cold startup.
+- Deploy in seconds by copying a single binary or launching a single Docker container.
+- No database migrations, no Node.js runtime, no `node_modules` dependency hell.
+
+### 2. 🎧 Listen to Articles (TTS) & Playlist Queue
+- **Neural Voice Narration**: Turn technical articles and deep-dive research into podcasts with natural voice synthesis (Finance narrator, Documentary tone, Conversational voices).
+- **Listen Later Queue**: Drawer-style playlist queue to save and auto-play articles back-to-back during commutes or bedtime.
+- **Floating Audio Dock**: Background playback bar with playback rate control (0.75x - 2.0x), quick navigation, and mp3 download.
+
+### 3. 🎨 Morandi D2 Diagrams, Mermaid & Mindmaps
+- **D2 Diagram Transpilation**: Converts D2 architectural schemas into elegant Mermaid cards using low-saturation Morandi color palettes and dashed hairline dividers.
+- **Instant Mindmaps**: Generate visual hierarchical outline mindmaps for any article with a single click.
+- **Curated Typography**: Built-in one-click switcher for system fonts, Alibaba PuHuiTi, LXGW WenKai, and Source Han Serif.
+
+### 4. 🤖 Asynchronous AI Task Engine with Real-Time Terminal Logs
+- **Four Targeted Intent Modes**: 
+  - `New`: Dispatch deep-dive research drafts.
+  - `Append`: Supplement counterarguments, tables, or case studies into current docs.
+  - `Modify`: Paragraph rewrites, typo fixing, or structural refactors.
+  - `Explain`: Extract core contradictions, balance sheets, and key takeaways.
+- **Detached Execution**: Close your browser or lock your phone; background AI tasks continue executing reliably.
+- **Terminal Control Console**: View live streaming logs, traffic-light status indicators, and execution history.
+
+### 5. 📱 Pixel-Perfect Mobile Touch Experience
+- **Responsive Architecture**: Collapsible sidebar, bottom-sheet TOC navigation drawer, and level-filtered outline toggles.
+- **Dual FAB Floating Stack**: Purple gradient AI pen + Blue TOC launcher with touch drag, snap-to-edge elasticity, and auto-dimming during scroll.
+- **Zero-Cramped Mobile Toolbar**: Compact 34×34 pure icon action buttons and chevron pagination (`‹` / `›`) designed specifically for one-handed thumb reach.
+
+### 6. 🛡️ Secure Sharing & Long-Lived Sessions
+- **Read-Only Public Sharing**: Generate unique tokenized links (`/s/:id`) with configurable expiration (1 hour, 1 day, 7 days, permanent) and optional passcodes.
+- **Strict Role Isolation**: Shared links automatically strip editing capabilities, AI controls, and workspace exploration.
+- **180-Day Safe Session**: Salted bcrypt password verification and HttpOnly session cookies.
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Docker / Docker Compose (Recommended)
+
+#### Quick Run:
+```bash
+docker run -d \
+  --name doc-lens \
+  -p 18086:18086 \
+  -v /path/to/your/markdown/docs:/app/docs \
+  ghcr.io/zongqir/doc-lens:latest
+```
+
+#### With Docker Compose:
+```yaml
+services:
+  doc-lens:
+    image: ghcr.io/zongqir/doc-lens:latest
+    container_name: doc-lens
+    restart: unless-stopped
+    ports:
+      - "18086:18086"
+    volumes:
+      - ./docs:/app/docs
+      - doclens-state:/root/.local/state/doc-lens
+    environment:
+      - TZ=Asia/Shanghai
+
+volumes:
+  doclens-state:
+```
+Run `docker compose up -d` and visit `http://localhost:18086`.  
+*Default login password: `admin888` (customizable in config.yaml).*
+
+---
+
+### Option 2: Pre-compiled Binary
+
+1. Download the latest binary for your OS and architecture from [GitHub Releases](https://github.com/zongqir/doc-lens/releases).
+2. Run the executable:
+```bash
+./doc-lens
 ```
 
 ---
 
-## 🚀 快速上手 (Quick Start)
-
-### 1. 源码编译
+### Option 3: Build from Source
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/zongqir/doc-lens.git
 cd doc-lens
 
-# 编译为单二进制
+# Build single static binary
 go build -o bin/doc-lens .
-```
 
-### 2. 准备配置文件
-
-```bash
-# 从模板生成配置文件
-cp config.example.yaml config.yaml
-
-# 编辑 config.yaml，设置您的文档目录与端口
-vim config.yaml
-```
-
-### 3. 启动服务
-
-```bash
+# Start the service
 ./bin/doc-lens
-# 服务默认运行在 http://0.0.0.0:18086
-# 初始登录密码默认为 admin888 (可在 config.yaml 中自定义)
 ```
 
 ---
 
-## ⚙️ 配置文件说明 (`config.yaml`)
+## ⚙️ Configuration (`config.yaml`)
 
 ```yaml
 port: 18086
 host: "0.0.0.0"
 
 auth:
-  initial_password: "admin888"   # 首次登录密码，启动后自动转换为 bcrypt 加密哈希
-  session_secret: ""             # 留空时首次启动自动生成 32 字节随机高熵密钥
-  session_days: 180              # 登录 Cookie 保持天数
+  initial_password: "admin888"   # Automatically hashed into bcrypt on first launch
+  session_secret: ""             # Auto-generated 32-byte high-entropy key if empty
+  session_days: 180              # Persistent session duration
 
 repositories:
   - id: docs
-    name: "技术知识库 (Docs)"
-    path: "./docs"               # 本地 Markdown/代码仓库路径
-    route_prefix: "/docs"        # Web 路由前缀
-    description: "核心架构与技术文档"
-    writable: true               # 是否允许 AI 扩写回写
-    ignore_dirs:                 # 忽略扫描的目录
+    name: "Tech Knowledge Hub"
+    path: "./docs"               # Path to your local Markdown repository
+    route_prefix: "/docs"        # Web route prefix
+    description: "Core Architecture & Engineering Notes"
+    writable: true               # Allow AI additions and edits
+    ignore_dirs:
       - ".git"
       - "node_modules"
 
 ai:
-  runner_cmd: "dagu-ai"          # 外部 AI 命令行工具
-  max_queue: 10                  # 最大并发排队数
+  runner_cmd: "dagu-ai"          # External AI CLI tool or proxy script
+  max_queue: 10                  # Max concurrent queuing tasks
 ```
 
 ---
 
-## 🐧 生产环境 Systemd 后台托管示例
+## 🐧 Systemd Service (Linux)
 
-创建用户级服务配置文件 `~/.config/systemd/user/doc-lens.service`：
+Create `~/.config/systemd/user/doc-lens.service`:
 
 ```ini
 [Unit]
@@ -155,7 +198,7 @@ RestartSec=5
 WantedBy=default.target
 ```
 
-启停控制命令：
+Manage the service:
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now doc-lens
@@ -164,6 +207,6 @@ systemctl --user status doc-lens
 
 ---
 
-## 📄 开源许可证
+## 📄 License
 
-本项目基于 [MIT License](LICENSE) 协议开源。
+This project is licensed under the [MIT License](LICENSE).

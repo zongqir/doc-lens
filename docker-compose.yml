@@ -1,0 +1,21 @@
+services:
+  doc-lens:
+    image: ghcr.io/zongqir/doc-lens:latest
+    # Or build locally:
+    # build: .
+    container_name: doc-lens
+    restart: unless-stopped
+    ports:
+      - "18086:18086"
+    volumes:
+      # Mount your local Markdown knowledge base directory to /app/docs
+      - ./docs:/app/docs
+      # Optional: Mount your customized config.yaml
+      # - ./config.yaml:/app/config.yaml
+      # Persistent state directory for task logs, shares, and session tokens
+      - doclens-state:/root/.local/state/doc-lens
+    environment:
+      - TZ=Asia/Shanghai
+
+volumes:
+  doclens-state:
