@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261031_1200">
+  <link rel="stylesheet" href="/css/style.css?v=20261031_1230">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -17,7 +17,7 @@
   <!-- 顶部导航栏 (Ultra Modern Glassmorphism Header) -->
   <header class="header">
     <div class="header-left">
-      <button class="btn btn-icon-only" id="menuBtn" aria-label="切换目录树" style="display:none;">
+      <button class="btn btn-icon-only menu-toggle-btn" id="menuBtn" aria-label="切换目录树" title="切换目录树 (Alt+B)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
       <a href="/" class="brand-title">
@@ -133,6 +133,9 @@
 
     <!-- 左侧文档资源管理器 -->
     <aside class="sidebar" id="sidebar">
+      <!-- 左右拖拽伸缩宽度导轨把手 -->
+      <div class="sidebar-resizer" id="sidebarResizer" title="按住左右拖拽伸缩宽度，双击恢复默认宽度"></div>
+
       <div class="sidebar-header">
         <!-- 现代化知识库工作区切换器 (动态自定义下拉框，省去独立旧式下拉行) -->
         <div class="repo-dropdown-container" id="repoDropdownContainer">
@@ -143,7 +146,15 @@
             <span class="repo-switcher-title" id="currentRepoName">知识库目录</span>
             <svg class="repo-switcher-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
-          <button class="btn btn-icon-only close-sidebar-btn" id="closeSidebarBtn" title="关闭目录">✕</button>
+          <div class="sidebar-header-actions">
+            <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="收起目录树 (Alt+B)" aria-label="收起目录树">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="11 17 6 12 11 7"></polyline>
+                <polyline points="18 17 13 12 18 7"></polyline>
+              </svg>
+            </button>
+            <button class="btn btn-icon-only close-sidebar-btn" id="closeSidebarBtn" title="关闭目录">✕</button>
+          </div>
 
           <!-- 保持兼容性的隐藏 select 元素 -->
           <select class="custom-select" id="repoSelect" aria-label="选择挂载仓库" style="display:none;"></select>
@@ -271,6 +282,15 @@
         </div>
       </div>
     </aside>
+
+    <!-- 电脑端左侧目录树收起后的悬浮唤起按钮 (Desktop Sidebar Expand Button) -->
+    <button type="button" class="desktop-sidebar-float-btn" id="desktopSidebarFloatBtn" title="展开目录树 (Alt+B)" aria-label="展开目录树">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="13 17 18 12 13 7"></polyline>
+        <polyline points="6 17 11 12 6 7"></polyline>
+      </svg>
+      <span>目录树</span>
+    </button>
 
     <!-- 中间正文阅读区 -->
     <section class="content-area" id="contentArea">

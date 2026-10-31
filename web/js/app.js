@@ -148,6 +148,7 @@
     initMermaidLightboxEvents();
     initTocLevelControl();
     initDesktopToc();
+    initDesktopSidebar();
     bindGlobalKeybindings();
     initAudioPlayer();
     initFabDragAndPosition();
@@ -247,6 +248,9 @@
     el.sidebar = document.getElementById('sidebar');
     el.sidebarOverlay = document.getElementById('sidebarOverlay');
     el.closeSidebarBtn = document.getElementById('closeSidebarBtn');
+    el.sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+    el.desktopSidebarFloatBtn = document.getElementById('desktopSidebarFloatBtn');
+    el.sidebarResizer = document.getElementById('sidebarResizer');
     el.repoSelect = document.getElementById('repoSelect');
     el.searchInput = document.getElementById('searchInput');
     el.clearSearchBtn = document.getElementById('clearSearchBtn');
@@ -493,9 +497,22 @@
       el.sharePasscodeForm.addEventListener('submit', handleGuestPasscodeSubmit);
     }
 
-    // 事件绑定
     if (el.themeBtn) el.themeBtn.addEventListener('click', toggleTheme);
-    if (el.menuBtn) el.menuBtn.addEventListener('click', toggleMobileSidebar);
+    if (el.menuBtn) {
+      el.menuBtn.addEventListener('click', () => {
+        if (window.innerWidth <= 900) {
+          toggleMobileSidebar();
+        } else {
+          toggleDesktopSidebar();
+        }
+      });
+    }
+    if (el.sidebarCollapseBtn) {
+      el.sidebarCollapseBtn.addEventListener('click', () => toggleDesktopSidebar(true));
+    }
+    if (el.desktopSidebarFloatBtn) {
+      el.desktopSidebarFloatBtn.addEventListener('click', () => toggleDesktopSidebar(false));
+    }
     if (el.sidebarOverlay) el.sidebarOverlay.addEventListener('click', closeMobileSidebar);
     if (el.closeSidebarBtn) el.closeSidebarBtn.addEventListener('click', closeMobileSidebar);
 
@@ -1050,6 +1067,30 @@
         if (activeTag === 'input' || activeTag === 'textarea') return;
         e.preventDefault();
         toggleDesktopToc();
+      }
+      if (e.altKey && (e.key === 'b' || e.key === 'B' || e.key === 's' || e.key === 'S')) {
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea') return;
+        e.preventDefault();
+        if (window.innerWidth <= 900) {
+          toggleMobileSidebar();
+        } else {
+          toggleDesktopSidebar();
+        }
+      }
+      if (e.altKey && (e.key === 'z' || e.key === 'Z')) {
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea') return;
+        e.preventDefault();
+        const leftCollapsed = el.sidebar && el.sidebar.classList.contains('is-collapsed');
+        const rightCollapsed = el.tocSidebar && el.tocSidebar.classList.contains('is-collapsed');
+        if (!leftCollapsed || !rightCollapsed) {
+          toggleDesktopSidebar(true);
+          toggleDesktopToc(true);
+        } else {
+          toggleDesktopSidebar(false);
+          toggleDesktopToc(false);
+        }
       }
     });
   }
@@ -7196,6 +7237,108 @@
       document.documentElement.style.setProperty('--toc-width', '280px');
       try {
         localStorage.removeItem('doc_lens_toc_width');
+      } catch (e) {}
+    });
+  }
+
+  // ==========================================================================
+  // 电脑端左侧目录树 (Sidebar) 伸缩折叠与动态调宽控制器
+  // 支持：1. 一键收起与悬浮唤起展开；2. 拖拽右边框动态伸缩调宽；3. 双击恢复默认；4. 偏好记忆；5. Alt+B / Alt+S 快捷键
+  // ==========================================================================
+  function initDesktopSidebar() {
+    // 1. 恢复记忆的宽度
+    try {
+      const savedWidth = localStorage.getItem('doc_lens_sidebar_width');
+      if (savedWidth) {
+        const w = parseInt(savedWidth, 10);
+        if (w >= 180 && w <= 540) {
+          document.documentElement.style.setProperty('--sidebar-width', `${w}px`);
+        }
+      }
+    } catch (e) {}
+
+    // 2. 恢复折叠状态（默认展开）
+    try {
+      const savedCollapsed = localStorage.getItem('doc_lens_sidebar_collapsed');
+      if (savedCollapsed === '1') {
+        toggleDesktopSidebar(true);
+      }
+    } catch (e) {}
+
+    initSidebarResizer();
+  }
+
+  function toggleDesktopSidebar(forceCollapse) {
+    if (!el.sidebar) return;
+    const isCurrentlyCollapsed = el.sidebar.classList.contains('is-collapsed');
+    const shouldCollapse = typeof forceCollapse === 'boolean' ? forceCollapse : !isCurrentlyCollapsed;
+
+    if (shouldCollapse) {
+      el.sidebar.classList.add('is-collapsed');
+      document.body.classList.add('sidebar-collapsed');
+      try { localStorage.setItem('doc_lens_sidebar_collapsed', '1'); } catch (e) {}
+    } else {
+      el.sidebar.classList.remove('is-collapsed');
+      document.body.classList.remove('sidebar-collapsed');
+      try { localStorage.setItem('doc_lens_sidebar_collapsed', '0'); } catch (e) {}
+    }
+  }
+
+  function initSidebarResizer() {
+    if (!el.sidebarResizer || !el.sidebar) return;
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    el.sidebarResizer.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // 仅左键拖拽
+      if (el.sidebar.classList.contains('is-collapsed')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startWidth = el.sidebar.getBoundingClientRect().width;
+      document.body.classList.add('is-resizing-sidebar');
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      // 左侧栏：鼠标往右移动(clientX 增大) -> 宽度增加
+      const delta = e.clientX - startX;
+      let newWidth = Math.round(startWidth + delta);
+
+      // 如果拖动过小，先不更新样式（松开时直接折叠）
+      if (newWidth < 140) {
+        return;
+      }
+      newWidth = Math.max(180, Math.min(540, newWidth));
+      document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.classList.remove('is-resizing-sidebar');
+
+      const delta = e.clientX - startX;
+      const finalWidth = startWidth + delta;
+      if (finalWidth < 140) {
+        toggleDesktopSidebar(true);
+        // 恢复合理基准宽度，下次展开不至于过小
+        const resetW = startWidth >= 180 ? startWidth : 290;
+        document.documentElement.style.setProperty('--sidebar-width', `${resetW}px`);
+      } else {
+        const currentW = Math.max(180, Math.min(540, Math.round(finalWidth)));
+        try {
+          localStorage.setItem('doc_lens_sidebar_width', currentW.toString());
+        } catch (e) {}
+      }
+    });
+
+    // 双击恢复默认宽度 290px
+    el.sidebarResizer.addEventListener('dblclick', () => {
+      document.documentElement.style.setProperty('--sidebar-width', '290px');
+      try {
+        localStorage.removeItem('doc_lens_sidebar_width');
       } catch (e) {}
     });
   }
