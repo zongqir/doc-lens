@@ -7444,10 +7444,12 @@ body.modal-open {
 .share-url-container {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .share-url-input {
   flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 13px;
   padding: 9px 12px;
@@ -7458,17 +7460,63 @@ body.modal-open {
   user-select: all;
 }
 
+.share-url-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .btn-copy-share-main {
-  padding: 9px 18px;
+  padding: 9px 14px;
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   border-radius: var(--radius-md);
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+.btn-copy-share-safe {
+  padding: 9px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.btn-copy-share-safe:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.btn-copy-passcode {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-copy-passcode:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 /* 在卡片内部直接微调有效期与密码，去除生硬复杂的下半部分表单 */
@@ -7638,11 +7686,21 @@ body.modal-open {
 
   .share-url-container {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .btn-copy-share-main {
+  .share-url-actions {
+    display: flex;
+    gap: 8px;
     width: 100%;
-    padding: 10px;
+  }
+
+  .btn-copy-share-main,
+  .btn-copy-share-safe {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 13px;
+    justify-content: center;
   }
 
   .share-inline-controls {
