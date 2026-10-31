@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +28,8 @@ type d2CacheEntry struct {
 }
 
 type D2Engine struct {
-	ruler      *textmeasure.Ruler
+	rulerPool  sync.Pool
+	compileMu  sync.Mutex
 	mu         sync.RWMutex
 	cache      map[string]d2CacheEntry
 	cacheOrder []string // LRU 队列 (严格上限 100 张)
@@ -41,16 +43,24 @@ var (
 func GetD2Engine() (*D2Engine, error) {
 	var initErr error
 	d2InitOnce.Do(func() {
-		ruler, err := textmeasure.NewRuler()
+		initialRuler, err := textmeasure.NewRuler()
 		if err != nil {
 			initErr = fmt.Errorf("failed to init D2 text ruler: %w", err)
 			return
 		}
-		globalD2Engine = &D2Engine{
-			ruler:      ruler,
+		engine := &D2Engine{
 			cache:      make(map[string]d2CacheEntry),
 			cacheOrder: make([]string, 0, maxD2CacheSize),
 		}
+		engine.rulerPool.New = func() any {
+			r, err := textmeasure.NewRuler()
+			if err != nil {
+				return nil
+			}
+			return r
+		}
+		engine.rulerPool.Put(initialRuler)
+		globalD2Engine = engine
 	})
 	if initErr != nil {
 		return nil, initErr
@@ -62,7 +72,8 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (string, error) {
+func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (resSVG string, retErr error) {
+	code = strings.TrimSpace(code)
 	if len(code) == 0 {
 		return "", fmt.Errorf("empty D2 code")
 	}
@@ -81,15 +92,34 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (string
 	}
 	e.mu.RUnlock()
 
-	// 3. 安全超时限制 (防止死循环或极端异常语法)
-	calcCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	// 3. 防御性 panic 捕获，避免极端畸形语法或底层指针崩溃中断 HTTP 连接
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("D2 内部渲染异常: %v", r)
+		}
+	}()
+
+	// 4. 从 Ruler Pool 中获取专属 Ruler，用毕放回
+	rulerItem := e.rulerPool.Get()
+	if rulerItem == nil {
+		var err error
+		rulerItem, err = textmeasure.NewRuler()
+		if err != nil {
+			return "", fmt.Errorf("failed to create D2 ruler: %w", err)
+		}
+	}
+	ruler := rulerItem.(*textmeasure.Ruler)
+	defer e.rulerPool.Put(ruler)
+
+	// 5. 安全超时限制 (防止死循环或极端异常语法)
+	calcCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
 	// 静默 D2 内部调试日志
 	calcCtx = d2log.With(calcCtx, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	opts := &d2lib.CompileOptions{
-		Ruler: e.ruler,
+		Ruler: ruler,
 		LayoutResolver: func(engine string) (d2graph.LayoutGraph, error) {
 			return d2dagrelayout.DefaultLayout, nil
 		},
@@ -134,7 +164,10 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (string
 		ThemeOverrides: themeOverrides,
 	}
 
+	// 加锁执行 Compile 以防 D2 内部全局状态竞争
+	e.compileMu.Lock()
 	diagram, _, err := d2lib.Compile(calcCtx, code, opts, renderOpts)
+	e.compileMu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("D2 编译解析失败: %w", err)
 	}
@@ -146,7 +179,7 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool) (string
 
 	svg := string(svgBytes)
 
-	// 4. 存入 LRU 缓存，容量严格限制为 100 张
+	// 6. 存入 LRU 缓存，容量严格限制为 100 张
 	e.mu.Lock()
 	if _, exists := e.cache[cacheKey]; !exists {
 		if len(e.cacheOrder) >= maxD2CacheSize {

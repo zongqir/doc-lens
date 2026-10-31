@@ -7101,8 +7101,12 @@
   async function renderSingleD2Chart(wrapper) {
     if (wrapper.getAttribute('data-rendered') === 'true') return;
     const chartKey = wrapper.getAttribute('data-chart-key');
-    const rawCode = d2Store.get(chartKey);
-    if (!rawCode) return;
+    const rawCode = (d2Store.get(chartKey) || '').trim();
+    if (!rawCode) {
+      wrapper.setAttribute('data-rendered', 'true');
+      wrapper.innerHTML = '';
+      return;
+    }
 
     const isDark = state.theme === 'dark';
 
@@ -7115,6 +7119,10 @@
           dark: isDark
         })
       });
+
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      }
 
       const res = await resp.json();
       if (!res.success || !res.svg) {

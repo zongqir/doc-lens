@@ -197,12 +197,30 @@ func (a *App) routes() http.Handler {
 	return a.loggerMiddleware(a.gzipMiddleware(a.corsAndSecurityMiddleware(a.apiRateLimitMiddleware(mux))))
 }
 
+type statusLoggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (s *statusLoggingResponseWriter) WriteHeader(code int) {
+	s.statusCode = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusLoggingResponseWriter) Write(b []byte) (int, error) {
+	if s.statusCode == 0 {
+		s.statusCode = http.StatusOK
+	}
+	return s.ResponseWriter.Write(b)
+}
+
 func (a *App) loggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
+		sw := &statusLoggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(sw, r)
 		duration := time.Since(start)
-		log.Printf("[REQ] %s %s from %s took %v", r.Method, r.URL.Path, r.RemoteAddr, duration)
+		log.Printf("[REQ] %d %s %s from %s took %v", sw.statusCode, r.Method, r.URL.RequestURI(), r.RemoteAddr, duration)
 	})
 }
 
@@ -1346,21 +1364,21 @@ func (a *App) handleDiagramD2(w http.ResponseWriter, r *http.Request) {
 	var req diagramD2Request
 	r.Body = http.MaxBytesReader(w, r.Body, 512*1024)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "invalid json request: " + err.Error()})
 		return
 	}
 
 	req.Code = strings.TrimSpace(req.Code)
 	if req.Code == "" {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "empty D2 diagram code"})
 		return
 	}
 
 	engine, err := GetD2Engine()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: "D2 engine init failed: " + err.Error()})
 		return
 	}
