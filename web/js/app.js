@@ -62,6 +62,9 @@
     isShareMode: false,
     shareId: null,
     sharePasscode: '',
+    sharedActiveSubpath: '',
+    sharedFolderTree: null,
+    isInternalHashChange: false,
     currentShareDoc: null,
     allShares: [],
     sharesFilter: { status: 'all', repo: '', search: '' }
@@ -153,19 +156,32 @@
     renderFavorites();
 
     window.addEventListener('popstate', () => {
+      if (state.isInternalHashChange) return;
       const sm = window.location.pathname.match(/^\/(s|share)\/([a-zA-Z0-9_-]+)\/?$/);
       if (sm) {
+        const targetShareId = sm[2];
+        const hashSub = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+        // 如果已处于该专栏分享中，仅仅是 hash (subpath) 变动（如浏览器前进/后退），只平滑切章节
+        if (state.isShareMode && state.shareId === targetShareId && state.currentShareDoc && state.currentShareDoc.is_folder) {
+          if (hashSub && hashSub !== state.sharedActiveSubpath) {
+            switchSharedChapter(hashSub);
+            return;
+          }
+        }
         state.isShareMode = true;
-        state.shareId = sm[2];
+        state.shareId = targetShareId;
         document.body.classList.add('is-share-mode');
         if (el.sharedBadge) el.sharedBadge.style.display = 'inline-flex';
         if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'inline-flex';
-        loadSharedDoc(sm[2]);
+        const effectivePass = state.sharePasscode || getStoredSharePasscode(targetShareId) || '';
+        loadSharedDoc(targetShareId, effectivePass, hashSub);
       } else {
         if (state.isShareMode) {
           state.isShareMode = false;
           state.shareId = null;
-          document.body.classList.remove('is-share-mode');
+          state.sharedFolderTree = null;
+          state.sharedActiveSubpath = '';
+          document.body.classList.remove('is-share-mode', 'is-share-folder');
           if (el.sharedBadge) el.sharedBadge.style.display = 'none';
           if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'none';
         }
@@ -184,6 +200,7 @@
       if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'inline-flex';
       const initSubpath = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
       window.addEventListener('hashchange', () => {
+        if (state.isInternalHashChange) return;
         if (state.isShareMode && state.currentShareDoc && state.currentShareDoc.is_folder) {
           const newSub = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
           if (newSub && newSub !== state.sharedActiveSubpath) {
@@ -191,7 +208,8 @@
           }
         }
       });
-      await loadSharedDoc(state.shareId, '', initSubpath);
+      const effectivePass = state.sharePasscode || getStoredSharePasscode(state.shareId) || '';
+      await loadSharedDoc(state.shareId, effectivePass, initSubpath);
       return;
     }
 
@@ -254,6 +272,7 @@
     el.headerFileTree = document.getElementById('headerFileTree');
 
     el.contentArea = document.getElementById('contentArea');
+    el.articleContainer = document.getElementById('articleContainer') || document.querySelector('.article-container');
     el.articleHeader = document.getElementById('articleHeader');
     el.articlePath = document.getElementById('articlePath');
     el.articleTypePill = document.getElementById('articleTypePill');
@@ -262,6 +281,7 @@
     el.articleBody = document.getElementById('articleBody');
     el.docPagination = document.getElementById('docPagination');
 
+    el.tocSidebar = document.getElementById('tocSidebar');
     el.tocList = document.getElementById('tocList');
     el.mobileTocList = document.getElementById('mobileTocList');
     el.tocLevelCtrl = document.getElementById('tocLevelCtrl');
@@ -1925,6 +1945,10 @@
   function onSearchInput(e) {
     const q = e.target.value.trim();
     if (el.clearSearchBtn) el.clearSearchBtn.style.display = q ? 'flex' : 'none';
+    if (state.isShareMode) {
+      filterSharedTree(q);
+      return;
+    }
     if (q && state.activeSidebarTab !== 'tree') {
       switchSidebarTab('tree');
     }
@@ -1938,6 +1962,10 @@
   function clearSearch() {
     el.searchInput.value = '';
     if (el.clearSearchBtn) el.clearSearchBtn.style.display = 'none';
+    if (state.isShareMode) {
+      filterSharedTree('');
+      return;
+    }
     filterFileTree('');
   }
 
@@ -9348,20 +9376,75 @@
     openModal(el.sharesHubModal);
   }
 
+  function getStoredSharePasscode(shareId) {
+    if (!shareId) return '';
+    try {
+      return sessionStorage.getItem('doc_lens_share_pass_' + shareId) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function setStoredSharePasscode(shareId, code) {
+    if (!shareId) return;
+    try {
+      if (code) {
+        sessionStorage.setItem('doc_lens_share_pass_' + shareId, code);
+      } else {
+        sessionStorage.removeItem('doc_lens_share_pass_' + shareId);
+      }
+    } catch (e) {}
+  }
+
+  function filterSharedTree(query = '') {
+    if (!state.sharedFolderTree || !el.fileTree) return;
+    const q = (query || '').toLowerCase().trim();
+    if (!q) {
+      renderSharedColumnTree(state.sharedFolderTree, el.fileTree, state.sharedActiveSubpath);
+      return;
+    }
+    function filterNode(n) {
+      if (!n) return null;
+      if (!n.is_dir) {
+        if ((n.name || '').toLowerCase().includes(q) || (n.subpath || '').toLowerCase().includes(q)) {
+          return { ...n };
+        }
+        return null;
+      }
+      const matchedChildren = [];
+      if (n.children) {
+        n.children.forEach(c => {
+          const matched = filterNode(c);
+          if (matched) matchedChildren.push(matched);
+        });
+      }
+      if (matchedChildren.length > 0 || (n.name || '').toLowerCase().includes(q)) {
+        return { ...n, children: matchedChildren };
+      }
+      return null;
+    }
+    const filtered = filterNode(state.sharedFolderTree);
+    renderSharedColumnTree(filtered || { name: state.sharedFolderTree.name, children: [] }, el.fileTree, state.sharedActiveSubpath);
+  }
+
   // 访客端：加载分享文档内容
   async function loadSharedDoc(shareId, passcode = '', subpath = '') {
     if (!shareId) return;
+
+    const effectivePass = passcode || state.sharePasscode || getStoredSharePasscode(shareId) || '';
 
     renderDocumentSkeleton('/s/' + shareId);
 
     try {
       let url = `/api/share/content?id=${encodeURIComponent(shareId)}`;
-      if (passcode) url += `&passcode=${encodeURIComponent(passcode)}`;
+      if (effectivePass) url += `&passcode=${encodeURIComponent(effectivePass)}`;
       if (subpath) url += `&subpath=${encodeURIComponent(subpath)}`;
       const res = await fetch(url);
 
       if (res.status === 401) {
-        const errData = await res.json();
+        setStoredSharePasscode(shareId, '');
+        state.sharePasscode = '';
+        const errData = await res.json().catch(() => ({}));
         if (errData.error === 'need_passcode') {
           if (el.sharePasscodePromptText && errData.title) {
             el.sharePasscodePromptText.textContent = `《${errData.title}》已被作者设置访问保护，请输入密码继续：`;
@@ -9389,7 +9472,8 @@
 
       const docData = await res.json();
       state.currentShareDoc = docData;
-      state.sharePasscode = passcode;
+      state.sharePasscode = effectivePass;
+      setStoredSharePasscode(shareId, effectivePass);
       closeModal(el.sharePasscodeModal);
 
       if (docData.is_folder) {
@@ -9412,6 +9496,8 @@
     const code = el.guestPasscodeInput.value.trim();
     if (!code) return;
     if (el.sharePasscodeError) el.sharePasscodeError.textContent = '';
+    state.sharePasscode = code;
+    setStoredSharePasscode(state.shareId, code);
     const subpath = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
     loadSharedDoc(state.shareId, code, subpath);
   }
@@ -9438,13 +9524,22 @@
       if (!n.is_dir && n.subpath) {
         list.push({
           name: n.name,
-          title: cleanDocTitle(n.name),
+          title: /^(readme|index)\.md$/i.test(n.name) ? '专栏总览 / 前言' : cleanDocTitle(n.name),
           subpath: n.subpath,
           ext: n.ext
         });
       }
       if (n.children) {
-        n.children.forEach(walk);
+        // 将 README.md / index.md 置于首位
+        const sortedChildren = [...n.children].sort((a, b) => {
+          const aIsReadme = !a.is_dir && /^(readme|index)\.md$/i.test(a.name);
+          const bIsReadme = !b.is_dir && /^(readme|index)\.md$/i.test(b.name);
+          if (aIsReadme && !bIsReadme) return -1;
+          if (!aIsReadme && bIsReadme) return 1;
+          if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+          return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        sortedChildren.forEach(walk);
       }
     }
     walk(node);
@@ -9454,7 +9549,11 @@
   async function switchSharedChapter(subpath) {
     if (!state.shareId || !subpath || state.sharedActiveSubpath === subpath) return;
     state.sharedActiveSubpath = subpath;
+
+    // 防止 hash 变更循环触发 popstate 全量重载
+    state.isInternalHashChange = true;
     window.location.hash = '#' + encodeURIComponent(subpath);
+    setTimeout(() => { state.isInternalHashChange = false; }, 80);
 
     if (el.fileTree) {
       el.fileTree.querySelectorAll('.tree-file-row').forEach(row => {
@@ -9465,9 +9564,16 @@
     renderDocumentSkeleton('/s/' + state.shareId + '#' + subpath);
 
     try {
+      const effectivePass = state.sharePasscode || getStoredSharePasscode(state.shareId) || '';
       let url = `/api/share/content?id=${encodeURIComponent(state.shareId)}&subpath=${encodeURIComponent(subpath)}`;
-      if (state.sharePasscode) url += `&passcode=${encodeURIComponent(state.sharePasscode)}`;
+      if (effectivePass) url += `&passcode=${encodeURIComponent(effectivePass)}`;
       const res = await fetch(url);
+      if (res.status === 401) {
+        setStoredSharePasscode(state.shareId, '');
+        state.sharePasscode = '';
+        openModal(el.sharePasscodeModal);
+        return;
+      }
       if (!res.ok) {
         renderShareErrorPage('章节加载失败或已被移除');
         return;
@@ -9508,7 +9614,15 @@
         childrenContainer.style.display = 'block';
 
         if (node.children) {
-          node.children.forEach(c => {
+          const sorted = [...node.children].sort((a, b) => {
+            const aIsReadme = !a.is_dir && /^(readme|index)\.md$/i.test(a.name);
+            const bIsReadme = !b.is_dir && /^(readme|index)\.md$/i.test(b.name);
+            if (aIsReadme && !bIsReadme) return -1;
+            if (!aIsReadme && bIsReadme) return 1;
+            if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+          });
+          sorted.forEach(c => {
             childrenContainer.appendChild(createNodeEl(c));
           });
         }
@@ -9536,9 +9650,11 @@
         else if (['.html', '.htm'].includes(node.ext)) iconSvg = SVG_ICONS.html;
         else iconSvg = SVG_ICONS.code;
 
+        const displayName = /^(readme|index)\.md$/i.test(node.name) ? '专栏总览 / 序言' : cleanDocTitle(node.name);
+
         item.innerHTML = `
           <span class="tree-item-icon">${iconSvg}</span>
-          <span class="tree-item-label" title="${escapeHtml(node.name)}">${escapeHtml(cleanDocTitle(node.name))}</span>
+          <span class="tree-item-label" title="${escapeHtml(node.name)}">${escapeHtml(displayName)}</span>
         `;
 
         item.addEventListener('click', (e) => {
@@ -9551,7 +9667,15 @@
     }
 
     const fragment = document.createDocumentFragment();
-    rootNode.children.forEach(c => {
+    const sortedRootChildren = [...rootNode.children].sort((a, b) => {
+      const aIsReadme = !a.is_dir && /^(readme|index)\.md$/i.test(a.name);
+      const bIsReadme = !b.is_dir && /^(readme|index)\.md$/i.test(b.name);
+      if (aIsReadme && !bIsReadme) return -1;
+      if (!aIsReadme && bIsReadme) return 1;
+      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    sortedRootChildren.forEach(c => {
       fragment.appendChild(createNodeEl(c));
     });
     container.appendChild(fragment);
@@ -9560,11 +9684,14 @@
   function renderSharedFolder(docData) {
     if (!docData) return;
     const folderTitle = docData.title || '专栏';
-    const docTitle = docData.doc_title ? cleanDocTitle(docData.doc_title) : folderTitle;
+    const isReadmeDoc = docData.subpath && /^(readme|index)\.md$/i.test(docData.subpath);
+    const docTitle = isReadmeDoc ? '专栏总览' : (docData.doc_title ? cleanDocTitle(docData.doc_title) : folderTitle);
     document.title = `${docTitle} - 《${folderTitle}》专栏 - DocLens`;
 
-    // 1. 侧边栏专属定制：仅展示专栏大纲目录
+    // 1. 侧边栏专属定制：展示专栏大纲目录
     if (el.sidebar) el.sidebar.style.display = '';
+    if (el.tocSidebar) el.tocSidebar.style.display = '';
+
     const fileTreeHeader = document.querySelector('#headerFileTree .section-title');
     if (fileTreeHeader) {
       fileTreeHeader.innerHTML = `
@@ -9572,7 +9699,11 @@
         <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(folderTitle)}">${escapeHtml(folderTitle)}</span>
       `;
     }
-    renderSharedColumnTree(docData.tree, el.fileTree, docData.subpath);
+    if (el.searchInput && el.searchInput.value.trim()) {
+      filterSharedTree(el.searchInput.value.trim());
+    } else {
+      renderSharedColumnTree(docData.tree, el.fileTree, docData.subpath);
+    }
 
     // 2. 顶部面包屑与文章头部
     if (el.articleHeader) el.articleHeader.style.display = 'block';
@@ -9656,46 +9787,87 @@
       renderCodeDoc(docData.content, docData.path);
     }
 
-    // 3. 章节底部上下翻页（上一篇 / 下一篇）
+    // 3. 章节底部上下翻页（上一讲 / 下一讲）
     const chapters = flattenSharedChapters(docData.tree);
     const curIdx = chapters.findIndex(c => c.subpath === docData.subpath);
     const prevChapter = curIdx > 0 ? chapters[curIdx - 1] : null;
     const nextChapter = (curIdx >= 0 && curIdx < chapters.length - 1) ? chapters[curIdx + 1] : null;
 
     if (el.docPagination) {
-      el.docPagination.style.display = 'grid';
-      el.docPagination.innerHTML = `
-        ${prevChapter ? `
-          <a class="doc-pagination-item doc-pagination-prev" data-subpath="${escapeHtml(prevChapter.subpath)}" href="#${encodeURIComponent(prevChapter.subpath)}">
-            <span class="pagination-sub">← 上一讲</span>
-            <div class="doc-pagination-title">${escapeHtml(prevChapter.title)}</div>
-          </a>
-        ` : '<div class="doc-pagination-spacer"></div>'}
-        ${nextChapter ? `
-          <a class="doc-pagination-item doc-pagination-next" data-subpath="${escapeHtml(nextChapter.subpath)}" href="#${encodeURIComponent(nextChapter.subpath)}">
-            <span class="pagination-sub">下一讲 →</span>
-            <div class="doc-pagination-title">${escapeHtml(nextChapter.title)}</div>
-          </a>
-        ` : '<div class="doc-pagination-spacer"></div>'}
-      `;
+      if (!prevChapter && !nextChapter) {
+        el.docPagination.style.display = 'none';
+        el.docPagination.innerHTML = '';
+      } else {
+        let html = '';
+        if (prevChapter) {
+          html += `
+            <div class="doc-pagination-card-wrapper doc-pagination-prev-wrapper">
+              <a href="#${encodeURIComponent(prevChapter.subpath)}" class="doc-pagination-card doc-pagination-prev" data-subpath="${escapeHtml(prevChapter.subpath)}" title="上一讲: ${escapeHtml(prevChapter.title)}">
+                <div class="doc-pagination-header">
+                  <svg class="doc-pagination-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                  <span class="doc-pagination-label">上一讲</span>
+                </div>
+                <div class="doc-pagination-title">${escapeHtml(prevChapter.title)}</div>
+              </a>
+            </div>
+          `;
+        } else {
+          html += `<div class="doc-pagination-spacer"></div>`;
+        }
 
-      el.docPagination.querySelectorAll('.doc-pagination-item').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          const targetSub = btn.getAttribute('data-subpath');
-          if (targetSub) switchSharedChapter(targetSub);
+        if (nextChapter) {
+          html += `
+            <div class="doc-pagination-card-wrapper doc-pagination-next-wrapper">
+              <a href="#${encodeURIComponent(nextChapter.subpath)}" class="doc-pagination-card doc-pagination-next" data-subpath="${escapeHtml(nextChapter.subpath)}" title="下一讲: ${escapeHtml(nextChapter.title)}">
+                <div class="doc-pagination-header">
+                  <span class="doc-pagination-label">下一讲</span>
+                  <svg class="doc-pagination-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                </div>
+                <div class="doc-pagination-title">${escapeHtml(nextChapter.title)}</div>
+              </a>
+            </div>
+          `;
+        } else {
+          html += `<div class="doc-pagination-spacer"></div>`;
+        }
+
+        el.docPagination.innerHTML = html;
+        el.docPagination.style.display = 'grid';
+
+        el.docPagination.querySelectorAll('.doc-pagination-card').forEach(card => {
+          card.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetSub = card.getAttribute('data-subpath');
+            if (targetSub) {
+              resetDocScroll();
+              switchSharedChapter(targetSub);
+            }
+          });
         });
-      });
+      }
     }
 
-    if (el.articleBody) {
-      const footerDiv = document.createElement('div');
-      footerDiv.className = 'shared-reader-footer';
-      footerDiv.innerHTML = `
+    // 4. 专栏阅读器底部标识（挂载在 articleContainer 底部）
+    let footerEl = document.getElementById('sharedReaderFooter');
+    if (!footerEl && el.articleContainer) {
+      footerEl = document.createElement('div');
+      footerEl.id = 'sharedReaderFooter';
+      footerEl.className = 'shared-reader-footer';
+      el.articleContainer.appendChild(footerEl);
+    }
+    if (footerEl) {
+      footerEl.innerHTML = `
         <div>由 <strong>DocLens</strong> 轻量技术知识库驱动 · 专栏体系只读保护</div>
         <a href="/" target="_self">进入主知识库</a>
       `;
-      el.articleBody.appendChild(footerDiv);
+      footerEl.style.display = 'flex';
     }
 
     resetDocScroll();
@@ -9707,6 +9879,7 @@
     document.title = `${title} - DocLens 分享阅读`;
 
     if (el.articleHeader) el.articleHeader.style.display = 'block';
+    if (el.tocSidebar) el.tocSidebar.style.display = '';
 
     if (el.headerBreadcrumbs) {
       el.headerBreadcrumbs.innerHTML = `
@@ -9783,14 +9956,24 @@
       renderCodeDoc(docData.content, docData.path);
     }
 
-    if (el.articleBody) {
-      const footerDiv = document.createElement('div');
-      footerDiv.className = 'shared-reader-footer';
-      footerDiv.innerHTML = `
+    if (el.docPagination) {
+      el.docPagination.style.display = 'none';
+      el.docPagination.innerHTML = '';
+    }
+
+    let footerEl = document.getElementById('sharedReaderFooter');
+    if (!footerEl && el.articleContainer) {
+      footerEl = document.createElement('div');
+      footerEl.id = 'sharedReaderFooter';
+      footerEl.className = 'shared-reader-footer';
+      el.articleContainer.appendChild(footerEl);
+    }
+    if (footerEl) {
+      footerEl.innerHTML = `
         <div>由 <strong>DocLens</strong> 轻量技术知识库驱动 · 单篇只读保护</div>
         <a href="/" target="_self">进入主知识库</a>
       `;
-      el.articleBody.appendChild(footerDiv);
+      footerEl.style.display = 'flex';
     }
 
     resetDocScroll();

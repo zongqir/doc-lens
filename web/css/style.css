@@ -7694,18 +7694,51 @@ body.is-share-mode #sharesHubBtn {
   display: none !important;
 }
 
-body.is-share-mode:not(.is-share-folder) .main-layout {
-  grid-template-columns: 1fr;
-}
-
-body.is-share-mode:not(.is-share-folder) #contentArea {
-  margin-left: 0;
-  max-width: 1000px;
-  margin: 0 auto;
+/* 保证主工作区在分享模式下始终为弹性流式布局，文章阅读区与右侧 TOC 大纲并存 */
+body.is-share-mode .main-layout {
+  display: flex !important;
+  overflow: hidden;
   width: 100%;
 }
 
+body.is-share-mode #contentArea {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow-y: auto;
+}
+
+body.is-share-mode:not(.is-share-folder) #contentArea {
+  margin: 0 auto;
+}
+
+/* 右侧大纲导航栏在电脑端始终常驻可见，防止被内容挤压出屏幕 */
+body.is-share-mode .toc-sidebar {
+  width: var(--toc-width);
+  flex-shrink: 0;
+  display: flex;
+}
+
+@media (max-width: 1200px) and (min-width: 901px) {
+  body.is-share-mode.is-share-folder .sidebar {
+    width: 250px;
+  }
+  body.is-share-mode .toc-sidebar {
+    width: 220px;
+    padding: 24px 8px 48px 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  body.is-share-mode .toc-sidebar {
+    display: none !important;
+  }
+  body.is-share-mode .fab-container {
+    display: flex !important;
+  }
+}
+
 /* 专栏/目录分享模式专属组件样式 */
+body.is-share-mode.is-share-folder #repoDropdownContainer,
 body.is-share-mode.is-share-folder #sidebarNavTabs,
 body.is-share-mode.is-share-folder #sectionFavorites,
 body.is-share-mode.is-share-folder #sectionRecentReads,
