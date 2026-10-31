@@ -21,31 +21,25 @@
 
 ---
 
-## 💡 Why DocLens?
+## 💡 Core Philosophy
 
-Traditional open-source knowledge bases and wikis (such as Outline, Wiki.js, or GitBook) often require heavy Node.js runtimes, complex container stacks (PostgreSQL + Redis + MinIO), and hundreds of megabytes of RAM. Desktop tools like Obsidian rely on heavy Electron containers and complicated sync setups.
+Traditional knowledge base setups often introduce heavy runtime stacks, multi-container orchestration, and steep operational overhead.
 
 **DocLens takes an uncompromisingly minimalist and pragmatic approach:**
 - **Single Static Binary**: The entire backend, authentication, file scanning, and native vanilla frontend (HTML/CSS/JS) are packed into a single executable via Go `//go:embed`.
-- **Zero External Database**: Direct filesystem mapping. Your Markdown files, folders, and code files are your database. No vendor lock-in.
+- **Direct Filesystem Mapping**: Zero external database. Your Markdown files, folders, and code files are your database. No vendor lock-in.
 - **Beyond Plain Text Reading**: Built-in Neural TTS audio player for commuting, Morandi-toned D2 / Mermaid charts, instant mindmaps, and an asynchronous AI task queue with terminal logs.
 
 ---
 
-## 📊 Benchmark & Resource Footprint Comparison
+## 📊 Performance & Resource Profile
 
-| Metric / Feature | **DocLens** 🚀 | **Outline** | **Wiki.js** | **Obsidian** | **Notion** |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Idle Memory (RAM)** | **~15 MB** (Ultra-low) | ~1,200 MB - 2 GB | ~300 MB - 600 MB | ~300 MB (Electron) | Cloud-only |
-| **Idle CPU Usage** | **0.0%** (Static silence) | 1.0% - 3.5% | 0.8% - 2.0% | 0.5% - 2.0% | Cloud-only |
-| **Cold Start Time** | **< 5 ms** (Instant) | 15 - 30 seconds | 3 - 5 seconds | 2 - 4 seconds | Network bound |
-| **External Database** | **None** (Direct FS) | Postgres + Redis + MinIO | Postgres / MySQL | None (Local files) | Proprietary DB |
-| **Node.js / npm Needed**| **Zero** (Pure Go + Vanilla) | Required | Required | Required | N/A |
-| **Deployment Footprint**| **Single binary** (~80MB) | 4-5 Docker containers | 1-2 Containers | Desktop App | SaaS |
-| **Built-in TTS Audio** | **Native** (Neural voices) | ❌ None | ❌ None | ❌ Plugin required | ❌ None |
-| **Diagram Support** | **D2 + Mermaid + Mindmap** | Mermaid only | Mermaid only | Plugins needed | Basic Mermaid |
-| **AI Task Execution** | **Async Queue + Terminal Logs**| ❌ None | ❌ None | Community plugins | Basic Chat AI |
-| **Mobile Experience** | **Pixel-perfect Touch SPA** | Web responsive | Clunky mobile web | Heavy mobile app | Heavy mobile app |
+- **Idle Memory (RAM)**: `~15 MB` (Static silence during idle, ultra-low resource footprint)
+- **Idle CPU Usage**: `0.0%` (Event-driven Go runtime without redundant background loops)
+- **Cold Start Time**: `< 5 ms` (Instant start, zero compilation or container wait)
+- **Database Dependency**: `0` (Zero external database required; reads filesystem directly)
+- **Frontend Toolchain**: `0 npm / 0 Node.js` (Pure vanilla HTML5/CSS3/ES6 embedded statically)
+- **Offline Asset Guarantee**: Ships with embedded CJK typography packs (~43MB Woff2 fonts) for 100% offline, publication-grade reading.
 
 ---
 
