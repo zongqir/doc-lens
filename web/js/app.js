@@ -147,6 +147,7 @@
     initMermaid();
     initMermaidLightboxEvents();
     initTocLevelControl();
+    initDesktopToc();
     bindGlobalKeybindings();
     initAudioPlayer();
     initFabDragAndPosition();
@@ -292,6 +293,9 @@
     el.mobileTocList = document.getElementById('mobileTocList');
     el.tocLevelCtrl = document.getElementById('tocLevelCtrl');
     el.mobileTocLevelCtrl = document.getElementById('mobileTocLevelCtrl');
+    el.tocCollapseBtn = document.getElementById('tocCollapseBtn');
+    el.desktopTocFloatBtn = document.getElementById('desktopTocFloatBtn');
+    el.tocResizer = document.getElementById('tocResizer');
     el.fabTocBtn = document.getElementById('fabTocBtn');
     el.fabAiBtn = document.getElementById('fabAiBtn');
     el.fabContainer = document.getElementById('fabContainer');
@@ -1040,6 +1044,12 @@
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         openQuickSearchModal();
+      }
+      if (e.altKey && (e.key === 't' || e.key === 'T' || e.key === 'o' || e.key === 'O')) {
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (activeTag === 'input' || activeTag === 'textarea') return;
+        e.preventDefault();
+        toggleDesktopToc();
       }
     });
   }
@@ -7078,6 +7088,116 @@
       applyDesktopTocLevel(currentDesktopTocLevel);
       applyMobileTocLevel(currentMobileTocLevel);
     }
+  }
+
+  // ==========================================================================
+  // 电脑端本页导航 (TOC) 伸缩折叠与动态拉伸控制器
+  // 支持：1. 一键收起与悬浮唤起展开；2. 拖拽左边框动态伸缩宽度；3. 双击恢复默认；4. 偏好记忆；5. Alt+T 快捷键
+  // ==========================================================================
+  function initDesktopToc() {
+    // 1. 恢复记忆的宽度
+    try {
+      const savedWidth = localStorage.getItem('doc_lens_toc_width');
+      if (savedWidth) {
+        const w = parseInt(savedWidth, 10);
+        if (w >= 180 && w <= 540) {
+          document.documentElement.style.setProperty('--toc-width', `${w}px`);
+        }
+      }
+    } catch (e) {}
+
+    // 2. 恢复折叠状态（默认展开）
+    try {
+      const savedCollapsed = localStorage.getItem('doc_lens_toc_collapsed');
+      if (savedCollapsed === '1') {
+        toggleDesktopToc(true);
+      }
+    } catch (e) {}
+
+    // 3. 事件绑定
+    if (el.tocCollapseBtn) {
+      el.tocCollapseBtn.addEventListener('click', () => toggleDesktopToc(true));
+    }
+    if (el.desktopTocFloatBtn) {
+      el.desktopTocFloatBtn.addEventListener('click', () => toggleDesktopToc(false));
+    }
+
+    initTocResizer();
+  }
+
+  function toggleDesktopToc(forceCollapse) {
+    if (!el.tocSidebar) return;
+    const isCurrentlyCollapsed = el.tocSidebar.classList.contains('is-collapsed');
+    const shouldCollapse = typeof forceCollapse === 'boolean' ? forceCollapse : !isCurrentlyCollapsed;
+
+    if (shouldCollapse) {
+      el.tocSidebar.classList.add('is-collapsed');
+      document.body.classList.add('toc-collapsed');
+      try { localStorage.setItem('doc_lens_toc_collapsed', '1'); } catch (e) {}
+    } else {
+      el.tocSidebar.classList.remove('is-collapsed');
+      document.body.classList.remove('toc-collapsed');
+      try { localStorage.setItem('doc_lens_toc_collapsed', '0'); } catch (e) {}
+    }
+  }
+
+  function initTocResizer() {
+    if (!el.tocResizer || !el.tocSidebar) return;
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    el.tocResizer.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // 仅左键拖拽
+      if (el.tocSidebar.classList.contains('is-collapsed')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startWidth = el.tocSidebar.getBoundingClientRect().width;
+      document.body.classList.add('is-resizing-toc');
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      // 右侧栏：鼠标往左移动(clientX 减小) -> 宽度增加
+      const delta = startX - e.clientX;
+      let newWidth = Math.round(startWidth + delta);
+
+      // 如果拖动过小，先不更新样式（松开时直接折叠）
+      if (newWidth < 140) {
+        return;
+      }
+      newWidth = Math.max(180, Math.min(540, newWidth));
+      document.documentElement.style.setProperty('--toc-width', `${newWidth}px`);
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.classList.remove('is-resizing-toc');
+
+      const delta = startX - e.clientX;
+      const finalWidth = startWidth + delta;
+      if (finalWidth < 140) {
+        toggleDesktopToc(true);
+        // 恢复合理基准宽度，下次展开不至于过小
+        const resetW = startWidth >= 180 ? startWidth : 280;
+        document.documentElement.style.setProperty('--toc-width', `${resetW}px`);
+      } else {
+        const currentW = Math.max(180, Math.min(540, Math.round(finalWidth)));
+        try {
+          localStorage.setItem('doc_lens_toc_width', currentW.toString());
+        } catch (e) {}
+      }
+    });
+
+    // 双击恢复默认宽度 280px
+    el.tocResizer.addEventListener('dblclick', () => {
+      document.documentElement.style.setProperty('--toc-width', '280px');
+      try {
+        localStorage.removeItem('doc_lens_toc_width');
+      } catch (e) {}
+    });
   }
 
   function highlightTocLink(activeId) {

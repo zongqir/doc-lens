@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261031_1150">
+  <link rel="stylesheet" href="/css/style.css?v=20261031_1200">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -303,15 +303,26 @@
 
     <!-- 右侧大纲导航 (Desktop Floating TOC) -->
     <nav class="toc-sidebar" id="tocSidebar">
+      <!-- 左右拖拽伸缩宽度导轨把手 -->
+      <div class="toc-resizer" id="tocResizer" title="按住左右拖拽伸缩宽度，双击恢复默认宽度"></div>
+
       <div class="toc-header">
         <div class="toc-header-title">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
           <span>本页导航</span>
         </div>
-        <div class="toc-level-ctrl" id="tocLevelCtrl" style="display:none;">
-          <button type="button" class="toc-level-btn" data-level="1" title="仅显示一级大章节 (快速收缩)">1级</button>
-          <button type="button" class="toc-level-btn active" data-level="2" title="显示一二级章节">2级</button>
-          <button type="button" class="toc-level-btn" data-level="all" title="展开全部层级">全部</button>
+        <div class="toc-header-actions">
+          <div class="toc-level-ctrl" id="tocLevelCtrl" style="display:none;">
+            <button type="button" class="toc-level-btn" data-level="1" title="仅显示一级大章节 (快速收缩)">1级</button>
+            <button type="button" class="toc-level-btn active" data-level="2" title="显示一二级章节">2级</button>
+            <button type="button" class="toc-level-btn" data-level="all" title="展开全部层级">全部</button>
+          </div>
+          <button type="button" class="toc-collapse-btn" id="tocCollapseBtn" title="收起本页导航 (Alt+T)" aria-label="收起本页导航">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="13 17 18 12 13 7"></polyline>
+              <polyline points="6 17 11 12 6 7"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
       <div class="toc-container">
@@ -320,6 +331,15 @@
         </div>
       </div>
     </nav>
+
+    <!-- 电脑端大纲收起后的悬浮唤起按钮 (Desktop TOC Expand Button) -->
+    <button type="button" class="desktop-toc-float-btn" id="desktopTocFloatBtn" title="展开本页导航 (Alt+T)" aria-label="展开本页导航">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="11 17 6 12 11 7"></polyline>
+        <polyline points="18 17 13 12 18 7"></polyline>
+      </svg>
+      <span>本页导航</span>
+    </button>
   </main>
 
   <!-- 手机端双悬浮球智能组合 (FAB Stack: 可拖动 + 左右贴边吸附 + 位置记忆) -->
