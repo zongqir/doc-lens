@@ -7077,6 +7077,44 @@
   // ==========================================================================
   // D2 现代矢量架构图渲染引擎控制器 (双轨制核心，Go 原生内存秒级出图)
   // ==========================================================================
+  const D2_THEMES = {
+    light: [
+      { id: 3, name: '经典旗舰', desc: '深蓝/现代科技 (默认)', dots: ['#234CDA', '#6B8AFB', '#E7EAFF'] },
+      { id: 4, name: '极客蓝调', desc: '冷调/高质感蓝绿', dots: ['#0F66B7', '#076F6F', '#E5F3FF'] },
+      { id: 1, name: '现代极简', desc: '石墨灰/纯粹极简', dots: ['#0A0F25', '#676C7E', '#EEF1F8'] },
+      { id: 302, name: '和纸淡彩', desc: '日系柔和纸质', dots: ['#A62543', '#3182CD', '#FAF1E6'] },
+      { id: 103, name: '复古大地', desc: '橄榄绿/沙色温暖', dots: ['#2F4858', '#4B7B6A', '#F7F4EB'] },
+      { id: 5, name: '蓝莓跃动', desc: '活力蓝紫跃动', dots: ['#2B4C7E', '#4A6FA5', '#E9EEF4'] },
+      { id: 0, name: '原生线框', desc: '质朴原生白模', dots: ['#0D32B2', '#676C7E', '#FFFFFF'] }
+    ],
+    dark: [
+      { id: 201, name: '暗夜旗舰', desc: '赛博深蓝/霓虹靛紫 (默认)', dots: ['#6B8AFB', '#8B5DEE', '#0B1197'] },
+      { id: 200, name: '暗夜灰紫', desc: '优雅低调暗灰紫', dots: ['#A288E3', '#6A5ACD', '#1A1829'] },
+      { id: 300, name: '黑客终端', desc: '极客绿/荧光黑客', dots: ['#00FF66', '#003300', '#050A05'] }
+    ]
+  };
+
+  function getD2Theme(isDark) {
+    const key = isDark ? 'doc_lens_d2_theme_dark' : 'doc_lens_d2_theme_light';
+    const saved = localStorage.getItem(key);
+    if (saved !== null && saved !== '') {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return isDark ? 201 : 3;
+  }
+
+  function isD2Sketch() {
+    return localStorage.getItem('doc_lens_d2_sketch') === 'true';
+  }
+
+  // 点击外部关闭所有 D2 主题下拉面板
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.d2-theme-wrapper')) {
+      document.querySelectorAll('.d2-theme-dropdown.show').forEach(dd => dd.classList.remove('show'));
+    }
+  });
+
   function setupLazyD2Observer() {
     if (d2Observer) {
       d2Observer.disconnect();
@@ -7105,6 +7143,10 @@
     if (!rawCode) return;
 
     const isDark = state.theme === 'dark';
+    const currentThemeId = getD2Theme(isDark);
+    const isSketch = isD2Sketch();
+
+    wrapper.classList.toggle('d2-sketch', isSketch);
 
     try {
       const resp = await fetch('/api/diagram/d2', {
@@ -7113,7 +7155,8 @@
         body: JSON.stringify({
           code: rawCode,
           dark: isDark,
-          sketch: false
+          sketch: isSketch,
+          theme_id: currentThemeId
         })
       });
 
@@ -7122,30 +7165,154 @@
         throw new Error(res.error || 'D2 渲染响应异常');
       }
 
+      const themeList = isDark ? D2_THEMES.dark : D2_THEMES.light;
+      const themeOptsHtml = themeList.map(t => `
+        <button type="button" class="d2-theme-opt ${t.id === currentThemeId ? 'active' : ''}" data-theme-id="${t.id}" title="${t.desc}">
+          <span>${t.name}</span>
+          <span class="d2-theme-dots">
+            ${t.dots.map(c => `<span class="d2-theme-dot" style="background:${c}"></span>`).join('')}
+          </span>
+        </button>
+      `).join('');
+
       wrapper.innerHTML = `
         <div class="d2-toolbar">
-          <span class="d2-badge" title="D2 现代矢量架构图 (原生高精度)">
+          <span class="d2-badge" title="D2 现代矢量架构图 (原生极速内存引擎)">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-            D2 现代图表
+            <span>${isSketch ? 'D2 手绘风' : 'D2 现代图表'}</span>
           </span>
+
+          <button type="button" class="mermaid-tool-btn d2-sketch-btn ${isSketch ? 'active' : ''}" title="${isSketch ? '当前为手绘草图风格，点击切换为严谨现代矢量风格' : '点击切换为手绘草图风格 (Excalidraw 质感)'}" aria-label="切换手绘风格">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+              <path d="M2 2l7.586 7.586"></path>
+              <circle cx="11" cy="11" r="2"></circle>
+            </svg>
+          </button>
+
+          <div class="d2-theme-wrapper">
+            <button type="button" class="mermaid-tool-btn d2-theme-btn" title="选择配色主题" aria-label="选择配色主题">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+              </svg>
+            </button>
+            <div class="d2-theme-dropdown">
+              ${themeOptsHtml}
+            </div>
+          </div>
+
+          <button type="button" class="mermaid-tool-btn d2-code-btn" title="查看 D2 源码" aria-label="查看 D2 源码">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+          </button>
+
           <button type="button" class="mermaid-tool-btn d2-copy-svg-btn" title="复制矢量 SVG (可直接无损粘贴进 Word/PPT 转换为形状)" aria-label="复制矢量 SVG">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button>
+
           <button type="button" class="mermaid-tool-btn d2-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         </div>
+
         <div class="d2-viewport">
           ${res.svg}
+        </div>
+
+        <div class="d2-code-viewport">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">D2 源码 (Architecture DSL)</span>
+            <button type="button" class="btn btn-xs btn-outline d2-copy-code-btn" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>复制源码</span>
+            </button>
+          </div>
+          <pre>${escapeHtml(rawCode)}</pre>
         </div>
       `;
 
       wrapper.setAttribute('data-rendered', 'true');
 
       const viewportEl = wrapper.querySelector('.d2-viewport');
+      const sketchBtn = wrapper.querySelector('.d2-sketch-btn');
+      const themeBtn = wrapper.querySelector('.d2-theme-btn');
+      const themeDropdown = wrapper.querySelector('.d2-theme-dropdown');
+      const codeBtn = wrapper.querySelector('.d2-code-btn');
+      const copyCodeBtn = wrapper.querySelector('.d2-copy-code-btn');
       const copyBtn = wrapper.querySelector('.d2-copy-svg-btn');
       const fullscreenBtn = wrapper.querySelector('.d2-fullscreen-btn');
 
+      // 1. 手绘草图风格开关
+      if (sketchBtn) {
+        sketchBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const nextVal = !isD2Sketch();
+          localStorage.setItem('doc_lens_d2_sketch', nextVal ? 'true' : 'false');
+          document.querySelectorAll('.d2-wrapper').forEach(w => {
+            w.removeAttribute('data-rendered');
+            renderSingleD2Chart(w);
+          });
+        });
+      }
+
+      // 2. 主题配色下拉菜单
+      if (themeBtn && themeDropdown) {
+        themeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isShown = themeDropdown.classList.contains('show');
+          document.querySelectorAll('.d2-theme-dropdown.show').forEach(dd => dd.classList.remove('show'));
+          if (!isShown) {
+            themeDropdown.classList.add('show');
+          }
+        });
+
+        themeDropdown.querySelectorAll('.d2-theme-opt').forEach(opt => {
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chosenId = parseInt(opt.getAttribute('data-theme-id'), 10);
+            localStorage.setItem(isDark ? 'doc_lens_d2_theme_dark' : 'doc_lens_d2_theme_light', String(chosenId));
+            themeDropdown.classList.remove('show');
+            document.querySelectorAll('.d2-wrapper').forEach(w => {
+              w.removeAttribute('data-rendered');
+              renderSingleD2Chart(w);
+            });
+          });
+        });
+      }
+
+      // 3. 源码预览切换
+      if (codeBtn) {
+        codeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isShowCode = wrapper.classList.toggle('show-code');
+          codeBtn.classList.toggle('active', isShowCode);
+          codeBtn.title = isShowCode ? '隐藏源码，返回架构图' : '查看 D2 源码';
+        });
+      }
+
+      // 4. 复制 D2 源码
+      if (copyCodeBtn) {
+        copyCodeBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const ok = await copyTextToClipboard(rawCode);
+          if (ok) {
+            const span = copyCodeBtn.querySelector('span');
+            if (span) span.textContent = '已复制！';
+            setTimeout(() => {
+              if (span) span.textContent = '复制源码';
+            }, 2000);
+          }
+        });
+      }
+
+      // 5. 复制 SVG 矢量
       if (copyBtn) {
         copyBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
@@ -7161,6 +7328,7 @@
         });
       }
 
+      // 6. 全屏查看
       if (fullscreenBtn) {
         fullscreenBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -7168,6 +7336,7 @@
         });
       }
 
+      // 7. 点击视口放大
       if (viewportEl) {
         viewportEl.addEventListener('click', (e) => {
           if (e.target.closest('a') || e.target.closest('.d2-toolbar')) return;

@@ -57,18 +57,28 @@ func GetD2Engine() (*D2Engine, error) {
 	return globalD2Engine, nil
 }
 
-func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch bool) (string, error) {
+func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch bool, themeIDOpt *int64) (string, error) {
 	if len(code) == 0 {
 		return "", fmt.Errorf("empty D2 code")
 	}
 
-	// 1. 生成唯一缓存 Key (代码哈希 + 主题 + 草图配置)
+	// 1. 确定实际使用的 Theme ID
+	// 默认采用高颜值现代旗舰配色 (Flagship Terrastruct ID: 3 / Dark Flagship ID: 201)
+	themeID := int64(d2themescatalog.FlagshipTerrastruct.ID)
+	if isDark {
+		themeID = d2themescatalog.DarkFlagshipTerrastruct.ID
+	}
+	if themeIDOpt != nil && *themeIDOpt >= 0 {
+		themeID = *themeIDOpt
+	}
+
+	// 2. 生成唯一缓存 Key (代码哈希 + 暗黑 + 草图 + 主题)
 	h := sha256.New()
 	h.Write([]byte(code))
-	h.Write([]byte(fmt.Sprintf("|dark=%v|sketch=%v", isDark, sketch)))
+	h.Write([]byte(fmt.Sprintf("|dark=%v|sketch=%v|theme=%d", isDark, sketch, themeID)))
 	cacheKey := hex.EncodeToString(h.Sum(nil))
 
-	// 2. 尝试读取内存缓存 (微秒级)
+	// 3. 尝试读取内存缓存 (微秒级)
 	e.mu.RLock()
 	if entry, found := e.cache[cacheKey]; found {
 		e.mu.RUnlock()
@@ -76,7 +86,7 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch 
 	}
 	e.mu.RUnlock()
 
-	// 3. 安全超时限制 (防止死循环或极端异常语法)
+	// 4. 安全超时限制 (防止死循环或极端异常语法)
 	calcCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -90,12 +100,7 @@ func (e *D2Engine) Render(ctx context.Context, code string, isDark bool, sketch 
 		},
 	}
 
-	pad := int64(20)
-	themeID := d2themescatalog.NeutralDefault.ID
-	if isDark {
-		themeID = d2themescatalog.DarkFlagshipTerrastruct.ID
-	}
-
+	pad := int64(24) // 优化的内边距，提供舒适呼吸感
 	renderOpts := &d2svg.RenderOpts{
 		Pad:     &pad,
 		ThemeID: &themeID,

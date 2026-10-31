@@ -1325,9 +1325,10 @@ func (a *App) handleShareRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 type diagramD2Request struct {
-	Code   string `json:"code"`
-	Dark   bool   `json:"dark"`
-	Sketch bool   `json:"sketch"`
+	Code    string `json:"code"`
+	Dark    bool   `json:"dark"`
+	Sketch  bool   `json:"sketch"`
+	ThemeID *int64 `json:"theme_id,omitempty"`
 }
 
 type diagramD2Response struct {
@@ -1366,7 +1367,7 @@ func (a *App) handleDiagramD2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svg, err := engine.Render(r.Context(), req.Code, req.Dark, req.Sketch)
+	svg, err := engine.Render(r.Context(), req.Code, req.Dark, req.Sketch, req.ThemeID)
 	if err != nil {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(diagramD2Response{Success: false, Error: err.Error()})
