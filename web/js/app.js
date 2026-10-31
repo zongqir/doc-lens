@@ -85,6 +85,19 @@
     } catch (e) {
       return 'dark';
     }
+  // 安全的 URL 解码器，彻底解决文件名包含 %（如 100%完成.md）、非法转义字符时抛出 URI malformed 导致页面无响应的问题
+  function safeDecodeURIComponent(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    try {
+      return decodeURIComponent(str);
+    } catch (e) {
+      try {
+        // 将未正确配对的单个裸百分号转义为 %25 后再次尝试解码
+        return decodeURIComponent(str.replace(/%(?![0-9a-fA-F]{2})/g, '%25'));
+      } catch (_) {
+        return str;
+      }
+    }
   }
 
   // 跨平台与跨网络协议(HTTP/HTTPS)剪贴板复制工具，含移动端/局域网降级支持
@@ -1941,7 +1954,7 @@
     if (!state.currentRepo) return;
     document.querySelectorAll('.tree-item-row.active').forEach(r => r.classList.remove('active'));
 
-    const decoded = decodeURIComponent(urlPath).replace(/\/+$/, '');
+    const decoded = safeDecodeURIComponent(urlPath).replace(/\/+$/, '');
     const cleanPrefix = '/' + (state.currentRepo.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
     let relPath = decoded.replace(/^\/+/, '');
     if (decoded.startsWith(cleanPrefix)) {
@@ -3093,7 +3106,7 @@
   }
 
   async function routeTo(urlPath, pushState = true) {
-    const decodedPath = decodeURIComponent(urlPath).replace(/\/+$/, '') || '/';
+    const decodedPath = safeDecodeURIComponent(urlPath).replace(/\/+$/, '') || '/';
     if (pushState) {
       history.pushState(null, '', decodedPath);
     }
@@ -3466,7 +3479,7 @@
     // 2. 全向归一化路径比对器，支持各种 URL、相对路径、省略 .md、目录 README 匹配
     const normalizeForMatch = (p) => {
       if (!p) return '';
-      return decodeURIComponent(p)
+      return safeDecodeURIComponent(p)
         .replace(/^\/+|\/+$/g, '')
         .replace(/\/README\.md$/i, '')
         .replace(/\/index\.md$/i, '')
@@ -3479,13 +3492,13 @@
     const target3 = normalizeForMatch(state.currentDoc?.rel_path);
 
     let currIdx = docs.findIndex(d => {
-      const dFull = decodeURIComponent(d.fullRoute || '').replace(/\/+$/, '');
-      const dPath = decodeURIComponent(d.path || '').replace(/^\/+|\/+$/g, '');
+      const dFull = safeDecodeURIComponent(d.fullRoute || '').replace(/\/+$/, '');
+      const dPath = safeDecodeURIComponent(d.path || '').replace(/^\/+|\/+$/g, '');
 
       // 严格全等命中
       if (state.currentPath && dFull === state.currentPath) return true;
       if (state.currentDoc) {
-        if (state.currentDoc.rel_path && (dPath === state.currentDoc.rel_path || dPath === decodeURIComponent(state.currentDoc.rel_path))) return true;
+        if (state.currentDoc.rel_path && (dPath === state.currentDoc.rel_path || dPath === safeDecodeURIComponent(state.currentDoc.rel_path))) return true;
         if (state.currentDoc.path && (dFull === state.currentDoc.path || dPath === state.currentDoc.path)) return true;
       }
 
@@ -3801,7 +3814,7 @@
     if (!lastRead) {
       const lastActivePath = localStorage.getItem('doc_lens_last_active_' + currentRepo.ID);
       if (lastActivePath && lastActivePath !== '/' && lastActivePath !== cleanPrefix) {
-        const rawName = decodeURIComponent(lastActivePath.split('/').pop() || '上次阅读文档').replace(/\.(md|markdown|html)$/i, '');
+        const rawName = safeDecodeURIComponent(lastActivePath.split('/').pop() || '上次阅读文档').replace(/\.(md|markdown|html)$/i, '');
         lastRead = {
           name: rawName,
           path: lastActivePath,
@@ -3843,7 +3856,7 @@
     let lastReadCardHtml = '';
     if (lastRead) {
       const timeAgo = formatTimeAgo(lastRead.timestamp);
-      const dirPath = decodeURIComponent(lastRead.path).split('/').slice(0, -1).join('/') || '/';
+      const dirPath = safeDecodeURIComponent(lastRead.path).split('/').slice(0, -1).join('/') || '/';
       lastReadCardHtml = `
         <div class="welcome-last-read-card" id="welcomeLastReadCard">
           <div class="last-read-header">
@@ -3878,11 +3891,11 @@
     let chaptersHtml = '';
     if (chapters.length > 0) {
       chapters.forEach((ch, idx) => {
-        const decodedLastPath = lastRead ? decodeURIComponent(lastRead.path) : '';
-        const isCurrentChapter = lastRead && ch.path && (decodedLastPath.includes(ch.path) || ch.docs.some(d => decodeURIComponent(d.fullRoute) === decodedLastPath));
+        const decodedLastPath = lastRead ? safeDecodeURIComponent(lastRead.path) : '';
+        const isCurrentChapter = lastRead && ch.path && (decodedLastPath.includes(ch.path) || ch.docs.some(d => safeDecodeURIComponent(d.fullRoute) === decodedLastPath));
         let docListHtml = '';
         ch.docs.slice(0, 6).forEach(doc => {
-          const isDocActive = lastRead && (decodeURIComponent(doc.fullRoute) === decodedLastPath);
+          const isDocActive = lastRead && (safeDecodeURIComponent(doc.fullRoute) === decodedLastPath);
           docListHtml += `
             <a href="${escapeHtml(doc.fullRoute)}" class="chapter-doc-item ${isDocActive ? 'active-doc' : ''}" data-path="${escapeHtml(doc.fullRoute)}">
               <span class="chapter-doc-bullet">${isDocActive ? '📍' : '📄'}</span>
