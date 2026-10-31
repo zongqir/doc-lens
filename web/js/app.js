@@ -352,8 +352,7 @@
     el.safeCopyBtnText = document.getElementById('safeCopyBtnText');
     el.activeShareCopyPassBtn = document.getElementById('activeShareCopyPassBtn');
     el.shareViewCounter = document.getElementById('shareViewCounter');
-    el.toggleShareStateBtn = document.getElementById('toggleShareStateBtn');
-    el.revokeActiveShareBtn = document.getElementById('revokeActiveShareBtn');
+    el.cancelShareBtn = document.getElementById('cancelShareBtn');
 
     el.activeShareExpireSelect = document.getElementById('activeShareExpireSelect');
     el.activeShareExpireDesc = document.getElementById('activeShareExpireDesc');
@@ -406,12 +405,8 @@
       el.activeShareCopyPassBtn.addEventListener('click', copyActiveSharePasscode);
     }
 
-    if (el.toggleShareStateBtn) {
-      el.toggleShareStateBtn.addEventListener('click', toggleCurrentDocShareState);
-    }
-
-    if (el.revokeActiveShareBtn) {
-      el.revokeActiveShareBtn.addEventListener('click', revokeCurrentActiveShare);
+    if (el.cancelShareBtn) {
+      el.cancelShareBtn.addEventListener('click', handleCancelShare);
     }
 
     if (el.sharesHubBtn) {
@@ -8517,25 +8512,15 @@
       else el.shareLiveDot.className = 'live-dot';
     }
     if (el.shareLiveText) {
-      if (isDisabled) el.shareLiveText.textContent = '已关闭 (访客无法访问)';
+      if (isDisabled) el.shareLiveText.textContent = '已暂停';
       else if (isExpired) el.shareLiveText.textContent = '已过期';
       else el.shareLiveText.textContent = isFolder ? '专栏目录分享中' : '分享中';
-    }
-    if (el.toggleShareStateBtn) {
-      if (isDisabled) {
-        el.toggleShareStateBtn.textContent = '▶️ 重新开启分享';
-        el.toggleShareStateBtn.className = 'btn-toggle-share-state is-reopen';
-      } else {
-        el.toggleShareStateBtn.textContent = '⏸️ 关闭分享';
-        el.toggleShareStateBtn.className = 'btn-toggle-share-state is-close';
-      }
     }
 
     if (share.expires_at === 0) {
       if (el.activeShareExpireSelect) el.activeShareExpireSelect.value = '0';
       if (el.activeShareExpireDesc) {
-        el.activeShareExpireDesc.textContent = '永久有效';
-        el.activeShareExpireDesc.style.color = 'var(--text-muted)';
+        el.activeShareExpireDesc.textContent = '';
       }
     } else {
       const daysRemaining = Math.max(1, Math.round((share.expires_at - now) / 86400));
@@ -8545,8 +8530,16 @@
         else el.activeShareExpireSelect.value = '30';
       }
       if (el.activeShareExpireDesc) {
-        el.activeShareExpireDesc.textContent = isExpired ? '已过期' : `截止 ${new Date(share.expires_at * 1000).toLocaleDateString()}`;
-        el.activeShareExpireDesc.style.color = isExpired ? '#ef4444' : 'var(--text-muted)';
+        if (isExpired) {
+          el.activeShareExpireDesc.textContent = '(已过期)';
+          el.activeShareExpireDesc.style.color = '#ef4444';
+        } else {
+          const expDate = new Date(share.expires_at * 1000);
+          const m = expDate.getMonth() + 1;
+          const d = expDate.getDate();
+          el.activeShareExpireDesc.textContent = `(至 ${m}月${d}日)`;
+          el.activeShareExpireDesc.style.color = 'var(--text-muted)';
+        }
       }
     }
 
@@ -8572,28 +8565,26 @@
     }
   }
 
-  // 切换单篇文档分享的停用/启用状态（关掉后依然保留记录，不丢失短链）
-  async function toggleCurrentDocShareState() {
+  // 取消分享：注销当前文档的公开分享短链接并恢复未分享面板
+  async function handleCancelShare() {
     if (!currentDocActiveShare) return;
-    const newDisabled = !currentDocActiveShare.disabled;
+    if (!confirm('确定要取消此文档的公开分享吗？取消后该分享链接将立即失效。')) {
+      return;
+    }
+
     try {
-      const res = await fetch('/api/shares', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          share_id: currentDocActiveShare.id,
-          disabled: newDisabled
-        })
+      const res = await fetch(`/api/shares/${encodeURIComponent(currentDocActiveShare.id)}`, {
+        method: 'DELETE'
       });
-      if (res.ok) {
-        const data = await res.json();
-        currentDocActiveShare = data.share;
-        renderActiveSharePanel(currentDocActiveShare);
-        loadAllShares(); // 同步刷新管理端
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || '切换分享状态失败');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || '取消分享失败');
+        return;
       }
+
+      currentDocActiveShare = null;
+      renderActiveSharePanel(null);
+      loadAllShares(); // 同步刷新管理端
     } catch (e) {
       alert('网络通信异常，请重试');
     }
@@ -8797,30 +8788,6 @@
       setTimeout(() => {
         if (passBtn) passBtn.textContent = origText;
       }, 1500);
-    }
-  }
-
-  async function revokeCurrentActiveShare() {
-    if (!currentDocActiveShare) return;
-    if (!confirm(`确定彻底删除此分享记录 (/s/${currentDocActiveShare.id}) 吗？删除后此短链接将被彻底注销。建议优先使用【关闭分享】保留历史。`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/shares/${encodeURIComponent(currentDocActiveShare.id)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || '删除失败');
-        return;
-      }
-
-      currentDocActiveShare = null;
-      renderActiveSharePanel(null);
-      loadAllShares(); // 同步刷新
-    } catch (e) {
-      alert('删除通信失败');
     }
   }
 

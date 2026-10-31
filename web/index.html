@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261026_2145">
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=20261026_2145">
   <link rel="apple-touch-icon" href="/favicon.svg?v=20261026_2145">
-  <link rel="stylesheet" href="/css/style.css?v=20261031_1100">
+  <link rel="stylesheet" href="/css/style.css?v=20261031_1130">
   <link rel="stylesheet" href="/css/prism.min.css?v=2.1.0">
   <script src="/js/markdown-it.min.js"></script>
   <script src="/js/prism.min.js?v=20261025_1930"></script>
@@ -432,11 +432,8 @@
               <span class="share-view-counter" id="shareViewCounter">0 次浏览</span>
             </div>
             <div class="share-header-actions">
-              <button type="button" class="btn-toggle-share-state" id="toggleShareStateBtn" title="切换开启/关闭状态">
-                关闭分享
-              </button>
-              <button type="button" class="btn-revoke-link" id="revokeActiveShareBtn" title="彻底删除此分享记录">
-                彻底删除
+              <button type="button" class="btn-cancel-share" id="cancelShareBtn" title="取消公开分享，外部链接将立即失效">
+                取消分享
               </button>
             </div>
           </div>
@@ -454,21 +451,21 @@
             </div>
           </div>
 
-          <!-- 在卡片内直接调整有效期与密码，修改即时保存生效，无需重新生成新链接 -->
+          <!-- 在卡片内直接调整有效期与密码，修改即时保存生效 -->
           <div class="share-inline-controls">
             <div class="share-control-item">
-              <span class="share-control-icon">📅</span>
-              <select id="activeShareExpireSelect" class="custom-select share-inline-select" title="直接更改有效期">
+              <svg class="share-control-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <select id="activeShareExpireSelect" class="share-modern-select" title="直接更改有效期">
                 <option value="7">7 天有效</option>
                 <option value="1">1 天有效</option>
                 <option value="30">30 天有效</option>
                 <option value="0">永久有效</option>
               </select>
-              <span class="share-control-desc" id="activeShareExpireDesc"></span>
+              <span class="share-control-date" id="activeShareExpireDesc"></span>
             </div>
 
             <div class="share-control-item">
-              <span class="share-control-icon">🔑</span>
+              <svg class="share-control-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               <span class="share-control-desc" id="activeSharePassDesc">公开免密</span>
               <button type="button" class="btn btn-xs btn-copy-passcode" id="activeShareCopyPassBtn" style="display:none;" title="单独复制访问密码">复制密码</button>
               <button type="button" class="btn btn-sm btn-edit-pass-toggle" id="activeShareEditPassToggle">设置密码</button>
@@ -495,8 +492,8 @@
 
           <div class="share-create-fields">
             <div class="share-control-item">
-              <span class="share-control-icon">📅</span>
-              <select id="newShareExpireSelect" class="custom-select share-inline-select">
+              <svg class="share-control-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <select id="newShareExpireSelect" class="share-modern-select">
                 <option value="7" selected>7 天有效 (推荐)</option>
                 <option value="1">1 天有效 (临时阅读)</option>
                 <option value="30">30 天有效</option>
@@ -1018,6 +1015,6 @@
     <div class="listen-queue-list" id="listenQueueList"></div>
   </div>
 
-  <script src="/js/app.js?v=20261031_1100"></script>
+  <script src="/js/app.js?v=20261031_1130"></script>
 </body>
 </html>
