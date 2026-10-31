@@ -3865,83 +3865,89 @@ body.is-resizing-sidebar .sidebar {
   top: 6px;
 }
 
-/* 转译 D2 现代色彩体系与自适应暗色玻璃质感 */
+/* 转译 D2 现代低饱和高质感色彩体系 (Morandi & Linear Design) */
 .mermaid-wrapper svg .node.d2-red rect,
 .mermaid-wrapper svg .node.d2-red polygon,
 .mermaid-wrapper svg .node.d2-red circle {
   fill: #fff5f5 !important;
-  stroke: #e03131 !important;
+  stroke: #fca5a5 !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-red rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-red polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-red circle {
-  fill: rgba(239, 68, 68, 0.16) !important;
-  stroke: #f87171 !important;
+  fill: rgba(244, 63, 94, 0.08) !important;
+  stroke: rgba(244, 63, 94, 0.35) !important;
 }
 
 .mermaid-wrapper svg .node.d2-blue rect,
 .mermaid-wrapper svg .node.d2-blue polygon,
 .mermaid-wrapper svg .node.d2-blue circle {
-  fill: #e7f5ff !important;
-  stroke: #1971c2 !important;
+  fill: #f0f9ff !important;
+  stroke: #7dd3fc !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-blue rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-blue polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-blue circle {
-  fill: rgba(59, 130, 246, 0.16) !important;
-  stroke: #60a5fa !important;
+  fill: rgba(56, 189, 248, 0.08) !important;
+  stroke: rgba(56, 189, 248, 0.35) !important;
 }
 
 .mermaid-wrapper svg .node.d2-green rect,
 .mermaid-wrapper svg .node.d2-green polygon,
 .mermaid-wrapper svg .node.d2-green circle {
-  fill: #ebfbee !important;
-  stroke: #2f9e44 !important;
+  fill: #f0fdf4 !important;
+  stroke: #86efac !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-green rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-green polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-green circle {
-  fill: rgba(34, 197, 94, 0.16) !important;
-  stroke: #4ade80 !important;
+  fill: rgba(34, 197, 94, 0.08) !important;
+  stroke: rgba(34, 197, 94, 0.35) !important;
 }
 
 .mermaid-wrapper svg .node.d2-yellow rect,
 .mermaid-wrapper svg .node.d2-yellow polygon,
 .mermaid-wrapper svg .node.d2-yellow circle {
-  fill: #fff9db !important;
-  stroke: #f08c00 !important;
+  fill: #fffbeb !important;
+  stroke: #fde68a !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-yellow rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-yellow polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-yellow circle {
-  fill: rgba(234, 179, 8, 0.18) !important;
-  stroke: #facc15 !important;
+  fill: rgba(245, 158, 11, 0.08) !important;
+  stroke: rgba(245, 158, 11, 0.35) !important;
 }
 
 .mermaid-wrapper svg .node.d2-purple rect,
 .mermaid-wrapper svg .node.d2-purple polygon,
 .mermaid-wrapper svg .node.d2-purple circle {
-  fill: #f3f0ff !important;
-  stroke: #7048e8 !important;
+  fill: #faf5ff !important;
+  stroke: #d8b4fe !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-purple rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-purple polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-purple circle {
-  fill: rgba(168, 85, 247, 0.16) !important;
-  stroke: #a78bfa !important;
+  fill: rgba(168, 85, 247, 0.08) !important;
+  stroke: rgba(168, 85, 247, 0.35) !important;
 }
 
 .mermaid-wrapper svg .node.d2-gray rect,
 .mermaid-wrapper svg .node.d2-gray polygon,
 .mermaid-wrapper svg .node.d2-gray circle {
-  fill: #f8f9fa !important;
-  stroke: #868e96 !important;
+  fill: #f8fafc !important;
+  stroke: #e2e8f0 !important;
+  stroke-width: 1.2px !important;
 }
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-gray rect,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-gray polygon,
 [data-theme="dark"] .mermaid-wrapper svg .node.d2-gray circle {
-  fill: rgba(255, 255, 255, 0.06) !important;
-  stroke: #6b7280 !important;
+  fill: rgba(255, 255, 255, 0.03) !important;
+  stroke: rgba(255, 255, 255, 0.08) !important;
 }
 
 .mermaid-wrapper svg .node foreignObject div {

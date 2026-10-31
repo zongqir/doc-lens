@@ -5504,7 +5504,7 @@
 
         let cardHtml = `<b>${cleanMermaidText(b.title)}</b>`;
         if (items.length > 0) {
-          cardHtml += `<br/>━━━━━━━━━━━━`;
+          cardHtml += `<br/><span style='display:block;margin:6px auto 7px;width:95%;border-top:1px dashed currentColor;opacity:0.22;'></span>`;
           for (const it of items) {
             cardHtml += `<br/>• ${cleanMermaidText(it)}`;
           }
@@ -5531,12 +5531,12 @@
     }
 
     if (classAssignments.length > 0) {
-      out.push('    classDef d2-red fill:#fff5f5,stroke:#e03131,stroke-width:1.5px;');
-      out.push('    classDef d2-blue fill:#e7f5ff,stroke:#1971c2,stroke-width:1.5px;');
-      out.push('    classDef d2-green fill:#ebfbee,stroke:#2f9e44,stroke-width:1.5px;');
-      out.push('    classDef d2-yellow fill:#fff9db,stroke:#f08c00,stroke-width:1.5px;');
-      out.push('    classDef d2-purple fill:#f3f0ff,stroke:#7048e8,stroke-width:1.5px;');
-      out.push('    classDef d2-gray fill:#f8f9fa,stroke:#868e96,stroke-width:1.5px;');
+      out.push('    classDef d2-red fill:#fff5f5,stroke:#fca5a5,stroke-width:1.2px;');
+      out.push('    classDef d2-blue fill:#f0f9ff,stroke:#7dd3fc,stroke-width:1.2px;');
+      out.push('    classDef d2-green fill:#f0fdf4,stroke:#86efac,stroke-width:1.2px;');
+      out.push('    classDef d2-yellow fill:#fffbeb,stroke:#fde68a,stroke-width:1.2px;');
+      out.push('    classDef d2-purple fill:#faf5ff,stroke:#d8b4fe,stroke-width:1.2px;');
+      out.push('    classDef d2-gray fill:#f8fafc,stroke:#e2e8f0,stroke-width:1.2px;');
       for (const ca of classAssignments) {
         out.push(ca);
       }
