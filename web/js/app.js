@@ -5292,6 +5292,259 @@
     return result.join('\n');
   }
 
+  // ==========================================================================
+  // D2 至 Mermaid 实时轻量转译器 (Transpiler)
+  // 核心解决：D2 默认渲染为 1400x1400 巨型大方框、大箱套小箱、482px 虚空大间距与手机端蚂蚁字痛点
+  // 转译为高密度扁平化主角卡片 (Mermaid Flowchart)，继承自适应移动端纵排与全屏自由缩放能力
+  // ==========================================================================
+  function d2ToMermaid(d2Code) {
+    if (!d2Code || typeof d2Code !== 'string') return null;
+    const lines = d2Code.split('\n');
+    let dir = 'LR';
+    let title = '';
+
+    for (const line of lines) {
+      const t = line.trim();
+      if (t.startsWith('direction:')) {
+        const val = t.replace('direction:', '').trim().toLowerCase();
+        if (val === 'down' || val === 'td' || val === 'tb') dir = 'TD';
+        else if (val === 'right' || val === 'lr') dir = 'LR';
+        else if (val === 'left' || val === 'rl') dir = 'RL';
+        else if (val === 'up' || val === 'bt') dir = 'BT';
+      }
+    }
+
+    // 预检提取图表顶部标题
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim();
+      const tm = t.match(/^title:\s*(.+?)(?:\s*\{)?$/);
+      if (tm) {
+        title = tm[1].replace(/\{$/, '').replace(/^["']|["']$/g, '').trim();
+        break;
+      }
+    }
+
+    const blocks = [];
+    const topConnections = [];
+
+    let current = null;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      const t = raw.trim();
+
+      if (!t || t.startsWith('#') || t.startsWith('//') || t.startsWith('direction:')) {
+        continue;
+      }
+
+      // 顶层 title 自定义块跳过
+      if (t.startsWith('title:') && !current) {
+        if (t.includes('{')) {
+          braceDepth = 1;
+          while (i + 1 < lines.length && braceDepth > 0) {
+            i++;
+            if (lines[i].includes('{')) braceDepth++;
+            if (lines[i].includes('}')) braceDepth--;
+          }
+        }
+        continue;
+      }
+
+      // 顶层连线
+      const connMatch = t.match(/^([a-zA-Z0-9_.]+)\s*(\->|\-\->|\-\.\->|\.\->|\<\-|\<\-\>|\-\-)\s*([a-zA-Z0-9_.]+)(?::\s*(.+))?$/);
+      if (connMatch && !current) {
+        const src = connMatch[1].replace(/\./g, '_');
+        const arrow = connMatch[2];
+        const dst = connMatch[3].replace(/\./g, '_');
+        let label = (connMatch[4] || '').replace(/\{$/, '').replace(/["']/g, '').trim();
+        topConnections.push({ src, arrow, dst, label });
+        if (t.endsWith('{')) {
+          braceDepth = 1;
+          while (i + 1 < lines.length && braceDepth > 0) {
+            i++;
+            if (lines[i].includes('{')) braceDepth++;
+            if (lines[i].includes('}')) braceDepth--;
+          }
+        }
+        continue;
+      }
+
+      // 块起始: id: Title {
+      const headerMatch = t.match(/^([a-zA-Z0-9_]+):\s*(.+?)(?:\s*\{)?$/);
+      if (headerMatch && !current) {
+        const id = headerMatch[1];
+        let rawTitle = headerMatch[2].replace(/\{$/, '').replace(/^["']|["']$/g, '').trim();
+        current = {
+          id,
+          title: rawTitle,
+          lines: [],
+          hasInternalArrows: false
+        };
+        if (t.endsWith('{') || headerMatch[2].endsWith('{')) {
+          braceDepth = 1;
+        } else {
+          blocks.push(current);
+          current = null;
+        }
+        continue;
+      }
+
+      if (current) {
+        if (t.includes('{')) braceDepth++;
+        if (t.includes('}')) {
+          braceDepth--;
+          if (braceDepth <= 0) {
+            blocks.push(current);
+            current = null;
+            continue;
+          }
+        }
+        if (t.match(/\->|\-\->|\-\.\->/)) {
+          current.hasInternalArrows = true;
+        }
+        current.lines.push(t);
+      }
+    }
+
+    if (blocks.length === 0 && topConnections.length === 0) {
+      return null;
+    }
+
+    function cleanMermaidText(s) {
+      if (!s) return '';
+      return s.replace(/["]/g, "'").replace(/[<]/g, '＜').replace(/[>]/g, '＞').trim();
+    }
+
+    function detectColorClass(fill, stroke) {
+      const c = ((fill || '') + ' ' + (stroke || '')).toLowerCase();
+      if (c.includes('fff5') || c.includes('ffe3') || c.includes('e031') || c.includes('c92a') || c.includes('red')) return 'd2-red';
+      if (c.includes('e7f5') || c.includes('1971') || c.includes('blue')) return 'd2-blue';
+      if (c.includes('ebfb') || c.includes('2f9e') || c.includes('green')) return 'd2-green';
+      if (c.includes('ffd4') || c.includes('fff9') || c.includes('f08c') || c.includes('yellow') || c.includes('orange')) return 'd2-yellow';
+      if (c.includes('f3f0') || c.includes('7048') || c.includes('purple')) return 'd2-purple';
+      if (c.includes('f8f9') || c.includes('868e') || c.includes('gray') || c.includes('grey')) return 'd2-gray';
+      return '';
+    }
+
+    const out = [];
+    out.push(`graph ${dir}`);
+    const classAssignments = [];
+
+    for (const b of blocks) {
+      if (b.hasInternalArrows) {
+        out.push(`    subgraph ${b.id}["${cleanMermaidText(b.title)}"]`);
+        const subNodes = new Map();
+        const subConns = [];
+
+        for (const line of b.lines) {
+          if (line.startsWith('style.') || line.startsWith('shape:') || line.startsWith('near:') || line.startsWith('icon:')) continue;
+          const connMatch = line.match(/^([a-zA-Z0-9_.]+)\s*(\->|\-\->|\-\.\->|\.\->|\<\-|\<\-\>|\-\-)\s*([a-zA-Z0-9_.]+)(?::\s*(.+))?$/);
+          if (connMatch) {
+            const src = connMatch[1].replace(/\./g, '_');
+            let arrow = '-->';
+            if (connMatch[2].includes('.')) arrow = '-.->';
+            else if (connMatch[2].includes('<>')) arrow = '<-->';
+            else if (connMatch[2] === '--') arrow = '---';
+            const dst = connMatch[3].replace(/\./g, '_');
+            const label = (connMatch[4] || '').replace(/["']/g, '').trim();
+            if (label) {
+              subConns.push(`        ${src} ${arrow}|"${cleanMermaidText(label)}"| ${dst}`);
+            } else {
+              subConns.push(`        ${src} ${arrow} ${dst}`);
+            }
+            continue;
+          }
+
+          const nodeMatch = line.match(/^([a-zA-Z0-9_]+):\s*(.+)$/);
+          if (nodeMatch) {
+            const nid = nodeMatch[1];
+            const ntext = nodeMatch[2].replace(/\{$/, '').replace(/["']/g, '').trim();
+            if (nid && ntext && !nid.startsWith('style') && nid !== 'shape') {
+              subNodes.set(nid, ntext);
+            }
+          }
+        }
+
+        for (const [nid, ntext] of subNodes) {
+          out.push(`        ${nid}["${cleanMermaidText(ntext)}"]`);
+        }
+        for (const sc of subConns) {
+          out.push(sc);
+        }
+        out.push(`    end`);
+      } else {
+        let fill = '';
+        let stroke = '';
+        const items = [];
+
+        for (const line of b.lines) {
+          if (line.startsWith('style.fill:')) {
+            fill = line.replace('style.fill:', '').replace(/["';\s]/g, '');
+          } else if (line.startsWith('style.stroke:')) {
+            stroke = line.replace('style.stroke:', '').replace(/["';\s]/g, '');
+          } else if (line.startsWith('shape:') || line.startsWith('style.') || line.startsWith('near:') || line.startsWith('icon:')) {
+            // ignore
+          } else {
+            let val = '';
+            const pm = line.match(/^([a-zA-Z0-9_]+):\s*(.+)$/);
+            if (pm) {
+              val = pm[2];
+            } else if (/^[-*•]\s*(.+)$/.test(line)) {
+              val = line.replace(/^[-*•]\s*/, '');
+            } else if (/^["'].*["']$/.test(line)) {
+              val = line.replace(/^["']|["']$/g, '');
+            }
+            if (val) {
+              val = val.replace(/\{$/, '').replace(/^["']|["']$/g, '').trim();
+              if (val) items.push(val);
+            }
+          }
+        }
+
+        let cardHtml = `<b>${cleanMermaidText(b.title)}</b>`;
+        if (items.length > 0) {
+          cardHtml += `<br/>━━━━━━━━━━━━`;
+          for (const it of items) {
+            cardHtml += `<br/>• ${cleanMermaidText(it)}`;
+          }
+        }
+        out.push(`    ${b.id}["${cardHtml}"]`);
+
+        const cls = detectColorClass(fill, stroke);
+        if (cls) {
+          classAssignments.push(`    class ${b.id} ${cls}`);
+        }
+      }
+    }
+
+    for (const c of topConnections) {
+      let arrow = '-->';
+      if (c.arrow.includes('.')) arrow = '-.->';
+      else if (c.arrow.includes('<>')) arrow = '<-->';
+      else if (c.arrow === '--') arrow = '---';
+      if (c.label) {
+        out.push(`    ${c.src} ${arrow}|"${cleanMermaidText(c.label)}"| ${c.dst}`);
+      } else {
+        out.push(`    ${c.src} ${arrow} ${c.dst}`);
+      }
+    }
+
+    if (classAssignments.length > 0) {
+      out.push('    classDef d2-red fill:#fff5f5,stroke:#e03131,stroke-width:1.5px;');
+      out.push('    classDef d2-blue fill:#e7f5ff,stroke:#1971c2,stroke-width:1.5px;');
+      out.push('    classDef d2-green fill:#ebfbee,stroke:#2f9e44,stroke-width:1.5px;');
+      out.push('    classDef d2-yellow fill:#fff9db,stroke:#f08c00,stroke-width:1.5px;');
+      out.push('    classDef d2-purple fill:#f3f0ff,stroke:#7048e8,stroke-width:1.5px;');
+      out.push('    classDef d2-gray fill:#f8f9fa,stroke:#868e96,stroke-width:1.5px;');
+      for (const ca of classAssignments) {
+        out.push(ca);
+      }
+    }
+
+    return { title, mermaid: out.join('\n') };
+  }
+
   function renderMarkdownDoc(rawMarkdown) {
     mermaidStore.clear();
     d2Store.clear();
@@ -5321,9 +5574,31 @@
 
     let d2Counter = 0;
     html = html.replace(/<pre><code class="language-d2">([\s\S]*?)<\/code><\/pre>/gi, (match, code) => {
+      const cleanCode = unescapeHtml(code.trim());
+      if (!cleanCode) return '';
+
+      // 阶段一：首选将 D2 转译为高密度扁平化 Mermaid 流水卡片，彻底规避巨型大方框与字号缩水
+      const mRes = d2ToMermaid(cleanCode);
+      if (mRes && mRes.mermaid) {
+        mermaidCounter++;
+        const uniqueKey = `mermaid-${Date.now()}-${mermaidCounter}`;
+        mermaidStore.set(uniqueKey, mRes.mermaid);
+        const titleAttr = mRes.title ? ` data-chart-title="${escapeHtml(mRes.title)}"` : '';
+        const titleHtml = mRes.title ? `<div class="diagram-custom-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-accent, #3b82f6);flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg><span>${escapeHtml(mRes.title)}</span></div>` : '';
+        return `
+          <div class="mermaid-wrapper" data-chart-key="${uniqueKey}"${titleAttr}>
+            ${titleHtml}
+            <div style="color:var(--text-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;padding:20px 0;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+              <span>架构图解析中...</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // 阶段二：若包含转译器未覆盖的超复杂特殊语法，优雅保底回退至原生 D2 渲染引擎
       d2Counter++;
       const uniqueKey = `d2-${Date.now()}-${d2Counter}`;
-      const cleanCode = unescapeHtml(code.trim());
       d2Store.set(uniqueKey, cleanCode);
 
       return `
@@ -6978,8 +7253,11 @@
       if (finalSvg) {
         const canToggleDirection = flowInfo !== null;
         const isVisuallyVert = isFlowchartVisuallyVertical(rawCode, targetDir);
+        const chartTitle = wrapper.getAttribute('data-chart-title');
+        const titleHtml = chartTitle ? `<div class="diagram-custom-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-accent, #3b82f6);flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg><span>${escapeHtml(chartTitle)}</span></div>` : '';
 
         wrapper.innerHTML = `
+          ${titleHtml}
           <div class="mermaid-toolbar">
             ${isHealed ? `<span class="mermaid-heal-badge" title="图表节点或连线包含非标字符，系统已自动宽容自愈渲染"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>容错自愈</span>` : ''}
             ${canToggleDirection ? `
@@ -6993,6 +7271,9 @@
                 </svg>
               </button>
             ` : ''}
+            <button type="button" class="mermaid-tool-btn mermaid-copy-svg-btn" title="复制矢量 SVG (可直接无损粘贴进 Word/PPT 转换为形状)" aria-label="复制矢量 SVG">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
             <button type="button" class="mermaid-tool-btn mermaid-fullscreen-btn" title="全屏高清查看 (点击图表亦可放大)" aria-label="全屏高清查看">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
             </button>
@@ -7032,6 +7313,25 @@
             const currentDir = wrapper.getAttribute('data-direction') || targetDir;
             const nextDir = (currentDir === 'TD' || currentDir === 'TB') ? 'LR' : 'TD';
             renderSingleMermaidChart(wrapper, nextDir);
+          });
+        }
+
+        // 绑定矢量 SVG 复制按钮
+        const copySvgBtn = wrapper.querySelector('.mermaid-copy-svg-btn');
+        if (copySvgBtn) {
+          copySvgBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const curSvg = viewportEl ? viewportEl.querySelector('svg') : null;
+            if (!curSvg) return;
+            const ok = await copyTextToClipboard(curSvg.outerHTML);
+            if (ok) {
+              copySvgBtn.innerHTML = `${SVG_ICONS.check}`;
+              copySvgBtn.title = '已复制矢量 SVG，可直接粘贴进 Word / PPT！';
+              setTimeout(() => {
+                copySvgBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+                copySvgBtn.title = '复制矢量 SVG (可直接无损粘贴进 Word/PPT 转换为形状)';
+              }, 2000);
+            }
           });
         }
 
