@@ -13,12 +13,13 @@ import (
 	"time"
 )
 
-// ShareItem 表示单篇文档的对外只读分享记录
+// ShareItem 表示单篇文档或专栏目录的对外只读分享记录
 type ShareItem struct {
 	ID        string    `json:"id"`         // 8位安全随机短ID，例如 "k8N2vX9m"
 	RepoID    string    `json:"repo_id"`    // 对应仓库 ID
 	RelPath   string    `json:"rel_path"`   // 仓库内相对路径
-	DocTitle  string    `json:"doc_title"`  // 文档标题（冗余缓存，便于列表查看）
+	DocTitle  string    `json:"doc_title"`  // 文档或专栏标题（冗余缓存，便于列表查看）
+	Type      string    `json:"type"`       // 分享类型: "doc" (单篇文档，默认) 或 "folder" (专栏目录)
 	CreatedAt time.Time `json:"created_at"` // 创建时间
 	UpdatedAt time.Time `json:"updated_at"` // 更新或状态变更时间
 	ExpiresAt int64     `json:"expires_at"` // 过期时间戳（0 = 永久有效）
@@ -90,9 +91,12 @@ func (sm *ShareManager) loadShares() {
 		if item.ExpiresAt > 0 && now-item.ExpiresAt > 60*86400 {
 			continue
 		}
-		// 单篇文档只保留最新的一条有效分享（覆盖旧的）
+		// 单篇文档/目录只保留最新的一条有效分享（覆盖旧的）
 		cleanRel := filepath.ToSlash(filepath.Clean(item.RelPath))
 		cleanRel = strings.TrimPrefix(cleanRel, "/")
+		if item.Type == "" {
+			item.Type = "doc"
+		}
 		for oldID, old := range sm.shares {
 			if old.RepoID == item.RepoID && old.RelPath == cleanRel {
 				if item.CreatedAt.After(old.CreatedAt) {
@@ -121,15 +125,20 @@ func (sm *ShareManager) saveShares() {
 	}
 }
 
-// CreateShare 为文档创建/更新分享链接（每篇文档始终唯一，覆盖之前的分享）
-func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays int, passcode string) (*ShareItem, error) {
+// CreateShare 为文档或专栏目录创建/更新分享链接（每篇文档/目录始终唯一，覆盖之前的分享）
+func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays int, passcode string, shareType ...string) (*ShareItem, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+
+	sType := "doc"
+	if len(shareType) > 0 && shareType[0] != "" {
+		sType = shareType[0]
+	}
 
 	cleanRel := filepath.ToSlash(filepath.Clean(relPath))
 	cleanRel = strings.TrimPrefix(cleanRel, "/")
 
-	// 核心逻辑：若本文档之前存在旧分享，直接删除并覆盖，避免多条冗余难管
+	// 核心逻辑：若本文档/专栏之前存在旧分享，直接删除并覆盖，避免多条冗余难管
 	for oldID, old := range sm.shares {
 		if old.RepoID == repoID && old.RelPath == cleanRel {
 			delete(sm.shares, oldID)
@@ -165,6 +174,7 @@ func (sm *ShareManager) CreateShare(repoID, relPath, docTitle string, expireDays
 		RepoID:    repoID,
 		RelPath:   cleanRel,
 		DocTitle:  title,
+		Type:      sType,
 		CreatedAt: now,
 		UpdatedAt: now,
 		ExpiresAt: expiresAt,

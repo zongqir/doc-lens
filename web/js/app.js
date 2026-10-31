@@ -182,7 +182,16 @@
       document.body.classList.add('is-share-mode');
       if (el.sharedBadge) el.sharedBadge.style.display = 'inline-flex';
       if (el.sharedHomeBtn) el.sharedHomeBtn.style.display = 'inline-flex';
-      await loadSharedDoc(state.shareId);
+      const initSubpath = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+      window.addEventListener('hashchange', () => {
+        if (state.isShareMode && state.currentShareDoc && state.currentShareDoc.is_folder) {
+          const newSub = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+          if (newSub && newSub !== state.sharedActiveSubpath) {
+            switchSharedChapter(newSub);
+          }
+        }
+      });
+      await loadSharedDoc(state.shareId, '', initSubpath);
       return;
     }
 
@@ -300,8 +309,11 @@
 
     // 分享功能相关 DOM 元素 (单卡片一体化无缝修改模型)
     el.shareDocModal = document.getElementById('shareDocModal');
+    el.shareModalHeading = document.getElementById('shareModalHeading');
+    el.shareModalDocIcon = document.getElementById('shareModalDocIcon');
     el.shareModalDocTitle = document.getElementById('shareModalDocTitle');
     el.shareModalDocPath = document.getElementById('shareModalDocPath');
+    el.shareCreateIntro = document.getElementById('shareCreateIntro');
 
     el.shareActivePanel = document.getElementById('shareActivePanel');
     el.shareActiveStatusWrap = document.getElementById('shareActiveStatusWrap');
@@ -1692,9 +1704,14 @@
         <span class="tree-item-icon">${isExpanded ? SVG_ICONS.folderOpen : iconSvg}</span>
         <span class="tree-item-label" title="${escapeHtml(node.name)}">${renderHighlightedText(node.name, highlightQuery)}</span>
         ${!node.is_repo ? `
-        <button class="tree-dir-star-btn ${isDirFav ? 'active' : ''}" title="${isDirFav ? '取消目录书签' : '设为目录书签'}" data-path="${escapeHtml(node.path)}" aria-label="收藏目录">
-          ${isDirFav ? SVG_ICONS.starFilled : SVG_ICONS.star}
-        </button>
+        <div class="tree-dir-actions">
+          <button type="button" class="tree-dir-action-btn tree-dir-share-btn" title="分享此专栏/目录" data-path="${escapeHtml(node.path)}" aria-label="分享目录">
+            ${SVG_ICONS.share}
+          </button>
+          <button type="button" class="tree-dir-action-btn tree-dir-star-btn ${isDirFav ? 'active' : ''}" title="${isDirFav ? '取消目录书签' : '设为目录书签'}" data-path="${escapeHtml(node.path)}" aria-label="收藏目录">
+            ${isDirFav ? SVG_ICONS.starFilled : SVG_ICONS.star}
+          </button>
+        </div>
         ` : ''}
       `;
 
@@ -1707,6 +1724,22 @@
             e.preventDefault();
             e.stopPropagation();
             toggleDirFavorite(node, routePrefix);
+          });
+        }
+        const shareBtn = item.querySelector('.tree-dir-share-btn');
+        if (shareBtn) {
+          shareBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openShareModal({
+              is_dir: true,
+              type: 'folder',
+              path: node.path,
+              rel_path: node.path,
+              name: node.name,
+              title: node.name,
+              repo_id: state.currentRepo?.ID
+            });
           });
         }
       }
@@ -1728,7 +1761,7 @@
       }
 
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.tree-dir-star-btn')) return;
+        if (e.target.closest('.tree-dir-star-btn') || e.target.closest('.tree-dir-share-btn')) return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -5231,11 +5264,12 @@
       return trimmed;
     }
 
-    // 若处于单篇只读分享模式，所有相对静态资源经由免密沙箱 /api/share/raw 加载
+    // 若处于单篇或专栏只读分享模式，所有相对静态资源经由免密沙箱 /api/share/raw 加载
     if (state.isShareMode && state.shareId) {
       const relFile = trimmed.replace(/^\.\//, '');
       const passParam = state.sharePasscode ? '&passcode=' + encodeURIComponent(state.sharePasscode) : '';
-      return `/api/share/raw?id=${encodeURIComponent(state.shareId)}&file=${encodeURIComponent(relFile)}${passParam}`;
+      const subParam = state.sharedActiveSubpath ? '&subpath=' + encodeURIComponent(state.sharedActiveSubpath) : '';
+      return `/api/share/raw?id=${encodeURIComponent(state.shareId)}&file=${encodeURIComponent(relFile)}${subParam}${passParam}`;
     }
 
     const repoPrefix = '/' + (state.currentRepo?.RoutePrefix || '').replace(/^\/+|\/+$/g, '');
@@ -8365,9 +8399,17 @@
     currentShareTargetDoc = doc;
     currentDocActiveShare = null;
 
+    const isFolder = !!(doc.is_dir || doc.type === 'folder');
     const title = doc.name ? cleanDocTitle(doc.name) : (doc.title || (doc.path ? doc.path.split('/').pop() : '未命名文档'));
-    if (el.shareModalDocTitle) el.shareModalDocTitle.textContent = title;
-    if (el.shareModalDocPath) el.shareModalDocPath.textContent = doc.rel_path || doc.path || '';
+    if (el.shareModalDocTitle) el.shareModalDocTitle.textContent = (isFolder ? '📚 ' : '') + title;
+    if (el.shareModalDocPath) el.shareModalDocPath.textContent = (isFolder ? '[专栏目录] ' : '') + (doc.rel_path || doc.path || '');
+    if (el.shareModalHeading) el.shareModalHeading.textContent = isFolder ? '分享专栏 / 目录' : '分享此文档';
+    if (el.shareModalDocIcon) el.shareModalDocIcon.textContent = isFolder ? '📁' : '📄';
+    if (el.shareCreateIntro) {
+      el.shareCreateIntro.textContent = isFolder
+        ? '生成专栏专属只读短链接后，访客可阅读该目录下所有章节文章并查看专栏目录树，其他仓库与目录安全隔离。'
+        : '生成免密只读专属链接后，可安全分享给他人阅读，全库其他资料安全隔离。';
+    }
 
     // 重置未分享面板初始值
     if (el.newShareExpireSelect) el.newShareExpireSelect.value = '7';
@@ -8425,6 +8467,8 @@
     const isExpired = share.expires_at > 0 && now > share.expires_at;
     const isDisabled = !!share.disabled;
 
+    const isFolder = share.type === 'folder';
+
     if (el.shareLiveDot) {
       if (isDisabled) el.shareLiveDot.className = 'disabled-dot';
       else if (isExpired) el.shareLiveDot.className = 'expired-dot';
@@ -8433,7 +8477,7 @@
     if (el.shareLiveText) {
       if (isDisabled) el.shareLiveText.textContent = '已关闭 (访客无法访问)';
       else if (isExpired) el.shareLiveText.textContent = '已过期';
-      else el.shareLiveText.textContent = '分享中';
+      else el.shareLiveText.textContent = isFolder ? '专栏目录分享中' : '分享中';
     }
     if (el.toggleShareStateBtn) {
       if (isDisabled) {
@@ -8590,6 +8634,8 @@
     const relPath = (currentShareTargetDoc.rel_path || currentShareTargetDoc.path || '').replace(/^\/+/, '');
     const title = currentShareTargetDoc.name ? cleanDocTitle(currentShareTargetDoc.name) : (currentShareTargetDoc.title || relPath.split('/').pop());
 
+    const isFolder = !!(currentShareTargetDoc && (currentShareTargetDoc.is_dir || currentShareTargetDoc.type === 'folder'));
+
     if (el.startShareBtn) {
       el.startShareBtn.disabled = true;
       el.startShareBtn.textContent = '正在开启分享...';
@@ -8604,7 +8650,8 @@
           rel_path: relPath,
           doc_title: title,
           expire_days: expireDays,
-          passcode: pass
+          passcode: pass,
+          type: isFolder ? 'folder' : 'doc'
         })
       });
       const data = await res.json();
@@ -8805,16 +8852,21 @@
       toggleBtnHtml = `<button type="button" class="btn btn-xs btn-share-toggle is-renew" data-id="${item.id}" data-action="renew" title="延长 7 天有效期并开启">⏰ 续期7天</button>`;
     }
 
+    const isFolder = item.type === 'folder';
+
     return `
       <div class="share-card-item ${status.cls}" data-id="${escapeHtml(item.id)}" data-repo="${escapeHtml(item.repo_id)}" data-relpath="${escapeHtml(item.rel_path)}" data-title="${escapeHtml(item.doc_title.toLowerCase())}">
         <div class="share-card-top-row">
           <div class="share-card-title-group">
+            <span class="share-card-type-tag ${isFolder ? 'is-folder' : 'is-doc'}">
+              ${isFolder ? '📚 专栏' : '📄 文档'}
+            </span>
             <span class="share-status-tag ${status.cls}">
               <span class="dot"></span>
               <span>${status.label}</span>
             </span>
-            <a href="${escapeHtml(fullDocRoute)}" class="share-card-doc-link" title="点击在系统内直达阅读此文档" data-path="${escapeHtml(fullDocRoute)}">
-              <span class="doc-icon">${SVG_ICONS.markdown}</span>
+            <a href="${escapeHtml(fullDocRoute)}" class="share-card-doc-link" title="${isFolder ? '点击在系统内定位此目录' : '点击在系统内直达阅读此文档'}" data-path="${escapeHtml(fullDocRoute)}" data-is-folder="${isFolder ? 'true' : 'false'}" data-repo="${escapeHtml(item.repo_id)}" data-rel-path="${escapeHtml(item.rel_path)}">
+              <span class="doc-icon">${isFolder ? SVG_ICONS.folder : SVG_ICONS.markdown}</span>
               <span class="doc-title-text">${escapeHtml(item.doc_title)}</span>
             </a>
           </div>
@@ -8965,12 +9017,24 @@
     });
 
     // 3. 点击文档标题直达系统内阅读
+    // 3. 点击文档或专栏标题直达系统内查看
     container.querySelectorAll('.share-card-doc-link').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
+        const isFolder = link.getAttribute('data-is-folder') === 'true';
+        const repoId = link.getAttribute('data-repo');
+        const relPath = link.getAttribute('data-rel-path');
         const path = link.getAttribute('data-path');
-        if (path) {
-          closeModal(el.sharesHubModal);
+        closeModal(el.sharesHubModal);
+        if (isFolder) {
+          if (repoId && state.currentRepo?.ID !== repoId) {
+            selectRepo(repoId).then(() => {
+              if (relPath) expandPathToNode(relPath);
+            });
+          } else if (relPath) {
+            expandPathToNode(relPath);
+          }
+        } else if (path) {
           routeTo(path);
         }
       });
@@ -9014,7 +9078,7 @@
       });
     });
 
-    // 5. 设置编辑（打开对应文档分享弹窗）
+    // 5. 设置编辑（打开对应文档/专栏分享弹窗）
     container.querySelectorAll('.btn-share-edit').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -9026,7 +9090,9 @@
           name: share.doc_title,
           rel_path: share.rel_path,
           path: share.rel_path,
-          repo_id: share.repo_id
+          repo_id: share.repo_id,
+          type: share.type || 'doc',
+          is_dir: share.type === 'folder'
         });
       });
     });
@@ -9283,20 +9349,22 @@
   }
 
   // 访客端：加载分享文档内容
-  async function loadSharedDoc(shareId, passcode = '') {
+  async function loadSharedDoc(shareId, passcode = '', subpath = '') {
     if (!shareId) return;
 
     renderDocumentSkeleton('/s/' + shareId);
 
     try {
-      const url = `/api/share/content?id=${encodeURIComponent(shareId)}${passcode ? '&passcode=' + encodeURIComponent(passcode) : ''}`;
+      let url = `/api/share/content?id=${encodeURIComponent(shareId)}`;
+      if (passcode) url += `&passcode=${encodeURIComponent(passcode)}`;
+      if (subpath) url += `&subpath=${encodeURIComponent(subpath)}`;
       const res = await fetch(url);
 
       if (res.status === 401) {
         const errData = await res.json();
         if (errData.error === 'need_passcode') {
           if (el.sharePasscodePromptText && errData.title) {
-            el.sharePasscodePromptText.textContent = `本文档《${errData.title}》已被作者设置访问保护，请输入密码继续：`;
+            el.sharePasscodePromptText.textContent = `《${errData.title}》已被作者设置访问保护，请输入密码继续：`;
           }
           openModal(el.sharePasscodeModal);
           if (el.guestPasscodeInput) {
@@ -9324,7 +9392,15 @@
       state.sharePasscode = passcode;
       closeModal(el.sharePasscodeModal);
 
-      renderSharedDocument(docData);
+      if (docData.is_folder) {
+        document.body.classList.add('is-share-folder');
+        state.sharedActiveSubpath = docData.subpath;
+        state.sharedFolderTree = docData.tree;
+        renderSharedFolder(docData);
+      } else {
+        document.body.classList.remove('is-share-folder');
+        renderSharedDocument(docData);
+      }
     } catch (err) {
       renderShareErrorPage('网络加载失败，请检查网络连接或稍后重试。');
     }
@@ -9336,8 +9412,8 @@
     const code = el.guestPasscodeInput.value.trim();
     if (!code) return;
     if (el.sharePasscodeError) el.sharePasscodeError.textContent = '';
-
-    loadSharedDoc(state.shareId, code);
+    const subpath = decodeURIComponent((window.location.hash || '').replace(/^#/, ''));
+    loadSharedDoc(state.shareId, code, subpath);
   }
 
   function renderShareErrorPage(msg) {
@@ -9352,6 +9428,276 @@
         </div>
       `;
     }
+    resetDocScroll();
+  }
+
+  function flattenSharedChapters(node) {
+    const list = [];
+    function walk(n) {
+      if (!n) return;
+      if (!n.is_dir && n.subpath) {
+        list.push({
+          name: n.name,
+          title: cleanDocTitle(n.name),
+          subpath: n.subpath,
+          ext: n.ext
+        });
+      }
+      if (n.children) {
+        n.children.forEach(walk);
+      }
+    }
+    walk(node);
+    return list;
+  }
+
+  async function switchSharedChapter(subpath) {
+    if (!state.shareId || !subpath || state.sharedActiveSubpath === subpath) return;
+    state.sharedActiveSubpath = subpath;
+    window.location.hash = '#' + encodeURIComponent(subpath);
+
+    if (el.fileTree) {
+      el.fileTree.querySelectorAll('.tree-file-row').forEach(row => {
+        row.classList.toggle('shared-chapter-active', row.getAttribute('data-subpath') === subpath);
+      });
+    }
+
+    renderDocumentSkeleton('/s/' + state.shareId + '#' + subpath);
+
+    try {
+      let url = `/api/share/content?id=${encodeURIComponent(state.shareId)}&subpath=${encodeURIComponent(subpath)}`;
+      if (state.sharePasscode) url += `&passcode=${encodeURIComponent(state.sharePasscode)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        renderShareErrorPage('章节加载失败或已被移除');
+        return;
+      }
+      const docData = await res.json();
+      state.currentShareDoc = docData;
+      renderSharedFolder(docData);
+    } catch (err) {
+      renderShareErrorPage('章节网络加载失败，请重试');
+    }
+  }
+
+  function renderSharedColumnTree(rootNode, container, activeSubpath) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (!rootNode || !rootNode.children || rootNode.children.length === 0) {
+      container.innerHTML = '<div class="section-empty-hint">此专栏暂无章节</div>';
+      return;
+    }
+
+    function createNodeEl(node) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'tree-item-group';
+
+      if (node.is_dir) {
+        const item = document.createElement('div');
+        item.className = 'tree-item-row tree-dir-row';
+        item.setAttribute('role', 'treeitem');
+        item.innerHTML = `
+          <span class="tree-chevron open">${SVG_ICONS.chevronRight}</span>
+          <span class="tree-item-icon">${SVG_ICONS.folderOpen}</span>
+          <span class="tree-item-label" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</span>
+        `;
+        wrapper.appendChild(item);
+
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'tree-children-container';
+        childrenContainer.style.display = 'block';
+
+        if (node.children) {
+          node.children.forEach(c => {
+            childrenContainer.appendChild(createNodeEl(c));
+          });
+        }
+        wrapper.appendChild(childrenContainer);
+
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const willOpen = childrenContainer.style.display === 'none';
+          childrenContainer.style.display = willOpen ? 'block' : 'none';
+          const ch = item.querySelector('.tree-chevron');
+          if (ch) ch.classList.toggle('open', willOpen);
+          const ic = item.querySelector('.tree-item-icon');
+          if (ic) ic.innerHTML = willOpen ? SVG_ICONS.folderOpen : SVG_ICONS.folder;
+        });
+      } else {
+        const item = document.createElement('a');
+        const isActive = node.subpath === activeSubpath;
+        item.className = `tree-item-row tree-file-row ${isActive ? 'shared-chapter-active' : ''}`;
+        item.setAttribute('data-subpath', node.subpath);
+        item.href = '#' + encodeURIComponent(node.subpath);
+
+        let iconSvg = SVG_ICONS.text;
+        if (['.md', '.markdown'].includes(node.ext)) iconSvg = SVG_ICONS.markdown;
+        else if (['.html', '.htm'].includes(node.ext)) iconSvg = SVG_ICONS.html;
+        else iconSvg = SVG_ICONS.code;
+
+        item.innerHTML = `
+          <span class="tree-item-icon">${iconSvg}</span>
+          <span class="tree-item-label" title="${escapeHtml(node.name)}">${escapeHtml(cleanDocTitle(node.name))}</span>
+        `;
+
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          switchSharedChapter(node.subpath);
+        });
+        wrapper.appendChild(item);
+      }
+      return wrapper;
+    }
+
+    const fragment = document.createDocumentFragment();
+    rootNode.children.forEach(c => {
+      fragment.appendChild(createNodeEl(c));
+    });
+    container.appendChild(fragment);
+  }
+
+  function renderSharedFolder(docData) {
+    if (!docData) return;
+    const folderTitle = docData.title || '专栏';
+    const docTitle = docData.doc_title ? cleanDocTitle(docData.doc_title) : folderTitle;
+    document.title = `${docTitle} - 《${folderTitle}》专栏 - DocLens`;
+
+    // 1. 侧边栏专属定制：仅展示专栏大纲目录
+    if (el.sidebar) el.sidebar.style.display = '';
+    const fileTreeHeader = document.querySelector('#headerFileTree .section-title');
+    if (fileTreeHeader) {
+      fileTreeHeader.innerHTML = `
+        <span class="shared-column-badge">专栏目录</span>
+        <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(folderTitle)}">${escapeHtml(folderTitle)}</span>
+      `;
+    }
+    renderSharedColumnTree(docData.tree, el.fileTree, docData.subpath);
+
+    // 2. 顶部面包屑与文章头部
+    if (el.articleHeader) el.articleHeader.style.display = 'block';
+    if (el.headerBreadcrumbs) {
+      el.headerBreadcrumbs.innerHTML = `
+        <span class="breadcrumb-item breadcrumb-home">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          <span>${escapeHtml(docData.repo_name || '知识库')}</span>
+        </span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-item"><span class="shared-column-badge" style="margin-right:2px;">专栏</span>${escapeHtml(folderTitle)}</span>
+        <span class="breadcrumb-sep">/</span>
+        <span class="breadcrumb-item active">${escapeHtml(docTitle)}</span>
+      `;
+    }
+
+    if (el.articlePath) el.articlePath.textContent = docData.subpath ? `${docData.folder_path}/${docData.subpath}` : (docData.folder_path || '');
+    if (el.articleTypePill) el.articleTypePill.style.display = 'none';
+
+    const dateStr = new Date((docData.mod_time || 0) * 1000).toLocaleString('zh-CN', { hour12: false });
+    if (el.articleMeta) {
+      el.articleMeta.innerHTML = `
+        <span class="article-meta-item">📅 ${dateStr}</span>
+        <span class="article-meta-item">📏 ${docData.lines || 0} 行</span>
+        <span class="article-meta-item">👁️ ${docData.view_count || 1} 次阅读</span>
+        <span class="article-meta-item">🏷️ 专栏体系只读保护</span>
+      `;
+    }
+
+    const docType = docData.doc_type || 'markdown';
+    const isMarkdown = docType === 'markdown';
+
+    if (el.articleActions) {
+      el.articleActions.innerHTML = `
+        ${isMarkdown ? `
+        <button class="btn btn-mindmap" id="docMindmapBtn" title="查看文章思维导图（层级大纲脑图）">
+          ${SVG_ICONS.mindmap}
+          <span class="btn-text-full">思维导图</span>
+          <span class="btn-text-short">导图</span>
+        </button>` : ''}
+        <button class="btn" id="copyShareLinkBtn" title="复制当前章节分享链接">
+          ${SVG_ICONS.link}
+          <span class="btn-text-full">复制章节链接</span>
+          <span class="btn-text-short">链接</span>
+        </button>
+      `;
+
+      if (isMarkdown) {
+        const mindmapBtn = document.getElementById('docMindmapBtn');
+        if (mindmapBtn) {
+          mindmapBtn.addEventListener('click', () => {
+            openDocMindmap({
+              path: docData.subpath,
+              name: docTitle,
+              content: docData.content
+            });
+          });
+        }
+      }
+
+      const copyBtn = document.getElementById('copyShareLinkBtn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+          const shareUrl = `${window.location.origin}/s/${docData.id}#${encodeURIComponent(docData.subpath || '')}`;
+          await copyTextToClipboard(shareUrl);
+          copyBtn.classList.add('copy-success');
+          copyBtn.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
+          setTimeout(() => {
+            copyBtn.classList.remove('copy-success');
+            copyBtn.innerHTML = `${SVG_ICONS.link} <span class="btn-text-full">复制章节链接</span><span class="btn-text-short">链接</span>`;
+          }, 2000);
+        });
+      }
+    }
+
+    if (docType === 'markdown') {
+      renderMarkdownDoc(docData.content);
+    } else if (docType === 'html') {
+      renderHtmlDoc(docData.path, docData.content);
+    } else {
+      renderCodeDoc(docData.content, docData.path);
+    }
+
+    // 3. 章节底部上下翻页（上一篇 / 下一篇）
+    const chapters = flattenSharedChapters(docData.tree);
+    const curIdx = chapters.findIndex(c => c.subpath === docData.subpath);
+    const prevChapter = curIdx > 0 ? chapters[curIdx - 1] : null;
+    const nextChapter = (curIdx >= 0 && curIdx < chapters.length - 1) ? chapters[curIdx + 1] : null;
+
+    if (el.docPagination) {
+      el.docPagination.style.display = 'grid';
+      el.docPagination.innerHTML = `
+        ${prevChapter ? `
+          <a class="doc-pagination-item doc-pagination-prev" data-subpath="${escapeHtml(prevChapter.subpath)}" href="#${encodeURIComponent(prevChapter.subpath)}">
+            <span class="pagination-sub">← 上一讲</span>
+            <div class="doc-pagination-title">${escapeHtml(prevChapter.title)}</div>
+          </a>
+        ` : '<div class="doc-pagination-spacer"></div>'}
+        ${nextChapter ? `
+          <a class="doc-pagination-item doc-pagination-next" data-subpath="${escapeHtml(nextChapter.subpath)}" href="#${encodeURIComponent(nextChapter.subpath)}">
+            <span class="pagination-sub">下一讲 →</span>
+            <div class="doc-pagination-title">${escapeHtml(nextChapter.title)}</div>
+          </a>
+        ` : '<div class="doc-pagination-spacer"></div>'}
+      `;
+
+      el.docPagination.querySelectorAll('.doc-pagination-item').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetSub = btn.getAttribute('data-subpath');
+          if (targetSub) switchSharedChapter(targetSub);
+        });
+      });
+    }
+
+    if (el.articleBody) {
+      const footerDiv = document.createElement('div');
+      footerDiv.className = 'shared-reader-footer';
+      footerDiv.innerHTML = `
+        <div>由 <strong>DocLens</strong> 轻量技术知识库驱动 · 专栏体系只读保护</div>
+        <a href="/" target="_self">进入主知识库</a>
+      `;
+      el.articleBody.appendChild(footerDiv);
+    }
+
     resetDocScroll();
   }
 

@@ -833,6 +833,7 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 			DocTitle   string `json:"doc_title"`
 			ExpireDays int    `json:"expire_days"`
 			Passcode   string `json:"passcode"`
+			Type       string `json:"type"` // "doc" (默认) 或 "folder" (专栏目录)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
@@ -849,9 +850,27 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cleanRel := cleanDocRelPath(repo, req.RelPath)
-		if _, err := a.rm.GetCachedFile(repo, cleanRel); err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"target doc not found: %s"}`, err.Error()), http.StatusNotFound)
-			return
+		targetType := req.Type
+		if targetType == "" {
+			targetType = "doc"
+		}
+
+		if targetType == "folder" {
+			absPath, err := a.rm.SafeResolve(repo, cleanRel)
+			if err != nil {
+				http.Error(w, fmt.Sprintf(`{"error":"directory not found: %s"}`, err.Error()), http.StatusNotFound)
+				return
+			}
+			info, err := os.Stat(absPath)
+			if err != nil || !info.IsDir() {
+				http.Error(w, `{"error":"target is not a directory"}`, http.StatusBadRequest)
+				return
+			}
+		} else {
+			if _, err := a.rm.GetCachedFile(repo, cleanRel); err != nil {
+				http.Error(w, fmt.Sprintf(`{"error":"target doc not found: %s"}`, err.Error()), http.StatusNotFound)
+				return
+			}
 		}
 
 		docTitle := req.DocTitle
@@ -859,7 +878,7 @@ func (a *App) handleShares(w http.ResponseWriter, r *http.Request) {
 			docTitle = filepath.Base(cleanRel)
 		}
 
-		item, err := a.sm.CreateShare(req.RepoID, cleanRel, docTitle, req.ExpireDays, req.Passcode)
+		item, err := a.sm.CreateShare(req.RepoID, cleanRel, docTitle, req.ExpireDays, req.Passcode, targetType)
 		if err != nil {
 			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 			return
@@ -931,6 +950,76 @@ func (a *App) handleShareItem(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
 }
 
+type SharedFolderNode struct {
+	Name     string              `json:"name"`
+	SubPath  string              `json:"subpath"`
+	IsDir    bool                `json:"is_dir"`
+	Ext      string              `json:"ext,omitempty"`
+	Children []*SharedFolderNode `json:"children,omitempty"`
+}
+
+func findTreeNodeByRel(root *TreeNode, targetRel string) *TreeNode {
+	if root == nil {
+		return nil
+	}
+	cleanTarget := filepath.ToSlash(filepath.Clean(targetRel))
+	cleanTarget = strings.Trim(cleanTarget, "/")
+	cleanRoot := filepath.ToSlash(filepath.Clean(root.Path))
+	cleanRoot = strings.Trim(cleanRoot, "/")
+	if cleanRoot == cleanTarget {
+		return root
+	}
+	for _, child := range root.Children {
+		if found := findTreeNodeByRel(child, cleanTarget); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func buildSharedFolderTree(node *TreeNode, baseRel string) *SharedFolderNode {
+	if node == nil {
+		return nil
+	}
+	cleanBase := filepath.ToSlash(filepath.Clean(baseRel))
+	cleanBase = strings.Trim(cleanBase, "/")
+
+	cleanNodePath := filepath.ToSlash(filepath.Clean(node.Path))
+	cleanNodePath = strings.Trim(cleanNodePath, "/")
+
+	subpath := cleanNodePath
+	if cleanBase != "" {
+		subpath = strings.TrimPrefix(subpath, cleanBase)
+		subpath = strings.Trim(subpath, "/")
+	}
+
+	sNode := &SharedFolderNode{
+		Name:    node.Name,
+		SubPath: subpath,
+		IsDir:   node.IsDir,
+		Ext:     node.Ext,
+	}
+	for _, c := range node.Children {
+		sNode.Children = append(sNode.Children, buildSharedFolderTree(c, baseRel))
+	}
+	return sNode
+}
+
+func findFirstFileSubpath(node *SharedFolderNode) string {
+	if node == nil {
+		return ""
+	}
+	if !node.IsDir && node.SubPath != "" {
+		return node.SubPath
+	}
+	for _, c := range node.Children {
+		if f := findFirstFileSubpath(c); f != "" {
+			return f
+		}
+	}
+	return ""
+}
+
 func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
 	shareID := r.URL.Query().Get("id")
 	if shareID == "" {
@@ -988,6 +1077,108 @@ func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 专栏/目录分享模式
+	if item.Type == "folder" {
+		fullTree, err := a.rm.GetTree(item.RepoID, false)
+		if err != nil {
+			http.Error(w, `{"error":"failed to load tree"}`, http.StatusInternalServerError)
+			return
+		}
+		rawFolderNode := findTreeNodeByRel(fullTree, item.RelPath)
+		if rawFolderNode == nil {
+			http.Error(w, `{"error":"shared folder not found"}`, http.StatusNotFound)
+			return
+		}
+
+		folderTree := buildSharedFolderTree(rawFolderNode, item.RelPath)
+		folderTree.Name = item.DocTitle // 顶层根节点采用专栏标题
+
+		rawSubpath := strings.TrimSpace(r.URL.Query().Get("subpath"))
+		var requestedSubpath string
+		if rawSubpath != "" && rawSubpath != "." && rawSubpath != "/" {
+			requestedSubpath = filepath.ToSlash(filepath.Clean(filepath.FromSlash(rawSubpath)))
+			requestedSubpath = strings.Trim(requestedSubpath, "/")
+			if requestedSubpath == "." {
+				requestedSubpath = ""
+			}
+		}
+
+		// 安全防穿透：禁止以 .. 开头
+		if strings.HasPrefix(requestedSubpath, "..") {
+			http.Error(w, `{"error":"forbidden path traversal"}`, http.StatusForbidden)
+			return
+		}
+
+		activeSubpath := requestedSubpath
+		if activeSubpath == "" {
+			// 自动查找 README.md / index.md，或第一篇可用文档
+			candidates := []string{"README.md", "index.md", "readme.md", "Index.md"}
+			for _, cand := range candidates {
+				candRel := filepath.ToSlash(filepath.Clean(filepath.Join(item.RelPath, cand)))
+				if _, err := a.rm.GetCachedFile(repo, candRel); err == nil {
+					activeSubpath = cand
+					break
+				}
+			}
+			if activeSubpath == "" {
+				activeSubpath = findFirstFileSubpath(folderTree)
+			}
+		}
+
+		var cachedDoc *CachedDoc
+		if activeSubpath != "" {
+			targetRel := filepath.ToSlash(filepath.Clean(filepath.Join(item.RelPath, activeSubpath)))
+			folderNorm := filepath.ToSlash(filepath.Clean(item.RelPath))
+			if targetRel != folderNorm && !strings.HasPrefix(targetRel, folderNorm+"/") {
+				http.Error(w, `{"error":"forbidden path"}`, http.StatusForbidden)
+				return
+			}
+			doc, err := a.rm.GetCachedFile(repo, targetRel)
+			if err != nil {
+				http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
+				return
+			}
+			cachedDoc = doc
+		}
+
+		resp := map[string]any{
+			"id":           item.ID,
+			"type":         "folder",
+			"is_folder":    true,
+			"title":        item.DocTitle,
+			"folder_path":  item.RelPath,
+			"repo_name":    repo.Name,
+			"tree":         folderTree,
+			"subpath":      activeSubpath,
+			"created_at":   item.CreatedAt,
+			"expires_at":   item.ExpiresAt,
+			"view_count":   item.ViewCount,
+			"has_passcode": item.Passcode != "",
+		}
+		if cachedDoc != nil {
+			resp["doc_title"] = filepath.Base(activeSubpath)
+			resp["path"] = cachedDoc.Resp.Path
+			resp["rel_path"] = cachedDoc.Resp.RelPath
+			resp["doc_type"] = cachedDoc.Resp.Type
+			resp["content"] = cachedDoc.Resp.Content
+			resp["size"] = cachedDoc.Resp.Size
+			resp["lines"] = cachedDoc.Resp.Lines
+			resp["mod_time"] = cachedDoc.Resp.ModTime
+		} else {
+			resp["doc_title"] = item.DocTitle
+			resp["doc_type"] = "markdown"
+			resp["content"] = "# " + item.DocTitle + "\n\n（该专栏暂无可用文档）"
+			resp["size"] = 0
+			resp["lines"] = 3
+			resp["mod_time"] = item.CreatedAt.Unix()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+		_ = json.NewEncoder(w).Encode(resp)
+		return
+	}
+
 	cachedDoc, err := a.rm.GetCachedFile(repo, item.RelPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"file not found: %s"}`, err.Error()), http.StatusNotFound)
@@ -996,10 +1187,11 @@ func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]any{
 		"id":           item.ID,
+		"type":         cachedDoc.Resp.Type,
+		"is_folder":    false,
 		"title":        item.DocTitle,
 		"path":         cachedDoc.Resp.Path,
 		"rel_path":     item.RelPath,
-		"type":         cachedDoc.Resp.Type,
 		"content":      cachedDoc.Resp.Content,
 		"size":         cachedDoc.Resp.Size,
 		"lines":        cachedDoc.Resp.Lines,
@@ -1019,6 +1211,7 @@ func (a *App) handleShareContent(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleShareRaw(w http.ResponseWriter, r *http.Request) {
 	shareID := r.URL.Query().Get("id")
 	file := r.URL.Query().Get("file")
+	subpath := r.URL.Query().Get("subpath")
 	passcode := r.URL.Query().Get("passcode")
 	if passcode == "" {
 		passcode = r.Header.Get("X-DocLens-Passcode")
@@ -1049,22 +1242,65 @@ func (a *App) handleShareRaw(w http.ResponseWriter, r *http.Request) {
 	cleanFile := filepath.Clean(filepath.ToSlash(file))
 	cleanFile = strings.TrimPrefix(cleanFile, "/")
 
-	docDir := filepath.Dir(item.RelPath)
-	targetRel := filepath.Clean(filepath.Join(docDir, cleanFile))
-
-	absPath, err := a.rm.SafeResolve(repo, targetRel)
-	if err != nil {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
-	if _, sErr := os.Stat(absPath); sErr != nil {
-		// 备用尝试：若相对文档目录未找到，尝试直接相对仓库根目录查找
-		if fbAbs, fErr := a.rm.SafeResolve(repo, cleanFile); fErr == nil {
-			if _, fbStat := os.Stat(fbAbs); fbStat == nil {
-				absPath = fbAbs
+	var absPath string
+	if item.Type == "folder" {
+		folderDir := item.RelPath
+		var targetRel string
+		if subpath != "" {
+			docSubDir := filepath.Dir(filepath.Clean(filepath.ToSlash(subpath)))
+			if docSubDir != "." && docSubDir != "/" {
+				targetRel = filepath.Clean(filepath.Join(folderDir, docSubDir, cleanFile))
 			}
 		}
+		if targetRel == "" {
+			targetRel = filepath.Clean(filepath.Join(folderDir, cleanFile))
+		}
+
+		folderNorm := filepath.ToSlash(filepath.Clean(folderDir))
+		targetNorm := filepath.ToSlash(targetRel)
+		if targetNorm != folderNorm && !strings.HasPrefix(targetNorm, folderNorm+"/") {
+			http.Error(w, "forbidden: path traversal outside shared folder", http.StatusForbidden)
+			return
+		}
+
+		if resolved, err := a.rm.SafeResolve(repo, targetRel); err == nil {
+			if _, sErr := os.Stat(resolved); sErr == nil {
+				absPath = resolved
+			}
+		}
+		if absPath == "" {
+			// 回退检查：直接在 folderDir 下查找
+			fbRel := filepath.Clean(filepath.Join(folderDir, cleanFile))
+			if fbAbs, err := a.rm.SafeResolve(repo, fbRel); err == nil {
+				if _, sErr := os.Stat(fbAbs); sErr == nil {
+					absPath = fbAbs
+				}
+			}
+		}
+	} else {
+		docDir := filepath.Dir(item.RelPath)
+		targetRel := filepath.Clean(filepath.Join(docDir, cleanFile))
+
+		resolved, err := a.rm.SafeResolve(repo, targetRel)
+		if err != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		absPath = resolved
+
+		if _, sErr := os.Stat(absPath); sErr != nil {
+			// 备用尝试：若相对文档目录未找到，尝试直接相对仓库根目录查找
+			if fbAbs, fErr := a.rm.SafeResolve(repo, cleanFile); fErr == nil {
+				if _, fbStat := os.Stat(fbAbs); fbStat == nil {
+					absPath = fbAbs
+				}
+			}
+		}
+	}
+
+	if absPath == "" {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
 	}
 
 	ext := strings.ToLower(filepath.Ext(absPath))

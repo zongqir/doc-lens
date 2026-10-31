@@ -407,7 +407,7 @@
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
           </div>
-          <span>分享此文档</span>
+          <span id="shareModalHeading">分享此文档</span>
         </span>
         <button type="button" class="btn btn-icon-only close-modal-btn">✕</button>
       </div>
@@ -415,7 +415,7 @@
       <div class="modal-body share-modal-body">
         <!-- 顶部文档信息预览 -->
         <div class="share-doc-preview">
-          <span class="share-doc-icon">📄</span>
+          <span class="share-doc-icon" id="shareModalDocIcon">📄</span>
           <div class="share-doc-info">
             <div class="share-doc-title" id="shareModalDocTitle">文档标题</div>
             <div class="share-doc-path" id="shareModalDocPath">路径</div>
@@ -482,7 +482,7 @@
 
         <!-- 场景 2：文档尚未分享时的初次配置卡片 -->
         <div class="share-create-panel" id="shareCreatePanel" style="display:none;">
-          <div class="share-create-intro">
+          <div class="share-create-intro" id="shareCreateIntro">
             生成免密只读专属链接后，可安全分享给他人阅读，全库其他资料安全隔离。
           </div>
 

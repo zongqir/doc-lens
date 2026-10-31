@@ -1411,6 +1411,64 @@ body.modal-open {
   padding: 0 1px;
 }
 
+.tree-dir-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.tree-dir-row:hover .tree-dir-actions {
+  display: inline-flex;
+}
+
+.tree-dir-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.tree-dir-action-btn svg {
+  width: 12.5px;
+  height: 12.5px;
+  stroke: currentColor;
+  fill: none;
+}
+
+.tree-dir-action-btn:hover {
+  color: var(--primary);
+  transform: scale(1.15);
+}
+
+.tree-dir-action-btn.tree-dir-star-btn.active {
+  display: inline-flex;
+  color: #f59e0b;
+}
+
+.tree-dir-action-btn.tree-dir-star-btn.active svg {
+  fill: #f59e0b;
+  stroke: #f59e0b;
+}
+
+.tree-dir-row:not(:hover) .tree-dir-actions:has(.tree-dir-star-btn.active) {
+  display: inline-flex;
+}
+
+.tree-dir-row:not(:hover) .tree-dir-actions:has(.tree-dir-star-btn.active) .tree-dir-share-btn {
+  display: none;
+}
+
 .tree-dir-star-btn {
   display: none;
   align-items: center;
@@ -7621,30 +7679,86 @@ body.modal-open {
 }
 
 /* 专属免密分享阅读模式 (Shared Reader Mode) */
-body.is-share-mode #sidebar,
-body.is-share-mode #sidebarOverlay,
-body.is-share-mode #menuBtn,
+body.is-share-mode:not(.is-share-folder) #sidebar,
+body.is-share-mode:not(.is-share-folder) #sidebarOverlay,
+body.is-share-mode:not(.is-share-folder) #menuBtn,
 body.is-share-mode #quickSearchBtn,
 body.is-share-mode #aiDraftBtn,
 body.is-share-mode #aiTaskBtn,
 body.is-share-mode #aiDocTaskBtn,
 body.is-share-mode #docHistoryDiffBtn,
 body.is-share-mode #favoriteBtn,
-body.is-share-mode #docPagination,
+body.is-share-mode:not(.is-share-folder) #docPagination,
 body.is-share-mode #fabAiBtn,
 body.is-share-mode #sharesHubBtn {
   display: none !important;
 }
 
-body.is-share-mode .main-layout {
+body.is-share-mode:not(.is-share-folder) .main-layout {
   grid-template-columns: 1fr;
 }
 
-body.is-share-mode #contentArea {
+body.is-share-mode:not(.is-share-folder) #contentArea {
   margin-left: 0;
   max-width: 1000px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* 专栏/目录分享模式专属组件样式 */
+body.is-share-mode.is-share-folder #sidebarNavTabs,
+body.is-share-mode.is-share-folder #sectionFavorites,
+body.is-share-mode.is-share-folder #sectionRecentReads,
+body.is-share-mode.is-share-folder #sectionRecentCreated,
+body.is-share-mode.is-share-folder #filterFavBtn,
+body.is-share-mode.is-share-folder #refreshTreeBtn,
+body.is-share-mode.is-share-folder .tree-dir-actions,
+body.is-share-mode.is-share-folder .tree-dir-star-btn,
+body.is-share-mode.is-share-folder .tree-dir-share-btn {
+  display: none !important;
+}
+
+body.is-share-mode.is-share-folder #headerFileTree .section-toggle-chevron {
+  display: none !important;
+}
+
+.shared-column-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--primary-light, rgba(59, 130, 246, 0.12));
+  color: var(--primary, #3b82f6);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs, 4px);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.share-card-type-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs, 4px);
+  line-height: 1.2;
+}
+
+.share-card-type-tag.is-folder {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.share-card-type-tag.is-doc {
+  background: var(--bg-surface-raised, rgba(0, 0, 0, 0.05));
+  color: var(--text-secondary);
+}
+
+.tree-file-row.shared-chapter-active {
+  background-color: var(--bg-active, rgba(59, 130, 246, 0.1)) !important;
+  color: var(--primary, #3b82f6) !important;
+  font-weight: 600 !important;
 }
 
 .shared-reader-footer {
