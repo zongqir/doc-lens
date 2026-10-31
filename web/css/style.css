@@ -4522,10 +4522,6 @@ body.modal-open {
   flex-shrink: 0;
 }
 
-.btn-terminal-back {
-  display: none !important;
-}
-
 .terminal-meta-label {
   font-size: 12px;
   font-family: var(--font-mono);
@@ -6206,22 +6202,6 @@ body.modal-open {
   }
   .terminal-layout-body.show-log .terminal-main-view {
     display: flex !important;
-  }
-
-  .btn-terminal-back {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    font-size: 11.5px;
-    font-weight: 500;
-    height: 28px;
-    border-radius: var(--radius-sm);
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    color: var(--text-primary);
-    cursor: pointer;
-    flex-shrink: 0;
   }
 
   /* 手机端输入框防止 iOS 自动变焦 (font-size 必须 >= 16px) */

@@ -746,19 +746,6 @@
       });
     });
 
-    const terminalBackBtn = document.getElementById('terminalBackToListBtn');
-    if (terminalBackBtn) {
-      terminalBackBtn.addEventListener('click', () => {
-        const layoutBody = document.querySelector('.terminal-layout-body');
-        if (layoutBody) {
-          layoutBody.classList.remove('show-log');
-        }
-        document.querySelectorAll('.terminal-tab').forEach(t => {
-          t.classList.toggle('active', t.getAttribute('data-tab') === 'list');
-        });
-      });
-    }
-
     // 手机端双悬浮球微交互 (向下翻阅时半透明微缩小避让正文，静止或向上回滚时恢复)
     let lastScrollY = 0;
     el.contentArea.addEventListener('scroll', () => {
