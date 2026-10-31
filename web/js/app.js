@@ -208,7 +208,13 @@
           }
         }
       });
-      const effectivePass = state.sharePasscode || getStoredSharePasscode(state.shareId) || '';
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlPass = urlParams.get('pwd') || urlParams.get('passcode') || '';
+      const effectivePass = urlPass || state.sharePasscode || getStoredSharePasscode(state.shareId) || '';
+      if (urlPass) {
+        state.sharePasscode = urlPass;
+        setStoredSharePasscode(state.shareId, urlPass);
+      }
       await loadSharedDoc(state.shareId, effectivePass, initSubpath);
       return;
     }
@@ -8482,7 +8488,10 @@
     if (el.shareCreatePanel) el.shareCreatePanel.style.display = 'none';
     if (el.shareActivePanel) el.shareActivePanel.style.display = 'flex';
 
-    const shareUrl = `${window.location.origin}/s/${share.id}`;
+    let shareUrl = `${window.location.origin}/s/${share.id}`;
+    if (share.passcode) {
+      shareUrl += `?pwd=${encodeURIComponent(share.passcode)}`;
+    }
     if (el.shareActiveUrlInput) el.shareActiveUrlInput.value = shareUrl;
     if (el.shareViewCounter) el.shareViewCounter.textContent = `${share.view_count || 0} 次浏览`;
 
@@ -8688,8 +8697,11 @@
       renderActiveSharePanel(currentDocActiveShare);
       loadAllShares(); // 同步刷新管理端
 
-      // 自动复制链接到剪贴板
-      const fullUrl = `${window.location.origin}/s/${data.share_id}`;
+      // 自动复制链接到剪贴板（若设置密码则自动附带 ?pwd= 直达免输参数）
+      let fullUrl = `${window.location.origin}/s/${data.share_id}`;
+      if (pass) {
+        fullUrl += `?pwd=${encodeURIComponent(pass)}`;
+      }
       const copied = await copyTextToClipboard(fullUrl);
       if (el.mainCopyShareBtn && copied) {
         const origHtml = el.mainCopyShareBtn.innerHTML;
@@ -8859,7 +8871,10 @@
     const repo = (state.repos || []).find(r => r.ID === item.repo_id);
     const repoName = repo ? repo.Name : (item.repo_id || '知识库');
     const fullDocRoute = '/' + (repo ? (repo.RoutePrefix || '').replace(/^\/+|\/+$/g, '') : '') + '/' + item.rel_path.replace(/^\/+/, '');
-    const shareUrl = `${window.location.origin}/s/${item.id}`;
+    let shareUrl = `${window.location.origin}/s/${item.id}`;
+    if (item.passcode) {
+      shareUrl += `?pwd=${encodeURIComponent(item.passcode)}`;
+    }
 
     let passHtml = '<span class="share-pass-pill free">🔓 免密公开</span>';
     if (item.passcode) {
@@ -9763,7 +9778,11 @@
       const copyBtn = document.getElementById('copyShareLinkBtn');
       if (copyBtn) {
         copyBtn.addEventListener('click', async () => {
-          const shareUrl = `${window.location.origin}/s/${docData.id}#${encodeURIComponent(docData.subpath || '')}`;
+          let shareUrl = `${window.location.origin}/s/${docData.id}`;
+          if (state.sharePasscode) {
+            shareUrl += `?pwd=${encodeURIComponent(state.sharePasscode)}`;
+          }
+          shareUrl += `#${encodeURIComponent(docData.subpath || '')}`;
           await copyTextToClipboard(shareUrl);
           copyBtn.classList.add('copy-success');
           copyBtn.innerHTML = `${SVG_ICONS.check} <span class="btn-text-full" style="color:#10b981;">已复制</span><span class="btn-text-short" style="color:#10b981;">已复制</span>`;
