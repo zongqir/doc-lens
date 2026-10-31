@@ -84,12 +84,22 @@
 
 ### 方式一：Docker 一键运行（推荐）
 
-#### 单命令直接启动：
+#### 模式 A：单数据卷模式（最简方案，自动初始化配置与文档）
 ```bash
 docker run -d \
   --name doc-lens \
   -p 18086:18086 \
-  -v /你的Markdown文档绝对路径:/app/docs \
+  -v ./data:/data \
+  ghcr.io/zongqir/doc-lens:latest
+```
+> **说明**：DocLens 会自动在 `./data` 下生成 `config.yaml`（配置文件）、`docs/`（文档库）和 `state/`（状态与日志）。迁移备份只需拷贝这一个文件夹！
+
+#### 模式 B：直接挂载现有 Markdown 笔记目录
+```bash
+docker run -d \
+  --name doc-lens \
+  -p 18086:18086 \
+  -v /本地已有Markdown笔记绝对路径:/docs \
   ghcr.io/zongqir/doc-lens:latest
 ```
 
@@ -103,16 +113,17 @@ services:
     ports:
       - "18086:18086"
     volumes:
-      - ./docs:/app/docs
-      - doclens-state:/root/.local/state/doc-lens
+      # 模式 A：统一数据卷（推荐）
+      - ./data:/data
+      # 模式 B：挂载现有本地笔记（可选）
+      # - /path/to/my/notes:/docs
     environment:
       - TZ=Asia/Shanghai
-
-volumes:
-  doclens-state:
+      # 可选环境变量覆盖：
+      # - DOCLENS_INITIAL_PASSWORD=admin888
 ```
 执行 `docker compose up -d` 即可在后台启动，浏览器打开 `http://IP:18086` 访问。  
-*默认初始登录密码：`admin888`（首次登录后可在 config.yaml 中自定义）。*
+*默认初始登录密码：`admin888`（首次登录后可在 config.yaml 或环境变量中自定义）。*
 
 ---
 

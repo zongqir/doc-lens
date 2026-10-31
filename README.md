@@ -85,12 +85,22 @@ Traditional knowledge base setups often introduce heavy runtime stacks, multi-co
 
 ### Option 1: Docker / Docker Compose (Recommended)
 
-#### Quick Run:
+#### Mode A: Single Data Volume (Easiest - Auto initializes config and docs)
 ```bash
 docker run -d \
   --name doc-lens \
   -p 18086:18086 \
-  -v /path/to/your/markdown/docs:/app/docs \
+  -v ./data:/data \
+  ghcr.io/zongqir/doc-lens:latest
+```
+> **Note**: DocLens automatically generates `config.yaml`, `docs/`, and `state/` inside `./data`. Backups and migrations require only copying this single folder!
+
+#### Mode B: Mount Your Existing Markdown Folder Directly
+```bash
+docker run -d \
+  --name doc-lens \
+  -p 18086:18086 \
+  -v /path/to/your/markdown/notes:/docs \
   ghcr.io/zongqir/doc-lens:latest
 ```
 
@@ -104,16 +114,17 @@ services:
     ports:
       - "18086:18086"
     volumes:
-      - ./docs:/app/docs
-      - doclens-state:/root/.local/state/doc-lens
+      # Mode A: Single unified data volume (Recommended)
+      - ./data:/data
+      # Mode B: Mount existing notes directly (Optional)
+      # - /path/to/my/notes:/docs
     environment:
       - TZ=Asia/Shanghai
-
-volumes:
-  doclens-state:
+      # Optional environment overrides:
+      # - DOCLENS_INITIAL_PASSWORD=admin888
 ```
 Run `docker compose up -d` and visit `http://localhost:18086`.  
-*Default login password: `admin888` (customizable in config.yaml).*
+*Default login password: `admin888` (customizable in config.yaml or via DOCLENS_INITIAL_PASSWORD).*
 
 ---
 

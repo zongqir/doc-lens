@@ -33,11 +33,33 @@ type App struct {
 	cfgPath string
 }
 
+func resolveConfigPath(flagPath string) string {
+	// If user explicitly specified non-default flag, honor it
+	if flagPath != "config.yaml" {
+		return flagPath
+	}
+	// Check environment variable
+	if env := os.Getenv("DOCLENS_CONFIG"); env != "" {
+		return env
+	}
+	// If local config.yaml exists, use it
+	if _, err := os.Stat("config.yaml"); err == nil {
+		return "config.yaml"
+	}
+	// If running in container with /data mounted
+	if _, err := os.Stat("/data"); err == nil {
+		return "/data/config.yaml"
+	}
+	return "config.yaml"
+}
+
 func main() {
 	cfgPath := flag.String("config", "config.yaml", "path to yaml config file")
 	flag.Parse()
 
-	cfg, err := LoadConfig(*cfgPath)
+	actualCfgPath := resolveConfigPath(*cfgPath)
+
+	cfg, err := LoadConfig(actualCfgPath)
 	if err != nil {
 		log.Fatalf("Fatal: failed to load config: %v", err)
 	}
@@ -61,7 +83,7 @@ func main() {
 		tts:     tts,
 		lq:      lq,
 		sm:      sm,
-		cfgPath: *cfgPath,
+		cfgPath: actualCfgPath,
 	}
 
 	server := &http.Server{

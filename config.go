@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
@@ -53,9 +54,11 @@ type AIProxyConfig struct {
 func LoadConfig(configPath string) (*Config, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		cfg := createDefaultConfig()
+		_ = os.MkdirAll(filepath.Dir(configPath), 0755)
 		if err := SaveConfig(configPath, cfg); err != nil {
 			return nil, fmt.Errorf("failed to create default config: %w", err)
 		}
+		initDefaultDocs(cfg)
 		return cfg, nil
 	}
 
@@ -82,12 +85,70 @@ func LoadConfig(configPath string) (*Config, error) {
 		cfg.Auth.SessionSecret = randomHex(32)
 		_ = SaveConfig(configPath, &cfg)
 	}
+
+	// Environment variable overrides
+	if envPort := os.Getenv("DOCLENS_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			cfg.Port = p
+		}
+	}
+	if envHost := os.Getenv("DOCLENS_HOST"); envHost != "" {
+		cfg.Host = envHost
+	}
+	if envState := os.Getenv("DOCLENS_STATE_DIR"); envState != "" {
+		cfg.StateDir = envState
+	} else if envData := os.Getenv("DOCLENS_DATA_DIR"); envData != "" {
+		cfg.StateDir = filepath.Join(envData, "state")
+	}
+
 	if cfg.StateDir == "" {
-		home, _ := os.UserHomeDir()
-		cfg.StateDir = filepath.Join(home, ".local", "state", "doc-lens")
+		if _, err := os.Stat("/data"); err == nil {
+			cfg.StateDir = "/data/state"
+		} else {
+			home, _ := os.UserHomeDir()
+			cfg.StateDir = filepath.Join(home, ".local", "state", "doc-lens")
+		}
 	}
 	applyAIProxyDefaults(&cfg.AI.Proxy)
 	_ = os.MkdirAll(cfg.StateDir, 0755)
+
+	// Smart repository path fallback and override
+	var envDocs string
+	if d := os.Getenv("DOCLENS_DOCS_DIR"); d != "" {
+		envDocs = d
+	} else if d := os.Getenv("DOCLENS_DOCS_PATH"); d != "" {
+		envDocs = d
+	}
+
+	if envDocs != "" {
+		if len(cfg.Repositories) == 0 {
+			cfg.Repositories = append(cfg.Repositories, RepoConfig{
+				ID:          "docs",
+				Name:        "技术知识库 (Docs)",
+				Path:        envDocs,
+				RoutePrefix: "/docs",
+				Description: "默认技术文档与 Markdown 知识库",
+				Writable:    true,
+			})
+		} else {
+			cfg.Repositories[0].Path = envDocs
+		}
+	} else {
+		for i := range cfg.Repositories {
+			p := cfg.Repositories[i].Path
+			if p == "./docs" || p == "docs" {
+				if _, err := os.Stat(p); os.IsNotExist(err) {
+					if _, err := os.Stat("/docs"); err == nil {
+						cfg.Repositories[i].Path = "/docs"
+					} else if _, err := os.Stat("/data/docs"); err == nil {
+						cfg.Repositories[i].Path = "/data/docs"
+					}
+				}
+			}
+		}
+	}
+
+	initDefaultDocs(&cfg)
 
 	return &cfg, nil
 }
@@ -128,14 +189,52 @@ func SaveConfig(configPath string, cfg *Config) error {
 func createDefaultConfig() *Config {
 	secret := randomHex(32)
 	defaultPass := "admin888"
+	if envPass := os.Getenv("DOCLENS_INITIAL_PASSWORD"); envPass != "" {
+		defaultPass = envPass
+	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(defaultPass), bcrypt.DefaultCost)
 
-	home, _ := os.UserHomeDir()
-	stateDir := filepath.Join(home, ".local", "state", "doc-lens")
+	stateDir := ""
+	docsPath := "./docs"
+
+	// Smart container default detection
+	if _, err := os.Stat("/data"); err == nil {
+		stateDir = "/data/state"
+		docsPath = "/data/docs"
+	} else {
+		home, _ := os.UserHomeDir()
+		stateDir = filepath.Join(home, ".local", "state", "doc-lens")
+	}
+
+	if envState := os.Getenv("DOCLENS_STATE_DIR"); envState != "" {
+		stateDir = envState
+	} else if envData := os.Getenv("DOCLENS_DATA_DIR"); envData != "" {
+		stateDir = filepath.Join(envData, "state")
+	}
+
+	if envDocs := os.Getenv("DOCLENS_DOCS_DIR"); envDocs != "" {
+		docsPath = envDocs
+	} else if envDocs := os.Getenv("DOCLENS_DOCS_PATH"); envDocs != "" {
+		docsPath = envDocs
+	} else if _, err := os.Stat("/docs"); err == nil && docsPath == "./docs" {
+		docsPath = "/docs"
+	}
+
+	port := 18086
+	if envPort := os.Getenv("DOCLENS_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			port = p
+		}
+	}
+
+	host := "0.0.0.0"
+	if envHost := os.Getenv("DOCLENS_HOST"); envHost != "" {
+		host = envHost
+	}
 
 	return &Config{
-		Port: 18086,
-		Host: "0.0.0.0",
+		Port: port,
+		Host: host,
 		Auth: AuthConfig{
 			PasswordHash:  string(hash),
 			InitialPass:   defaultPass,
@@ -146,7 +245,7 @@ func createDefaultConfig() *Config {
 			{
 				ID:          "docs",
 				Name:        "技术知识库 (Docs)",
-				Path:        "./docs",
+				Path:        docsPath,
 				RoutePrefix: "/docs",
 				Description: "默认技术文档与 Markdown 知识库",
 				Writable:    true,
@@ -163,6 +262,30 @@ func createDefaultConfig() *Config {
 			},
 		},
 		StateDir: stateDir,
+	}
+}
+
+// initDefaultDocs ensures repositories have valid folders and creates a welcoming guide if empty.
+func initDefaultDocs(cfg *Config) {
+	for _, r := range cfg.Repositories {
+		_ = os.MkdirAll(r.Path, 0755)
+		entries, err := os.ReadDir(r.Path)
+		if err == nil && len(entries) == 0 {
+			welcomeFile := filepath.Join(r.Path, "README.md")
+			welcomeContent := `# 欢迎使用 DocLens 知识库 🔍
+
+这是您的全新技术知识库空间。
+
+### 🚀 快速开始
+1. **添加文章**：直接将 Markdown 文件（.md）、架构图（.d2）或代码文件放入本目录。
+2. **多端阅读**：支持手机端自适应抽屉、全要素 Mermaid 渲染与四大文人字体风格。
+3. **AI 写作与解剖**：点击右下角紫色创作笔，可派发课题扩写、修改与深度提炼任务。
+4. **听文章**：支持智库旁白语音播报，随时加入稍后听队列连续播放。
+
+*祝您阅读与思考愉快！*
+`
+			_ = os.WriteFile(welcomeFile, []byte(welcomeContent), 0644)
+		}
 	}
 }
 

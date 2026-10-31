@@ -30,17 +30,18 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-# Prepare default directories for knowledge base and state storage
-RUN mkdir -p /app/docs /root/.local/state/doc-lens
+# Prepare standard directories: /data (unified storage) and /docs (direct notes mount)
+RUN mkdir -p /data/docs /data/state /docs /app
 
-# Copy compiled single binary and default config
+# Copy compiled single binary and default config template
 COPY --from=builder /app/doc-lens /app/doc-lens
-COPY config.example.yaml /app/config.yaml
 COPY config.example.yaml /app/config.example.yaml
 
 EXPOSE 18086
 
-VOLUME ["/app/docs", "/root/.local/state/doc-lens"]
+# /data: Unified volume (contains config.yaml, docs/, state/)
+# /docs: Optional direct mount for existing local markdown directory
+VOLUME ["/data", "/docs"]
 
 ENTRYPOINT ["/app/doc-lens"]
-CMD ["-config", "/app/config.yaml"]
+CMD ["-config", "/data/config.yaml"]

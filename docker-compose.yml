@@ -8,14 +8,12 @@ services:
     ports:
       - "18086:18086"
     volumes:
-      # Mount your local Markdown knowledge base directory to /app/docs
-      - ./docs:/app/docs
-      # Optional: Mount your customized config.yaml
-      # - ./config.yaml:/app/config.yaml
-      # Persistent state directory for task logs, shares, and session tokens
-      - doclens-state:/root/.local/state/doc-lens
+      # Mode 1 (Recommended): Single unified data volume (contains config.yaml, docs/, state/)
+      - ./data:/data
+      # Mode 2 (Optional): Directly mount your existing markdown notes folder to /docs
+      # - /path/to/your/markdown/notes:/docs
     environment:
       - TZ=Asia/Shanghai
-
-volumes:
-  doclens-state:
+      # Optional: Override initial password or custom port via ENV
+      # - DOCLENS_INITIAL_PASSWORD=admin888
+      # - DOCLENS_PORT=18086
