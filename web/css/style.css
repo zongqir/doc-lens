@@ -6409,7 +6409,13 @@ body.is-resizing-toc .toc-sidebar {
     display: none !important;
   }
 
-  .btn-ai-write, .btn-task-center, .btn-shares-hub {
+  /* 手机端隐藏顶栏 AI 创作按钮（移动端右下角已有常驻紫色悬浮“笔”小球，顶栏无需重复且腾出宝贵空间） */
+  #aiDraftBtn,
+  .btn-ai-write {
+    display: none !important;
+  }
+
+  .btn-task-center, .btn-shares-hub {
     padding: 0 !important;
     width: 34px !important;
     height: 34px !important;
@@ -6481,43 +6487,48 @@ body.is-resizing-toc .toc-sidebar {
     box-sizing: border-box !important;
   }
 
-  /* 手机端上一篇/下一篇翻页按钮：弹性占据左侧全部空间，完整展示文字与箭头 */
+  /* 手机端上一篇/下一篇翻页按钮：隐藏文字仅展示纯图标箭头，居左排列与右侧操作按钮自然拉开距离，彻底解决挤爆问题 */
   .header-doc-nav-group {
     display: inline-flex !important;
     align-items: center !important;
-    flex: 1 1 auto !important;
+    flex: 0 0 auto !important;
     min-width: 0 !important;
-    gap: 4px !important;
-    margin-right: 2px !important;
-    padding-right: 6px !important;
+    gap: 6px !important;
+    margin-right: auto !important;
+    padding-right: 8px !important;
     border-right: 1px solid var(--border-subtle) !important;
   }
 
   .header-doc-nav-group .header-nav-btn {
-    flex: 1 1 0 !important;
-    max-width: 140px !important;
-    min-width: 0 !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
     height: 34px !important;
-    padding: 0 8px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    padding: 0 !important;
     font-size: 12px !important;
     font-weight: 500 !important;
-    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
     justify-content: center !important;
-    gap: 4px !important;
+    gap: 0 !important;
+    border-radius: var(--radius-md) !important;
     box-sizing: border-box !important;
   }
 
+  .header-doc-nav-group .header-nav-btn:active {
+    transform: scale(0.92);
+  }
+
   .header-doc-nav-group .header-nav-btn .header-nav-text {
-    display: inline-block !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    display: none !important;
   }
 
   .header-doc-nav-group .header-nav-btn svg {
     flex-shrink: 0 !important;
-    width: 13px !important;
-    height: 13px !important;
+    width: 15px !important;
+    height: 15px !important;
+    margin: 0 !important;
   }
 
   /* 手机端精简收纳：思维导图融入目录抽屉，复制链接融入分享面板，AI创作换为正文悬浮笔小圈圈 */

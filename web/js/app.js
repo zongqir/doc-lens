@@ -3386,7 +3386,7 @@
     let prevBtnHtml = '';
     if (prevDoc) {
       prevBtnHtml = `
-        <button class="btn btn-icon header-nav-btn" id="headerPrevDocBtn" title="上一篇: ${escapeHtml(cleanDocTitle(prevDoc.name))}">
+        <button class="btn btn-icon header-nav-btn" id="headerPrevDocBtn" aria-label="上一篇: ${escapeHtml(cleanDocTitle(prevDoc.name))}" title="上一篇: ${escapeHtml(cleanDocTitle(prevDoc.name))}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           <span class="header-nav-text">上一篇</span>
         </button>
@@ -3396,7 +3396,7 @@
     let nextBtnHtml = '';
     if (nextDoc) {
       nextBtnHtml = `
-        <button class="btn btn-icon header-nav-btn" id="headerNextDocBtn" title="下一篇: ${escapeHtml(cleanDocTitle(nextDoc.name))}">
+        <button class="btn btn-icon header-nav-btn" id="headerNextDocBtn" aria-label="下一篇: ${escapeHtml(cleanDocTitle(nextDoc.name))}" title="下一篇: ${escapeHtml(cleanDocTitle(nextDoc.name))}">
           <span class="header-nav-text">下一篇</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
