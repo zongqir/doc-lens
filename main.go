@@ -420,9 +420,14 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	authed := IsAuthenticated(r, a.cfg.Auth.SessionSecret)
+	aiEnabled := false
+	if a.cfg.AI.Enabled != nil {
+		aiEnabled = *a.cfg.AI.Enabled
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"authenticated": authed,
+		"ai_enabled":    aiEnabled,
 	})
 }
 
@@ -637,6 +642,11 @@ func (a *App) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodPost {
+		if a.cfg.AI.Enabled != nil && !*a.cfg.AI.Enabled {
+			http.Error(w, `{"error":"AI 协作功能在当前服务配置中已禁用 (ai.enabled: false)"}`, http.StatusForbidden)
+			return
+		}
+
 		// 安全加固：限制请求体最大 32KB，防止巨型 Prompt OOM 同时支持 5000 汉字 UTF-8
 		r.Body = http.MaxBytesReader(w, r.Body, 32*1024)
 

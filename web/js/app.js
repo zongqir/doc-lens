@@ -67,7 +67,8 @@
     isInternalHashChange: false,
     currentShareDoc: null,
     allShares: [],
-    sharesFilter: { status: 'all', repo: '', search: '' }
+    sharesFilter: { status: 'all', repo: '', search: '' },
+    aiEnabled: false
   };
 
   const mermaidStore = new Map();
@@ -1391,11 +1392,22 @@
     }
   }
 
+  function updateAiFeatureVisibility() {
+    const show = !!state.aiEnabled && !state.isShareMode;
+    if (el.fabAiBtn) el.fabAiBtn.style.display = show ? 'inline-flex' : 'none';
+    if (el.aiDraftBtn) el.aiDraftBtn.style.display = show ? 'inline-flex' : 'none';
+    if (el.aiTaskBtn) el.aiTaskBtn.style.display = show ? 'inline-flex' : 'none';
+    const aiDocBtn = document.getElementById('aiDocTaskBtn');
+    if (aiDocBtn) aiDocBtn.style.display = show ? 'inline-flex' : 'none';
+  }
+
   async function checkAuth() {
     try {
       const res = await fetch('/api/auth/me');
       const data = await res.json();
       state.authenticated = !!data.authenticated;
+      state.aiEnabled = !!data.ai_enabled;
+      updateAiFeatureVisibility();
       if (!state.authenticated) {
         openModal(el.loginModal);
         el.loginPass.focus();
@@ -3264,11 +3276,12 @@
         <span class="btn-text-full">分享</span>
         <span class="btn-text-short">分享</span>
       </button>
+      ${state.aiEnabled ? `
       <button class="btn" id="aiDocTaskBtn" title="针对当前文章派发 AI 任务（补充、修改、解剖或衍生创作）">
         ${SVG_ICONS.sparkles}
         <span class="btn-text-full">AI 协作</span>
         <span class="btn-text-short">AI</span>
-      </button>
+      </button>` : ''}
     `;
 
     if (isMarkdown) {
@@ -3320,9 +3333,12 @@
       });
     }
 
-    document.getElementById('aiDocTaskBtn').addEventListener('click', () => {
-      openAiTaskModal({ doc: doc, defaultAction: 'append' });
-    });
+    const aiDocTaskBtn = document.getElementById('aiDocTaskBtn');
+    if (aiDocTaskBtn) {
+      aiDocTaskBtn.addEventListener('click', () => {
+        openAiTaskModal({ doc: doc, defaultAction: 'append' });
+      });
+    }
 
     if (doc.type === 'markdown') {
       renderMarkdownDoc(doc.content);

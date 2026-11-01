@@ -177,7 +177,8 @@ repositories:
       - "node_modules"
 
 ai:
-  # 外部 AI 命令行执行器 (可使用内置参考脚本、本地 Ollama 或外部 Agent)
+  enabled: false                 # 默认静默关闭，保持 100% 自包含纯知识库；按需设为 true 或环境变量 DOCLENS_AI_ENABLED=true 开启
+  # 外部 AI 命令行执行器 (强烈推荐接入外挂 Agent CLI，或使用内置参考脚本)
   runner_cmd: "python3 scripts/ai_runner_example.py"
   max_queue: 10                  # 最大并发排队任务数
 ```
@@ -186,23 +187,28 @@ ai:
 
 ## 🤖 外部 AI 命令行执行器协议 (AI Runner Protocol)
 
-DocLens 的 AI 机制坚持**高度解耦的设计哲学**：不硬编码任何厂商的私有 SDK，而是将模型调度完全抽象为标准的命令行程序契约。
+DocLens 的 AI 机制坚持**高度解耦的设计哲学**：不硬编码任何厂商的私有 API SDK，而是将模型调度完全抽象为标准的命令行程序契约。
+
+> **💡 为什么我们坚持使用「外部 CLI / Agent」而非「内嵌 API」？**  
+> 原生大模型聊天 API 只能进行生硬的单次补全，根本无法感知仓库的代码规范（如 `AGENTS.md`）、目录结构与动态技能（Skills）。  
+> 而自主 Agent CLI（如 `agy`、`claude`、`aider`）拥有完整的上下文检索、终端命令执行和多步推理思考链路。将思考与落盘权交给独立的 Agent CLI，才是真正的“AI 知识大脑”。
 
 ### 极简调用契约
-1. **调用规范**：DocLens 异步派发任务时，通过系统调用执行：
+1. **默认静默与安全隔离**：默认 `ai.enabled: false`，界面无任何多余报错入口。仅在用户明确配置开启后点亮 AI 按钮。
+2. **调用规范**：DocLens 异步派发任务时，通过系统调用执行：
    ```bash
    <runner_cmd> -p "<prompt>"
    ```
-2. **工作目录 (Cwd)**：子进程的工作目录始终锁定为**当前目标仓库的物理根目录**，脚本可直接读取上下文文档，并就地生成或修改 Markdown 文件。
-3. **实时打字机日志**：脚本的标准输出 (`stdout` / `stderr`) 会被实时采集并流式推送到 Web 前端「AI 任务控制台」。
-4. **产出直达反转**：脚本生成文件后，只需在控制台输出 `file:///path/to/repo/doc.md`，前端将自动识别并提供一键高亮直达按钮。
-5. **状态判定**：退出码为 `0` 判定为成功（自动刷新前端目录树）；非 `0` 判定为失败。
+3. **工作目录 (Cwd)**：子进程的工作目录始终锁定为**当前目标仓库的物理根目录**，脚本或 Agent 可直接读取上下文文档，并就地生成或修改 Markdown 文件。
+4. **实时打字机日志**：脚本的标准输出 (`stdout` / `stderr`) 会被实时采集并流式推送到 Web 前端「AI 任务控制台」。
+5. **产出直达反转**：脚本生成文件后，只需在控制台输出 `file:///path/to/repo/doc.md`，前端将自动识别并提供一键高亮直达按钮。
+6. **状态判定**：退出码为 `0` 判定为成功（自动刷新前端目录树）；非 `0` 判定为失败。
 
 ### 📦 官方开箱即用参考脚本
 项目内置了经过实测的参考实现，均位于 [scripts/](scripts/) 目录：
 - **[scripts/ai_runner_example.py](scripts/ai_runner_example.py)**：纯 Python 3 标准库（**零 pip 依赖**），直接兼容 DeepSeek、OpenAI、智谱、Kimi 等标准接口。只需要设置环境变量 `export OPENAI_API_KEY="sk-..."` 即可直接工作。
 - **[scripts/ai_runner_ollama.sh](scripts/ai_runner_ollama.sh)**：纯 Bash + curl，开箱即用对接本地离线运行的 Ollama（如 `qwen2.5:7b`）。
-- **自主 Agent 接入**：若环境中已安装 Claude Code、Antigravity `agy` 或 Aider，直接配置 `runner_cmd: "agy"` 即可赋予 DocLens 强大的自主推理能力。
+- **自主 Agent 接入（官方强烈推荐）**：若环境中已安装 Claude Code、Antigravity `agy` 或 Aider，直接配置 `runner_cmd: "agy"` 即可赋予 DocLens 强大的自主推理与规范理解能力。
 
 完整技术规范与高级用法请阅读：[docs/AI_RUNNER_SPEC.md](docs/AI_RUNNER_SPEC.md)。
 

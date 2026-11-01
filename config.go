@@ -39,6 +39,7 @@ type RepoConfig struct {
 }
 
 type AIConfig struct {
+	Enabled   *bool         `yaml:"enabled"`
 	RunnerCmd string        `yaml:"runner_cmd"`
 	MaxQueue  int           `yaml:"max_queue"`
 	Proxy     AIProxyConfig `yaml:"proxy"`
@@ -148,6 +149,17 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
+	if envAI := os.Getenv("DOCLENS_AI_ENABLED"); envAI != "" {
+		enabled := (envAI == "true" || envAI == "1")
+		cfg.AI.Enabled = &enabled
+	} else if cfg.AI.Enabled == nil {
+		if cfg.AI.RunnerCmd != "" && cfg.AI.RunnerCmd != "python3 scripts/ai_runner_example.py" {
+			cfg.AI.Enabled = boolPtr(true)
+		} else {
+			cfg.AI.Enabled = boolPtr(false)
+		}
+	}
+
 	initDefaultDocs(&cfg)
 
 	return &cfg, nil
@@ -237,6 +249,11 @@ func createDefaultConfig() *Config {
 		aiRunner = envRunner
 	}
 
+	aiEnabled := false
+	if envEnabled := os.Getenv("DOCLENS_AI_ENABLED"); envEnabled != "" {
+		aiEnabled = (envEnabled == "true" || envEnabled == "1")
+	}
+
 	return &Config{
 		Port: port,
 		Host: host,
@@ -257,6 +274,7 @@ func createDefaultConfig() *Config {
 			},
 		},
 		AI: AIConfig{
+			Enabled:   &aiEnabled,
 			RunnerCmd: aiRunner,
 			MaxQueue:  10,
 			Proxy: AIProxyConfig{
