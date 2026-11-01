@@ -643,7 +643,7 @@ func (a *App) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodPost {
 		if a.cfg.AI.Enabled != nil && !*a.cfg.AI.Enabled {
-			http.Error(w, `{"error":"AI 协作功能在当前服务配置中已禁用 (ai.enabled: false)"}`, http.StatusForbidden)
+			http.Error(w, `{"error":"AI 协作功能在当前服务中未开启 (ai.enabled: false)。如需开启，请在 config.yaml 中配置 ai.enabled: true 及 runner_cmd，或启动时添加环境变量 DOCLENS_AI_ENABLED=true。详细规范请参阅 docs/AI_RUNNER_SPEC.md"}`, http.StatusForbidden)
 			return
 		}
 

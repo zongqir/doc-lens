@@ -391,6 +391,7 @@ func (tm *TaskManager) executeTask(task *Task) {
 		}
 		task.ErrorMsg = runErr.Error()
 		_, _ = logF.WriteString(fmt.Sprintf("\n[doc-lens] Process exited with error: %v (exit code %d)\n", runErr, task.ExitCode))
+		_, _ = logF.WriteString("[doc-lens] 💡 排查提示：请检查 config.yaml 中的 ai.runner_cmd 命令是否在系统 PATH 中，并确认是否已按 docs/AI_RUNNER_SPEC.md 规范配置执行器环境或 API Key。\n")
 	} else {
 		task.Status = "completed"
 		task.ExitCode = 0
