@@ -25,17 +25,20 @@ RUN GOOS=linux go build -ldflags="-s -w" -o /app/doc-lens .
 # --- Runtime Stage ---
 FROM alpine:3.21
 
-# Install basic root CA certificates and timezone data
-RUN apk add --no-cache ca-certificates tzdata
+# Install basic root CA certificates, timezone data, and scripting runtimes for AI CLI runners
+RUN apk add --no-cache ca-certificates tzdata python3 curl bash
 
 WORKDIR /app
 
 # Prepare standard directories: /data (unified storage) and /docs (direct notes mount)
-RUN mkdir -p /data/docs /data/state /docs /app
+RUN mkdir -p /data/docs /data/state /docs /app /app/scripts
 
-# Copy compiled single binary and default config template
+# Copy compiled single binary, scripts, and default config template
 COPY --from=builder /app/doc-lens /app/doc-lens
 COPY config.example.yaml /app/config.example.yaml
+COPY scripts/ /app/scripts/
+
+ENV PATH="/app:${PATH}"
 
 EXPOSE 18086
 

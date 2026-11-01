@@ -300,7 +300,7 @@ func (tm *TaskManager) executeTask(task *Task) {
 	_, _ = logF.WriteString(header)
 
 	// 构造执行命令
-	// 优先调用系统配置的 runner (例如 dagu-ai 或 ay)
+	// 优先调用系统配置的 runner (例如 dagu-ai 或 python3 scripts/ai_runner_example.py)
 	runner := tm.cfg.AI.RunnerCmd
 	if runner == "" {
 		runner = "dagu-ai"
@@ -333,9 +333,28 @@ func (tm *TaskManager) executeTask(task *Task) {
 		}
 	}
 
-	execArgs = []string{"-p", fullPrompt}
+	// 解析命令行执行器（支持多参数，例如 "python3 scripts/ai_runner_example.py"）
+	parts := strings.Fields(runner)
+	if len(parts) == 0 {
+		parts = []string{"dagu-ai"}
+	}
+	execBin := parts[0]
+	if len(parts) > 1 {
+		for _, arg := range parts[1:] {
+			// 如果参数是相对脚本路径，且在当前程序工作目录下存在，转换为绝对路径，避免在 repo.Path 下找不到
+			if (strings.Contains(arg, "/") || strings.HasSuffix(arg, ".py") || strings.HasSuffix(arg, ".sh")) && !filepath.IsAbs(arg) {
+				if abs, err := filepath.Abs(arg); err == nil {
+					if _, err := os.Stat(abs); err == nil {
+						arg = abs
+					}
+				}
+			}
+			execArgs = append(execArgs, arg)
+		}
+	}
+	execArgs = append(execArgs, "-p", fullPrompt)
 
-	cmd := exec.Command(runner, execArgs...)
+	cmd := exec.Command(execBin, execArgs...)
 	cmd.Dir = repo.Path
 	// 继承物理用户的环境变量；代理可在 config.yaml 中开关和配置。
 	env := os.Environ()

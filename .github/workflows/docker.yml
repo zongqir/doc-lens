@@ -23,6 +23,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Run container automated smoke test
+        run: |
+          chmod +x scripts/test_docker.sh
+          ./scripts/test_docker.sh
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
