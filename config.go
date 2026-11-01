@@ -232,6 +232,11 @@ func createDefaultConfig() *Config {
 		host = envHost
 	}
 
+	aiRunner := "python3 scripts/ai_runner_example.py"
+	if envRunner := os.Getenv("DOCLENS_AI_RUNNER"); envRunner != "" {
+		aiRunner = envRunner
+	}
+
 	return &Config{
 		Port: port,
 		Host: host,
@@ -252,10 +257,10 @@ func createDefaultConfig() *Config {
 			},
 		},
 		AI: AIConfig{
-			RunnerCmd: "dagu-ai",
+			RunnerCmd: aiRunner,
 			MaxQueue:  10,
 			Proxy: AIProxyConfig{
-				Enabled: boolPtr(true),
+				Enabled: boolPtr(false),
 				HTTP:    "http://127.0.0.1:7890",
 				HTTPS:   "http://127.0.0.1:7890",
 				All:     "socks5://127.0.0.1:7891",

@@ -39,14 +39,27 @@ repositories:
       - ".idea"
 
 # 后台异步 AI 写作与解剖引擎配置
+# 详细协议规范请查阅 docs/AI_RUNNER_SPEC.md
 ai:
-  # 外部 AI 命令行调用执行器 (需在系统 PATH 中，或填写绝对路径)
-  runner_cmd: "dagu-ai"
+  # 外部 AI 命令行调用执行器 (需在系统 PATH 中，或填写脚本绝对路径)
+  # 协议契约：DocLens 执行 `<runner_cmd> -p "<prompt>"`，并在标准输出捕获流式日志
+  # 
+  # 示例 1 (推荐)：使用自带的零依赖 Python 脚本 (兼容 DeepSeek / OpenAI / 智谱 / Kimi)
+  #   只需预先设置 export OPENAI_API_KEY="sk-..."
+  runner_cmd: "python3 scripts/ai_runner_example.py"
+  
+  # 示例 2：使用本地离线 Ollama 大模型
+  # runner_cmd: "bash scripts/ai_runner_ollama.sh"
+  
+  # 示例 3：接入系统中的自主编程 Agent (如 agy, claude, aider 等)
+  # runner_cmd: "agy"
+
   # 最大并发排队任务数
   max_queue: 10
-  # 保持历史默认行为：为 AI Runner 注入本机代理；不需要代理时设为 false
+
+  # 网络代理注入 (可选，为 AI Runner 子进程自动注入 http_proxy / https_proxy)
   proxy:
-    enabled: true
+    enabled: false
     http: "http://127.0.0.1:7890"
     https: "http://127.0.0.1:7890"
     all: "socks5://127.0.0.1:7891"

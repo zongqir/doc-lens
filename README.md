@@ -68,6 +68,7 @@ Traditional knowledge base setups often introduce heavy runtime stacks, multi-co
   - `Explain`: Extract core contradictions, balance sheets, and key takeaways.
 - **Detached Execution**: Close your browser or lock your phone; background AI tasks continue executing reliably.
 - **Terminal Control Console**: View live streaming logs, traffic-light status indicators, and execution history.
+- **Open CLI Runner Protocol (Zero SDK Lock-In)**: DocLens never hardcodes proprietary LLM SDKs. Via an elegant command-line interface (`-p "<prompt>"`), connect any external script (Python/Bash), local Ollama, or autonomous agent (Claude Code, agy, Aider). See [AI Runner Specification](docs/AI_RUNNER_SPEC.md).
 
 ### 5. 📱 Pixel-Perfect Mobile Touch Experience
 - **Responsive Architecture**: Collapsible sidebar, bottom-sheet TOC navigation drawer, and level-filtered outline toggles.
@@ -177,9 +178,34 @@ repositories:
       - "node_modules"
 
 ai:
-  runner_cmd: "dagu-ai"          # External AI CLI tool or proxy script
+  # External AI CLI runner (starter script, local Ollama, or agent)
+  runner_cmd: "python3 scripts/ai_runner_example.py"
   max_queue: 10                  # Max concurrent queuing tasks
 ```
+
+---
+
+## 🤖 External AI CLI Runner Protocol
+
+DocLens adheres to a **strictly decoupled philosophy**: rather than embedding proprietary LLM SDKs or cloud credentials into the Go binary, all AI logic is handled through a standard, lightweight **CLI Runner Protocol**.
+
+### The Minimalist Contract
+1. **Invocation**: DocLens dispatches background tasks via standard sub-process execution:
+   ```bash
+   <runner_cmd> -p "<prompt>"
+   ```
+2. **Working Directory (Cwd)**: Locked to the **root directory of the active repository**. The runner can inspect reference documents and create/modify Markdown files directly in place.
+3. **Live Streaming**: All `stdout` and `stderr` are piped in real-time to the web frontend's "AI Control Console".
+4. **Result Highlighting**: The runner simply prints `file:///path/to/repo/doc.md` upon completion. DocLens parses the URI and offers an instant one-click jump button in the UI.
+5. **Exit Code**: Exit code `0` denotes success (auto-refreshes tree cache); non-zero signals failure.
+
+### 📦 Ready-to-Use Reference Implementations
+DocLens provides battle-tested starter runners in the [scripts/](scripts/) directory:
+- **[scripts/ai_runner_example.py](scripts/ai_runner_example.py)**: Pure Python 3 standard library (**zero pip dependencies**). Drop-in compatible with DeepSeek, OpenAI, Moonshot/Kimi, Zhipu, etc. Simply set `export OPENAI_API_KEY="sk-..."`.
+- **[scripts/ai_runner_ollama.sh](scripts/ai_runner_ollama.sh)**: Pure Bash + curl for local offline Ollama models (e.g. `qwen2.5:7b`).
+- **Autonomous Agents**: Seamlessly integrate autonomous coding agents like Claude Code, Antigravity `agy`, or Aider by setting `runner_cmd: "agy"`.
+
+For complete technical specifications, see [docs/AI_RUNNER_SPEC.md](docs/AI_RUNNER_SPEC.md).
 
 ---
 

@@ -67,6 +67,7 @@
   - `解剖 (Explain)`：提炼核心矛盾、潜在盲点与核心账本总结。
 - **脱壳异步运行**：派发任务后手机锁屏或关闭网页，后台依然稳步运行，随时回到网页查看。
 - **终端控制台**：带红黄绿交通灯状态指示、多任务排队锁，以及打字机式的实时终端执行日志。
+- **公开的 CLI 执行器协议（零 SDK 绑定）**：DocLens 决不强制绑定任何厂商的专有 API。通过公开统一的极简命令行契约（`-p "<prompt>"`），支持接入任意外部 Python/Shell 脚本、本地 Ollama 或自主 Agent（Claude Code, agy, Aider）。详见 [AI Runner 协议规范](docs/AI_RUNNER_SPEC.md)。
 
 ### 5. 📱 手机触控端极致打磨
 - **三层触控响应式布局**：侧边抽屉、底部大纲 Bottom Sheet，支持 1级/2级/全部大纲一键收缩。
@@ -176,9 +177,34 @@ repositories:
       - "node_modules"
 
 ai:
-  runner_cmd: "dagu-ai"          # 外部 AI 命令行工具或脚本
+  # 外部 AI 命令行执行器 (可使用内置参考脚本、本地 Ollama 或外部 Agent)
+  runner_cmd: "python3 scripts/ai_runner_example.py"
   max_queue: 10                  # 最大并发排队任务数
 ```
+
+---
+
+## 🤖 外部 AI 命令行执行器协议 (AI Runner Protocol)
+
+DocLens 的 AI 机制坚持**高度解耦的设计哲学**：不硬编码任何厂商的私有 SDK，而是将模型调度完全抽象为标准的命令行程序契约。
+
+### 极简调用契约
+1. **调用规范**：DocLens 异步派发任务时，通过系统调用执行：
+   ```bash
+   <runner_cmd> -p "<prompt>"
+   ```
+2. **工作目录 (Cwd)**：子进程的工作目录始终锁定为**当前目标仓库的物理根目录**，脚本可直接读取上下文文档，并就地生成或修改 Markdown 文件。
+3. **实时打字机日志**：脚本的标准输出 (`stdout` / `stderr`) 会被实时采集并流式推送到 Web 前端「AI 任务控制台」。
+4. **产出直达反转**：脚本生成文件后，只需在控制台输出 `file:///path/to/repo/doc.md`，前端将自动识别并提供一键高亮直达按钮。
+5. **状态判定**：退出码为 `0` 判定为成功（自动刷新前端目录树）；非 `0` 判定为失败。
+
+### 📦 官方开箱即用参考脚本
+项目内置了经过实测的参考实现，均位于 [scripts/](scripts/) 目录：
+- **[scripts/ai_runner_example.py](scripts/ai_runner_example.py)**：纯 Python 3 标准库（**零 pip 依赖**），直接兼容 DeepSeek、OpenAI、智谱、Kimi 等标准接口。只需要设置环境变量 `export OPENAI_API_KEY="sk-..."` 即可直接工作。
+- **[scripts/ai_runner_ollama.sh](scripts/ai_runner_ollama.sh)**：纯 Bash + curl，开箱即用对接本地离线运行的 Ollama（如 `qwen2.5:7b`）。
+- **自主 Agent 接入**：若环境中已安装 Claude Code、Antigravity `agy` 或 Aider，直接配置 `runner_cmd: "agy"` 即可赋予 DocLens 强大的自主推理能力。
+
+完整技术规范与高级用法请阅读：[docs/AI_RUNNER_SPEC.md](docs/AI_RUNNER_SPEC.md)。
 
 ---
 

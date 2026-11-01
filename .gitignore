@@ -8,7 +8,9 @@ bin/
 coverage.out
 
 # Local knowledge-base content
-docs/
+docs/*
+!docs/AI_RUNNER_SPEC.md
+!docs/README.md
 
 # IDE and OS
 .DS_Store
