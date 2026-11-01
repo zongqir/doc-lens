@@ -87,6 +87,21 @@ func LoadConfig(configPath string) (*Config, error) {
 		_ = SaveConfig(configPath, &cfg)
 	}
 
+	if envPass := os.Getenv("DOCLENS_INITIAL_PASSWORD"); envPass != "" {
+		if hash, err := bcrypt.GenerateFromPassword([]byte(envPass), bcrypt.DefaultCost); err == nil {
+			cfg.Auth.PasswordHash = string(hash)
+			cfg.Auth.InitialPass = envPass
+		}
+	} else if cfg.Auth.PasswordHash == "" {
+		pass := cfg.Auth.InitialPass
+		if pass == "" {
+			pass = "admin888"
+		}
+		if hash, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost); err == nil {
+			cfg.Auth.PasswordHash = string(hash)
+		}
+	}
+
 	// Environment variable overrides
 	if envPort := os.Getenv("DOCLENS_PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {

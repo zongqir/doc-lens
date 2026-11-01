@@ -11,6 +11,7 @@ coverage.out
 docs/*
 !docs/AI_RUNNER_SPEC.md
 !docs/README.md
+.docker-data/
 
 # IDE and OS
 .DS_Store
