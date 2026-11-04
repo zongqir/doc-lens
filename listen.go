@@ -116,7 +116,7 @@ func (lm *ListenQueueManager) add(repoID, relPath, title string) (ListenItem, bo
 func (lm *ListenQueueManager) remove(id string) error {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
-	items := lm.queue.Items[:0]
+	items := make([]ListenItem, 0, len(lm.queue.Items))
 	for _, item := range lm.queue.Items {
 		if item.ID != id {
 			items = append(items, item)
@@ -129,6 +129,14 @@ func (lm *ListenQueueManager) remove(id string) error {
 			lm.queue.CurrentID = items[0].ID
 		}
 	}
+	return lm.saveLocked()
+}
+
+func (lm *ListenQueueManager) clear() error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+	lm.queue.Items = []ListenItem{}
+	lm.queue.CurrentID = ""
 	return lm.saveLocked()
 }
 
@@ -195,6 +203,7 @@ func (lm *ListenQueueManager) prepare(item ListenItem) {
 
 func (a *App) handleListenQueue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	switch r.Method {
 	case http.MethodGet:
 		_ = json.NewEncoder(w).Encode(a.lq.snapshot())
@@ -214,7 +223,14 @@ func (a *App) handleListenQueue(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"item": item, "added": added})
 	case http.MethodDelete:
-		if err := a.lq.remove(r.URL.Query().Get("id")); err != nil {
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		var err error
+		if id == "" {
+			err = a.lq.clear()
+		} else {
+			err = a.lq.remove(id)
+		}
+		if err != nil {
 			http.Error(w, `{"error":"remove failed"}`, 400)
 			return
 		}

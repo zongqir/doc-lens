@@ -7518,6 +7518,8 @@ body.is-resizing-toc .toc-sidebar {
 .listen-queue-header { display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-default); }
 .listen-queue-header strong { display:block;font-size:16px; }
 .listen-queue-header small { display:block;margin-top:3px;color:var(--text-muted);font-size:11px; }
+.listen-queue-clear-btn { border:0;background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;padding:6px 8px;border-radius:7px; }
+.listen-queue-clear-btn:hover { color:var(--danger-color,#ef4444);background:rgba(239,68,68,.1); }
 .listen-queue-list { overflow:auto;padding:8px; }
 .listen-queue-empty { padding:36px 20px;text-align:center;color:var(--text-muted);line-height:1.7; }
 .listen-queue-item { display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;border:1px solid transparent; }

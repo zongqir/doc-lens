@@ -130,6 +130,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("/api/audio/voices", a.requireAuth(a.handleAudioVoices))
 	mux.HandleFunc("/api/audio/generate", a.requireAuth(a.handleAudioGenerate))
 	mux.HandleFunc("/api/audio", a.requireAuth(a.handleAudio))
+	mux.HandleFunc("/api/audio.mp3", a.requireAuth(a.handleAudio))
 	mux.HandleFunc("/api/listen-queue", a.requireAuth(a.handleListenQueue))
 	mux.HandleFunc("/api/listen-progress", a.requireAuth(a.handleListenProgress))
 
@@ -802,7 +803,7 @@ func (a *App) handleAudioGenerate(w http.ResponseWriter, r *http.Request) {
 		"status": "ready",
 		"size":   fi.Size(),
 		"voice":  req.Voice,
-		"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", req.RepoID, cleanPath, req.Voice),
+		"url":    fmt.Sprintf("/api/audio.mp3?repo=%s&path=%s&voice=%s", req.RepoID, cleanPath, req.Voice),
 	})
 }
 
@@ -843,7 +844,7 @@ func (a *App) handleAudio(w http.ResponseWriter, r *http.Request) {
 			"cached": cached,
 			"size":   sz,
 			"voice":  voice,
-			"url":    fmt.Sprintf("/api/audio?repo=%s&path=%s&voice=%s", repoID, cleanPath, voice),
+			"url":    fmt.Sprintf("/api/audio.mp3?repo=%s&path=%s&voice=%s", repoID, cleanPath, voice),
 		})
 		return
 	}
